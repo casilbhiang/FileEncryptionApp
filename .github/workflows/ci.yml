@@ -32,9 +32,9 @@ jobs:
           cp .env.example .env || echo "No .env.example found"
 
       - name: Run tests
-        run: |
-          cd backend
-          pytest -v
+        working-directory: backend
+        run: pytest -v tests/
+
 
   frontend-build:
     runs-on: ubuntu-latest
