@@ -2,49 +2,63 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, dev ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, dev ]
 
 jobs:
   backend-tests:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      
+
       - name: Install dependencies
         run: |
           cd backend
+          pip install --upgrade pip
           pip install -r requirements.txt
-      
+          # Install pytest explicitly if not in requirements.txt
+          pip install pytest
+
+      - name: Prepare environment
+        run: |
+          cd backend
+          cp .env.example .env || echo "No .env.example found"
+
       - name: Run tests
         run: |
           cd backend
-          pytest
+          pytest -v
 
   frontend-build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Set up Node
         uses: actions/setup-node@v3
         with:
           node-version: '20'
-      
+
       - name: Install dependencies
+        working-directory: frontend
         run: |
-          cd frontend
-          npm ci
-      
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
       - name: Build
-        run: |
-          cd frontend
-          npm run build
+        working-directory: frontend
+        env:
+          VITE_SUPABASE_URL: "https://dummy.supabase.co"
+          VITE_SUPABASE_KEY: "public-anon-key"
+        run: npm run build
