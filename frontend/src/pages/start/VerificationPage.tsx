@@ -28,7 +28,7 @@ const VerificationPage: React.FC = () => {
   const [resendSuccess, setResendSuccess] = useState('');
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval>;
     if (resendCountdown > 0) {
       interval = setInterval(() => {
         setResendCountdown((prev) => prev - 1);
