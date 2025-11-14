@@ -166,6 +166,12 @@ const HomePage: React.FC = () => {
   ];
 
   const scrollToSection = (sectionId: string) => {
+    // If it's 'register', navigate to login page instead
+    if (sectionId === 'register') {
+      window.location.href = '/login';
+      return;
+    }
+    
     const element = document.getElementById(sectionId);
     element?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -174,7 +180,6 @@ const HomePage: React.FC = () => {
     <div className="min-h-screen bg-white">
       {/* TopBar Component */}
       <TopBar 
-        logoSrc="/path/to/your/logo.png"
         onNavClick={scrollToSection}
       />
 
@@ -463,12 +468,6 @@ const HomePage: React.FC = () => {
               className="px-8 py-3 bg-white text-blue-600 rounded-lg hover:bg-blue-50 font-semibold transition"
             >
               Get Started Now
-            </button>
-            <button
-              onClick={() => scrollToSection('hero')}
-              className="px-8 py-3 border-2 border-white text-white rounded-lg hover:bg-white hover:bg-opacity-10 font-semibold transition"
-            >
-              Sign In
             </button>
           </div>
         </div>

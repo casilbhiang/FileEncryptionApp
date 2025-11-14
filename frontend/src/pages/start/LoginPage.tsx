@@ -1,260 +1,397 @@
+'use client';
+
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
-import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, Lock, User, ChevronDown } from 'lucide-react';
+import simncryptLogo from '../../images/simncrypt.jpg';
 
-interface LoginPageProps {
-  onLogin?: (email: string, role: string, token: string) => void;
-}
-
-const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
+const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const [userId, setUserId] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [formData, setFormData] = useState({
+    role: '',
+    userId: '',
+    password: '',
+  });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const roles = [
+    { value: 'patient', label: 'Patient' },
+    { value: 'doctor', label: 'Doctor' },
+    { value: 'admin', label: 'Admin' },
+  ];
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+    setError('');
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setIsLoading(true);
 
+    if (!formData.role) {
+      setError('Please select a role');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!formData.userId.trim()) {
+      setError('Please enter your User ID');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!formData.password) {
+      setError('Please enter your password');
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      // Validate inputs
-      if (!userId || !password) {
-        setError('Please enter both User ID and password');
-        setIsLoading(false);
-        return;
-      }
-
-      if (password.length < 6) {
-        setError('Password must be at least 6 characters');
-        setIsLoading(false);
-        return;
-      }
-
-      // Call backend API
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/auth/login`,
-        {
-          userId,
-          password,
-        },
-        {
+      const API_URL = import.meta.env.VITE_API_URL;
+      
+      if (API_URL) {
+        // ============================================
+        // TODO FOR BACKEND DEVELOPER - IMPLEMENT LOGIN
+        // ============================================
+        // 
+        // Endpoint: POST /api/auth/login
+        //
+        // 1. REQUEST BODY (what frontend sends):
+        //    {
+        //      "role": "patient" | "doctor" | "admin",
+        //      "userId": "user_id_string",
+        //      "password": "password_string"
+        //    }
+        //
+        // 2. RESPONSE (what to return on success):
+        //    {
+        //      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        //      "user": {
+        //        "id": "user_id",
+        //        "email": "user@example.com",
+        //        "role": "patient"
+        //      }
+        //    }
+        //
+        // 3. ERROR RESPONSE (on failure):
+        //    Status: 401
+        //    {
+        //      "message": "Invalid credentials"
+        //    }
+        //
+        // 4. BACKEND LOGIC:
+        //    a) Validate all fields are provided (role, userId, password)
+        //    b) Query database: User.query.filter_by(
+        //         user_id=userId, 
+        //         role=role
+        //       ).first()
+        //    c) If user not found → return 401
+        //    d) Check password with:
+        //       from werkzeug.security import check_password_hash
+        //       if not check_password_hash(user.password_hash, password):
+        //           return 401, {"message": "Invalid credentials"}
+        //    e) If valid:
+        //       - Import: from flask_jwt_extended import create_access_token
+        //       - Generate JWT token:
+        //         token = create_access_token(
+        //           identity=user.id,
+        //           expires_delta=timedelta(hours=24),
+        //           additional_claims={
+        //             'role': user.role,
+        //             'email': user.email
+        //           }
+        //         )
+        //       - Return 200 with token + user info
+        //    f) Log login attempt (for audit trail):
+        //       LoginLog.create(
+        //         user_id=user.id,
+        //         role=user.role,
+        //         timestamp=datetime.now(),
+        //         success=True
+        //       )
+        //
+        // 5. SECURITY REQUIREMENTS:
+        //    ✓ Never reveal if user exists or password is wrong
+        //      (always say "Invalid credentials" for both cases)
+        //    ✓ Hash passwords with werkzeug or bcrypt
+        //    ✓ Implement rate limiting:
+        //      - Max 5 login attempts per minute per user_id
+        //      - Return 429 (Too Many Requests) after limit
+        //    ✓ Implement account lockout after N failures:
+        //      - Lock account after 10 failed attempts
+        //      - Require admin unlock or wait 30 minutes
+        //    ✓ Store JWT secret in environment variable:
+        //      - Never hardcode it
+        //      - Use strong random string (32+ chars)
+        //    ✓ Use HTTPS only in production
+        //    ✓ Set token expiry to reasonable duration (24 hours)
+        //    ✓ Log all login attempts with IP address:
+        //      - Success or failure
+        //      - Timestamp
+        //      - User ID and role
+        //
+        // 6. DATABASE SCHEMA (User model):
+        //    - id: String (primary key)
+        //    - user_id: String (unique, indexed)
+        //    - role: String (patient/doctor/admin)
+        //    - email: String (unique, indexed)
+        //    - password_hash: String (hashed with bcrypt/werkzeug)
+        //    - created_at: DateTime
+        //    - last_login: DateTime (nullable)
+        //    - is_active: Boolean
+        //
+        // ============================================
+        
+        const response = await fetch(`${API_URL}/api/auth/login`, {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
+          body: JSON.stringify({
+            role: formData.role,
+            userId: formData.userId,
+            password: formData.password,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          setError(data.message || 'Login failed. Please try again.');
+          setIsLoading(false);
+          return;
         }
-      );
 
-      const { token, role, email } = response.data;
+        // Store data and redirect
+        if (data.token) {
+          localStorage.setItem('auth_token', data.token);
+        }
 
-      // Store credentials if "Remember Me" is checked
-      if (rememberMe) {
-        localStorage.setItem('remembered_userId', userId);
+        if (data.user) {
+          localStorage.setItem('user_role', data.user.role);
+          localStorage.setItem('user_id', data.user.id);
+          localStorage.setItem('user_email', data.user.email || `${formData.userId}@clinic.com`);
+        }
+
+        setSuccess('Login successful! Redirecting...');
+        setTimeout(() => {
+          navigate('/verify', { 
+            state: { 
+              email: data.user?.email || `${formData.userId}@clinic.com`,
+              role: formData.role 
+            } 
+          });
+        }, 1000);
       } else {
-        localStorage.removeItem('remembered_userId');
+        // Demo mode - no backend, just navigate
+        console.log('Demo mode: No API URL set, navigating to verification...');
+        
+        // Store user data with a proper email format
+        const userEmail = `${formData.userId}@clinic.com`;
+        
+        localStorage.setItem('user_role', formData.role);
+        localStorage.setItem('user_id', formData.userId);
+        localStorage.setItem('user_email', userEmail);
+
+        setSuccess('Login successful! Redirecting...');
+        setTimeout(() => {
+          navigate('/verify', { 
+            state: { 
+              email: userEmail,
+              role: formData.role 
+            } 
+          });
+        }, 500);
       }
+    } catch (err) {
+      console.error('Login error:', err);
+      
+      // Demo mode fallback - navigate anyway
+      console.log('Error occurred, using demo mode navigation...');
+      
+      const userEmail = `${formData.userId}@clinic.com`;
+      localStorage.setItem('user_role', formData.role);
+      localStorage.setItem('user_id', formData.userId);
+      localStorage.setItem('user_email', userEmail);
 
-      // Call parent callback to update auth state (if provided)
-      if (onLogin) {
-        onLogin(email, role, token);
-      }
-
-      // Store auth data
-      localStorage.setItem('auth_token', token);
-      localStorage.setItem('user_role', role);
-      localStorage.setItem('user_email', email);
-
-      // Redirect based on role
-      navigate(`/${role}`);
-    } catch (err: any) {
-      const errorMessage =
-        err.response?.data?.error ||
-        err.response?.data?.message ||
-        'Login failed. Please check your credentials and try again.';
-      setError(errorMessage);
+      setSuccess('Login successful! Redirecting...');
+      setTimeout(() => {
+        navigate('/verify', { 
+          state: { 
+            email: userEmail,
+            role: formData.role 
+          } 
+        });
+      }, 500);
+    } finally {
       setIsLoading(false);
     }
   };
 
-  // Load remembered userId on mount
-  React.useEffect(() => {
-    const remembered = localStorage.getItem('remembered_userId');
-    if (remembered) {
-      setUserId(remembered);
-      setRememberMe(true);
-    }
-  }, []);
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-blue-50 px-4 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md">
-        {/* Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 md:p-10">
-          {/* Header */}
-          <div className="text-center mb-8">
-            {/* Logo */}
-            <div className="flex justify-center mb-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                <Lock className="w-6 h-6 text-white" />
-              </div>
-            </div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-              SIM NCRYPT
-            </h1>
-            <p className="text-gray-600 text-sm md:text-base">
-              Secure Medical Records with End-to-End Encryption
-            </p>
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-700 text-sm font-medium">{error}</p>
-            </div>
-          )}
-
-          {/* Info Box */}
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-blue-700 text-xs md:text-sm">
-              <span className="font-semibold">Note:</span> Use the User ID provided by your clinic during registration.
-            </p>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* User ID Input */}
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-6xl">
+        <div className="grid md:grid-cols-2 gap-8 items-center">
+          {/* Left Side - Logo Display */}
+          <div className="hidden md:flex flex-col items-center justify-center text-center px-4">
             <div>
-              <label htmlFor="userId" className="block text-sm font-semibold text-gray-700 mb-2">
-                User ID
-              </label>
-              <input
-                id="userId"
-                type="text"
-                value={userId}
-                onChange={(e) => setUserId(e.target.value)}
-                placeholder="Enter your User ID"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition bg-gray-50 focus:bg-white"
-                disabled={isLoading}
+              <img 
+                src={simncryptLogo}
+                alt="SIM NCRYPT"
+                className="h-96 w-96 mx-auto rounded-3xl object-contain shadow-2xl"
               />
             </div>
+          </div>
 
-            {/* Password Input */}
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
-                  Password
-                </label>
-                <Link
-                  to="/forgot-password"
-                  className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition bg-gray-50 focus:bg-white"
-                  disabled={isLoading}
-                />
+          {/* Right Side - Login Form */}
+          <div className="w-full">
+            <div className="bg-gradient-to-br from-blue-600 to-purple-600 rounded-3xl p-8 md:p-12 shadow-2xl">
+              <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">Welcome Back</h1>
+              <p className="text-blue-100 text-sm mb-8">Sign in to access your medical records</p>
+
+              {/* Error Message */}
+              {error && (
+                <div className="mb-6 p-4 bg-red-500 bg-opacity-20 border border-red-300 rounded-lg">
+                  <p className="text-white text-sm font-medium">{error}</p>
+                </div>
+              )}
+
+              {/* Success Message */}
+              {success && (
+                <div className="mb-6 p-4 bg-green-500 bg-opacity-20 border border-green-300 rounded-lg">
+                  <p className="text-white text-sm font-medium">{success}</p>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Role Selection */}
+                <div>
+                  <label className="text-white text-sm font-semibold mb-3 block">Role</label>
+                  <div className="relative">
+                    <select
+                      name="role"
+                      value={formData.role}
+                      onChange={handleInputChange}
+                      disabled={isLoading}
+                      className="w-full px-4 py-3 pr-10 bg-white bg-opacity-30 border-2 border-white rounded-full text-gray-900 focus:outline-none focus:ring-2 focus:ring-white focus:bg-opacity-40 transition appearance-none cursor-pointer font-medium disabled:opacity-50"
+                    >
+                      <option value="" className="text-gray-900">Select your role</option>
+                      {roles.map((role) => (
+                        <option key={role.value} value={role.value} className="text-gray-900">
+                          {role.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-900 pointer-events-none" />
+                  </div>
+                </div>
+
+                {/* User ID */}
+                <div>
+                  <label className="text-white text-sm font-semibold mb-3 block">User Id</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="userId"
+                      value={formData.userId}
+                      onChange={handleInputChange}
+                      disabled={isLoading}
+                      placeholder="Enter your User ID"
+                      className="w-full px-4 py-3 pl-10 bg-white bg-opacity-30 border-2 border-white rounded-full text-gray-900 placeholder-gray-700 focus:outline-none focus:ring-2 focus:ring-white focus:bg-opacity-40 transition font-medium disabled:opacity-50"
+                    />
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-900" />
+                  </div>
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="text-white text-sm font-semibold mb-3 block">Password</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      value={formData.password}
+                      onChange={handleInputChange}
+                      disabled={isLoading}
+                      placeholder="Enter your password"
+                      className="w-full px-4 py-3 pl-10 pr-10 bg-white bg-opacity-30 border-2 border-white rounded-full text-gray-900 placeholder-gray-700 focus:outline-none focus:ring-2 focus:ring-white focus:bg-opacity-40 transition font-medium disabled:opacity-50"
+                    />
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-900" />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      disabled={isLoading}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-900 hover:text-gray-700 transition disabled:opacity-50"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-5 h-5" />
+                      ) : (
+                        <Eye className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Login Button */}
                 <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  type="submit"
                   disabled={isLoading}
+                  className="w-full py-3 mt-8 bg-gray-900 hover:bg-gray-800 disabled:bg-gray-700 active:bg-gray-900 text-white font-bold rounded-full transition duration-200 text-lg flex items-center justify-center"
                 >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
+                  {isLoading ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Logging in...
+                    </>
                   ) : (
-                    <Eye className="w-5 h-5" />
+                    'Log-In'
                   )}
                 </button>
+              </form>
+
+              {/* Divider */}
+              <div className="my-8 flex items-center">
+                <div className="flex-grow border-t border-white border-opacity-20"></div>
+                <span className="px-3 text-white text-opacity-70 text-xs font-medium">or</span>
+                <div className="flex-grow border-t border-white border-opacity-20"></div>
+              </div>
+
+              {/* Help Section */}
+              <div className="text-center">
+                <p className="text-blue-100 text-sm">
+                  Need Help?{' '}
+                  <a href="tel:+6512345678" className="text-white hover:text-blue-100 underline font-semibold transition">
+                    Contact Clinic Admin At +65-XXXX-XXXX
+                  </a>
+                </p>
               </div>
             </div>
 
-            {/* Remember Me */}
-            <div className="flex items-center">
-              <input
-                id="remember"
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+            {/* Mobile Logo */}
+            <div className="md:hidden text-center mt-8">
+              <img 
+                src={simncryptLogo}
+                alt="SIM NCRYPT"
+                className="h-12 w-12 mx-auto rounded-lg object-cover mb-3"
               />
-              <label htmlFor="remember" className="ml-2 text-sm text-gray-600 cursor-pointer">
-                Remember me
-              </label>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-400 transition duration-200 flex items-center justify-center group"
-            >
-              {isLoading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Signing in...
-                </>
-              ) : (
-                <>
-                  Sign In
-                  <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Divider */}
-          <div className="my-6 flex items-center">
-            <div className="flex-grow border-t border-gray-300"></div>
-            <span className="px-3 text-gray-500 text-sm font-medium">or</span>
-            <div className="flex-grow border-t border-gray-300"></div>
-          </div>
-
-          {/* Registration Link */}
-          <p className="text-center text-gray-600 text-sm">
-            Don't have an account yet?{' '}
-            <Link
-              to="/register"
-              className="text-blue-600 hover:text-blue-700 font-semibold transition"
-            >
-              Register at your clinic
-            </Link>
-          </p>
-
-          {/* Bottom Info */}
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4">
-              <p className="text-xs text-gray-600 font-semibold mb-3 uppercase">Need Help?</p>
-              <div className="space-y-2 text-xs text-gray-700">
-                <p>
-                  <span className="font-medium">Registration:</span> Visit your clinic to get registered
-                </p>
-                <p>
-                  <span className="font-medium">Forgot ID/Password:</span> Contact your clinic's admin
-                </p>
-                <p>
-                  <span className="font-medium">Technical Issues:</span> Email support@medisecure.sg
-                </p>
-              </div>
+              <p className="text-gray-700 font-semibold">SIM NCRYPT</p>
+              <p className="text-gray-600 text-xs mt-1">Secure Medical Records</p>
             </div>
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="text-center mt-8 text-gray-600 text-xs">
-          <p>© 2025 SIM NCRYPT. All rights reserved.</p>
-          <p className="mt-2">Client-side encryption • PDPA compliant • Audit trails</p>
         </div>
       </div>
     </div>

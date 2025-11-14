@@ -58,12 +58,7 @@ const TopBar: React.FC<TopBarProps> = ({ onNavClick }) => {
             >
               Features
             </button>
-            <button 
-              onClick={() => scrollToSection('register')}
-              className="text-gray-600 hover:text-gray-900 text-sm font-medium transition cursor-pointer"
-            >
-              Get Started
-            </button>
+
           </div>
 
           {/* Right Section - Sign In Button + Mobile Menu */}
@@ -110,12 +105,6 @@ const TopBar: React.FC<TopBarProps> = ({ onNavClick }) => {
               className="block w-full text-left px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-50 text-sm font-medium"
             >
               Features
-            </button>
-            <button
-              onClick={() => scrollToSection('register')}
-              className="block w-full text-left px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-50 text-sm font-medium"
-            >
-              Get Started
             </button>
           </div>
         )}
