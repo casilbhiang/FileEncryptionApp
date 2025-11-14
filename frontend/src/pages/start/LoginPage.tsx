@@ -195,7 +195,7 @@ const LoginPage: React.FC = () => {
         }, 1000);
       } else {
         // Demo mode - no backend, just navigate
-        console.log('Demo mode: No API URL set, navigating to verification...');
+        console.log('Demo mode: No API URL set, navigating...');
         
         // Store user data with a proper email format
         const userEmail = `${formData.userId}@clinic.com`;
@@ -204,15 +204,31 @@ const LoginPage: React.FC = () => {
         localStorage.setItem('user_id', formData.userId);
         localStorage.setItem('user_email', userEmail);
 
-        setSuccess('Login successful! Redirecting...');
-        setTimeout(() => {
-          navigate('/verify', { 
-            state: { 
-              email: userEmail,
-              role: formData.role 
-            } 
-          });
-        }, 500);
+        // Demo: Check if password is temporary (matches user ID for demo)
+        // In real implementation, backend will tell you if it's a temporary password
+        const isTemporaryPassword = formData.password === 'temp123' || formData.password === 'temporary';
+        
+        if (isTemporaryPassword) {
+          setSuccess('Login successful! Redirecting to password reset...');
+          setTimeout(() => {
+            navigate('/reset-password', { 
+              state: { 
+                userId: formData.userId,
+                role: formData.role 
+              } 
+            });
+          }, 500);
+        } else {
+          setSuccess('Login successful! Redirecting...');
+          setTimeout(() => {
+            navigate('/verify', { 
+              state: { 
+                email: userEmail,
+                role: formData.role 
+              } 
+            });
+          }, 500);
+        }
       }
     } catch (err) {
       console.error('Login error:', err);

@@ -15,18 +15,6 @@ const VerificationPage: React.FC = () => {
   const location = useLocation();
   const state = location.state as LocationState;
   
-  // TODO for backend developer:
-  // The email should be retrieved from:
-  // 1. localStorage (set during login) - current implementation
-  // 2. OR pass via location state from LoginPage
-  // 3. OR fetch from database using user_id from localStorage
-  // 
-  // Suggested backend approach:
-  // - Store email in JWT token claims during login
-  // - Retrieve from token on verification page
-  // - OR query database: User.query.filter_by(user_id=stored_user_id).first()
-  
-  // Get email from state first, then localStorage, then use placeholder
   const email = state?.email || localStorage.getItem('user_email') || 'your.email@example.com';
   const role = state?.role || localStorage.getItem('user_role') || 'patient';
   
@@ -39,7 +27,6 @@ const VerificationPage: React.FC = () => {
   const [resendCountdown, setResendCountdown] = useState(0);
   const [resendSuccess, setResendSuccess] = useState('');
 
-  // Countdown timer for resend button
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (resendCountdown > 0) {
@@ -58,24 +45,20 @@ const VerificationPage: React.FC = () => {
   const handleResendCode = async () => {
     setResendSuccess('');
     setError('');
-    setResendCountdown(60); // Start 60 second countdown
+    setResendCountdown(60);
 
     try {
       const API_URL = import.meta.env.VITE_API_URL;
       
       if (API_URL) {
-        // If API URL is set, try to call backend
-        // TODO for backend developer:
+        // ============================================
+        // TODO FOR BACKEND DEVELOPER
+        // ============================================
         // Implement POST /api/auth/resend-code endpoint
         // 
         // Expected request body:
         // {
         //   "email": "user@example.com"
-        // }
-        // OR (recommended):
-        // {
-        //   "user_id": "user123",
-        //   "token": "jwt_token"
         // }
         //
         // Response should return:
@@ -83,13 +66,7 @@ const VerificationPage: React.FC = () => {
         //   "message": "Code sent successfully",
         //   "success": true
         // }
-        //
-        // Backend logic:
-        // 1. Find user by email or user_id
-        // 2. Generate new 6-digit verification code
-        // 3. Send code via email (use email service like SendGrid, AWS SES, etc)
-        // 4. Store code in database with 10-15 minute expiry
-        // 5. Return success response
+        // ============================================
         
         const response = await fetch(`${API_URL}/api/auth/resend-code`, {
           method: 'POST',
@@ -111,7 +88,7 @@ const VerificationPage: React.FC = () => {
 
         setResendSuccess('Code sent successfully! Check your email.');
       } else {
-        // Demo mode - just show success
+        // Demo mode
         console.log('Demo mode: Code resent to', email);
         setResendSuccess('Code sent successfully! Check your email.');
       }
@@ -134,8 +111,8 @@ const VerificationPage: React.FC = () => {
       return;
     }
 
-    if (code.length < 4) {
-      setError('Code must be at least 4 characters');
+    if (code.length == 4) {
+      setError('Code is wrong. Please check and try again.');
       setIsLoading(false);
       return;
     }
@@ -144,8 +121,9 @@ const VerificationPage: React.FC = () => {
       const API_URL = import.meta.env.VITE_API_URL;
       
       if (API_URL) {
-        // If API URL is set, try to call backend
-        // TODO for backend developer:
+        // ============================================
+        // 🔥 CRITICAL FOR BACKEND DEVELOPER 🔥
+        // ============================================
         // Implement POST /api/auth/verify endpoint
         //
         // Expected request body:
@@ -153,26 +131,22 @@ const VerificationPage: React.FC = () => {
         //   "code": "123456",
         //   "email": "user@example.com"
         // }
-        // OR (recommended):
-        // {
-        //   "code": "123456",
-        //   "user_id": "user123"
-        // }
         //
-        // Response should return:
+        // 🔑 IMPORTANT: Response MUST include is_first_login field
+        //
+        // Response format:
         // {
         //   "message": "Verification successful",
         //   "verified": true,
-        //   "token": "new_jwt_token" (optional - for session refresh)
+        //   "is_first_login": true,    // 🔑 KEY FIELD
+        //   "role": "patient",
+        //   "token": "jwt_token_here"
         // }
         //
-        // Backend logic:
-        // 1. Find verification code in database for user
-        // 2. Check if code matches and hasn't expired (usually 10-15 mins)
-        // 3. Check code attempt count (limit retries to prevent brute force)
-        // 4. If valid: mark user as verified, delete code from DB
-        // 5. Return success response
-        // 6. If invalid: increment attempt counter, return error
+        // 🎯 ROUTING LOGIC:
+        // - is_first_login = true  → User goes to /reset-password page
+        // - is_first_login = false → User goes to dashboard (/${role})
+        // ============================================
         
         const response = await fetch(`${API_URL}/api/auth/verify`, {
           method: 'POST',
@@ -181,6 +155,7 @@ const VerificationPage: React.FC = () => {
           },
           body: JSON.stringify({
             code: code,
+            email: email,
           }),
         });
 
@@ -192,31 +167,72 @@ const VerificationPage: React.FC = () => {
           return;
         }
 
-        setSuccess('Verification successful! Logging you in...');
+        setSuccess('Verification successful!');
         setCode('');
         
+        // 🔑 KEY ROUTING LOGIC - Based on is_first_login flag from backend
         setTimeout(() => {
-          navigate(`/${role}`, { replace: true });
+          if (data.is_first_login === true) {
+            // First time login - User must reset temporary password
+            console.log('First login detected - redirecting to reset password page');
+            navigate('/reset-password', { 
+              replace: true,
+              state: {
+                email: email,
+                role: data.role || role,
+                userId: data.user_id
+              }
+            });
+          } else {
+            // Regular login - Go to dashboard
+            console.log('Regular login - redirecting to dashboard');
+            navigate(`/${data.role || role}`, { replace: true });
+          }
         }, 1500);
       } else {
-        // Demo mode - bypass API
-        console.log('Demo mode: Code accepted');
-        setSuccess('Verification successful! Logging you in...');
+        // ============================================
+        // DEMO MODE - NO BACKEND
+        // For testing: ALWAYS go to reset password page
+        // ============================================
+        console.log('🎮 DEMO MODE: No backend detected');
+        console.log('✅ Code accepted:', code);
+        
+        setSuccess('Verification successful!');
         setCode('');
         
+        // 🔑 DEMO MODE: Always redirect to reset password page for testing
         setTimeout(() => {
-          navigate(`/${role}`, { replace: true });
+          console.log('📍 DEMO: Redirecting to /reset-password');
+          navigate('/reset-password', { 
+            replace: true,
+            state: {
+              email: email,
+              role: role
+            }
+          });
         }, 1500);
       }
     } catch (err) {
       console.error('Verification error:', err);
       
-      // Demo fallback
-      setSuccess('Verification successful! Logging you in...');
+      // ============================================
+      // ERROR FALLBACK - DEMO MODE
+      // Even if there's an error, still go to reset password for testing
+      // ============================================
+      console.log('⚠️ Error occurred, using demo fallback');
+      
+      setSuccess('Verification successful!');
       setCode('');
       
       setTimeout(() => {
-        navigate(`/${role}`, { replace: true });
+        console.log('📍 FALLBACK: Redirecting to /reset-password');
+        navigate('/reset-password', { 
+          replace: true,
+          state: {
+            email: email,
+            role: role
+          }
+        });
       }, 1500);
     } finally {
       setIsLoading(false);
@@ -227,7 +243,7 @@ const VerificationPage: React.FC = () => {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 sm:px-6 lg:px-8">
       <div className="w-full max-w-6xl">
         <div className="grid md:grid-cols-2 gap-8 items-center">
-          {/* Left Side - Logo Display (Same as LoginPage) */}
+          {/* Left Side - Logo Display */}
           <div className="hidden md:flex flex-col items-center justify-center text-center px-4">
             <div>
               <img 
