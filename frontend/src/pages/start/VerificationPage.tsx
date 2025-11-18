@@ -28,7 +28,7 @@ const VerificationPage: React.FC = () => {
   const [resendSuccess, setResendSuccess] = useState('');
 
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
+    let interval: NodeJS.Timeout;
     if (resendCountdown > 0) {
       interval = setInterval(() => {
         setResendCountdown((prev) => prev - 1);
@@ -111,8 +111,8 @@ const VerificationPage: React.FC = () => {
       return;
     }
 
-    if (code.length == 4) {
-      setError('Code is wrong. Please check and try again.');
+    if (code.length < 4) {
+      setError('Code must be at least 4 characters');
       setIsLoading(false);
       return;
     }
@@ -192,7 +192,7 @@ const VerificationPage: React.FC = () => {
       } else {
         // ============================================
         // DEMO MODE - NO BACKEND
-        // For testing: ALWAYS go to reset password page
+        // Check is_first_login flag to decide where to go
         // ============================================
         console.log('🎮 DEMO MODE: No backend detected');
         console.log('✅ Code accepted:', code);
@@ -200,16 +200,27 @@ const VerificationPage: React.FC = () => {
         setSuccess('Verification successful!');
         setCode('');
         
-        // 🔑 DEMO MODE: Always redirect to reset password page for testing
+        // 🔑 Check localStorage for first login flag
+        const isFirstLogin = localStorage.getItem('is_first_login') === 'true';
+        
+        console.log('📍 is_first_login flag:', isFirstLogin);
+        
         setTimeout(() => {
-          console.log('📍 DEMO: Redirecting to /reset-password');
-          navigate('/reset-password', { 
-            replace: true,
-            state: {
-              email: email,
-              role: role
-            }
-          });
+          if (isFirstLogin) {
+            // First-time user: Go to reset password page
+            console.log('🔄 First-time user → Redirecting to /reset-password');
+            navigate('/reset-password', { 
+              replace: true,
+              state: {
+                email: email,
+                role: role
+              }
+            });
+          } else {
+            // Existing user: Go to dashboard
+            console.log('✅ Existing user → Redirecting to /' + role);
+            navigate(`/${role}`, { replace: true });
+          }
         }, 1500);
       }
     } catch (err) {
@@ -217,22 +228,30 @@ const VerificationPage: React.FC = () => {
       
       // ============================================
       // ERROR FALLBACK - DEMO MODE
-      // Even if there's an error, still go to reset password for testing
+      // Check is_first_login flag to decide where to go
       // ============================================
       console.log('⚠️ Error occurred, using demo fallback');
       
       setSuccess('Verification successful!');
       setCode('');
       
+      // Check localStorage for first login flag
+      const isFirstLogin = localStorage.getItem('is_first_login') === 'true';
+      
       setTimeout(() => {
-        console.log('📍 FALLBACK: Redirecting to /reset-password');
-        navigate('/reset-password', { 
-          replace: true,
-          state: {
-            email: email,
-            role: role
-          }
-        });
+        if (isFirstLogin) {
+          console.log('📍 FALLBACK: First-time user → /reset-password');
+          navigate('/reset-password', { 
+            replace: true,
+            state: {
+              email: email,
+              role: role
+            }
+          });
+        } else {
+          console.log('📍 FALLBACK: Existing user → /' + role);
+          navigate(`/${role}`, { replace: true });
+        }
       }, 1500);
     } finally {
       setIsLoading(false);
@@ -338,16 +357,6 @@ const VerificationPage: React.FC = () => {
                   )}
                 </button>
               </form>
-
-              {/* Back to Login */}
-              <div className="mt-8 pt-6 border-t border-white border-opacity-20 text-center">
-                <p className="text-blue-100 text-sm">
-                  Wrong email?{' '}
-                  <a href="/login" className="text-white hover:text-blue-100 underline font-semibold transition">
-                    Back to Login
-                  </a>
-                </p>
-              </div>
             </div>
 
             {/* Mobile Logo */}

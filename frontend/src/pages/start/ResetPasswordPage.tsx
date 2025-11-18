@@ -337,7 +337,7 @@ const ResetPasswordPage: React.FC = () => {
               {/* Help Section */}
               <div className="mt-8 pt-6 border-t border-white border-opacity-20 text-center">
                 <p className="text-white text-sm">
-                  Need help? Contact clinic admin at +65-xxxx-xxxx
+                  Need help? Email to clinic admin fyp2502@gmail.com 
                 </p>
               </div>
             </div>
