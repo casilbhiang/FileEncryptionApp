@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import { QrCode, Camera, AlertTriangle } from 'lucide-react';
 
-const PConnectToDocPage: React.FC = () => {
+const DConnectToPatientPage: React.FC = () => {
   const [isConnected] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
 
@@ -17,7 +17,7 @@ const PConnectToDocPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-100 flex">
       {/* Sidebar */}
-      <Sidebar userRole="patient" currentPage="connect" />
+      <Sidebar userRole="doctor" currentPage="connect" />
 
       {/* Main Content */}
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
@@ -136,4 +136,4 @@ const PConnectToDocPage: React.FC = () => {
   );
 };
 
-export default PConnectToDocPage;
+export default DConnectToPatientPage;

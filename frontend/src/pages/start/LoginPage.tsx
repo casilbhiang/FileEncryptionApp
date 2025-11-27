@@ -80,76 +80,15 @@ const LoginPage: React.FC = () => {
         //      "user": {
         //        "id": "user_id",
         //        "email": "user@example.com",
-        //        "role": "patient"
+        //        "role": "patient",
+        //        "is_first_login": true  // 🔑 IMPORTANT: Add this field
         //      }
         //    }
         //
-        // 3. ERROR RESPONSE (on failure):
-        //    Status: 401
-        //    {
-        //      "message": "Invalid credentials"
-        //    }
-        //
-        // 4. BACKEND LOGIC:
-        //    a) Validate all fields are provided (role, userId, password)
-        //    b) Query database: User.query.filter_by(
-        //         user_id=userId, 
-        //         role=role
-        //       ).first()
-        //    c) If user not found → return 401
-        //    d) Check password with:
-        //       from werkzeug.security import check_password_hash
-        //       if not check_password_hash(user.password_hash, password):
-        //           return 401, {"message": "Invalid credentials"}
-        //    e) If valid:
-        //       - Import: from flask_jwt_extended import create_access_token
-        //       - Generate JWT token:
-        //         token = create_access_token(
-        //           identity=user.id,
-        //           expires_delta=timedelta(hours=24),
-        //           additional_claims={
-        //             'role': user.role,
-        //             'email': user.email
-        //           }
-        //         )
-        //       - Return 200 with token + user info
-        //    f) Log login attempt (for audit trail):
-        //       LoginLog.create(
-        //         user_id=user.id,
-        //         role=user.role,
-        //         timestamp=datetime.now(),
-        //         success=True
-        //       )
-        //
-        // 5. SECURITY REQUIREMENTS:
-        //    ✓ Never reveal if user exists or password is wrong
-        //      (always say "Invalid credentials" for both cases)
-        //    ✓ Hash passwords with werkzeug or bcrypt
-        //    ✓ Implement rate limiting:
-        //      - Max 5 login attempts per minute per user_id
-        //      - Return 429 (Too Many Requests) after limit
-        //    ✓ Implement account lockout after N failures:
-        //      - Lock account after 10 failed attempts
-        //      - Require admin unlock or wait 30 minutes
-        //    ✓ Store JWT secret in environment variable:
-        //      - Never hardcode it
-        //      - Use strong random string (32+ chars)
-        //    ✓ Use HTTPS only in production
-        //    ✓ Set token expiry to reasonable duration (24 hours)
-        //    ✓ Log all login attempts with IP address:
-        //      - Success or failure
-        //      - Timestamp
-        //      - User ID and role
-        //
-        // 6. DATABASE SCHEMA (User model):
-        //    - id: String (primary key)
-        //    - user_id: String (unique, indexed)
-        //    - role: String (patient/doctor/admin)
-        //    - email: String (unique, indexed)
-        //    - password_hash: String (hashed with bcrypt/werkzeug)
-        //    - created_at: DateTime
-        //    - last_login: DateTime (nullable)
-        //    - is_active: Boolean
+        // 3. BACKEND LOGIC:
+        //    - Check user.is_first_login in database
+        //    - Return it in the response
+        //    - Frontend will use this to decide: reset password or verify code
         //
         // ============================================
         
@@ -173,7 +112,7 @@ const LoginPage: React.FC = () => {
           return;
         }
 
-        // Store data and redirect
+        // Store data
         if (data.token) {
           localStorage.setItem('auth_token', data.token);
         }
@@ -182,6 +121,9 @@ const LoginPage: React.FC = () => {
           localStorage.setItem('user_role', data.user.role);
           localStorage.setItem('user_id', data.user.id);
           localStorage.setItem('user_email', data.user.email || `${formData.userId}@clinic.com`);
+          
+          // 🔑 Store first login status from backend
+          localStorage.setItem('is_first_login', data.user.is_first_login ? 'true' : 'false');
         }
 
         setSuccess('Login successful! Redirecting...');
@@ -194,52 +136,58 @@ const LoginPage: React.FC = () => {
           });
         }, 1000);
       } else {
-        // Demo mode - no backend, just navigate
-        console.log('Demo mode: No API URL set, navigating...');
+        // ============================================
+        // DEMO MODE - FOR TESTING WITHOUT BACKEND
+        // ============================================
+        console.log('🎮 Demo mode: No backend detected');
         
-        // Store user data with a proper email format
         const userEmail = `${formData.userId}@clinic.com`;
         
         localStorage.setItem('user_role', formData.role);
         localStorage.setItem('user_id', formData.userId);
         localStorage.setItem('user_email', userEmail);
 
-        // Demo: Check if password is temporary (matches user ID for demo)
-        // In real implementation, backend will tell you if it's a temporary password
-        const isTemporaryPassword = formData.password === 'temp123' || formData.password === 'temporary';
+        // 🔑 DEMO LOGIC: Determine if first-time login
+        // Option 1: Check if password is "temp123" (temporary password)
+        // Option 2: Check if user ID starts with "NEW" (new user)
         
-        if (isTemporaryPassword) {
-          setSuccess('Login successful! Redirecting to password reset...');
-          setTimeout(() => {
-            navigate('/reset-password', { 
-              state: { 
-                userId: formData.userId,
-                role: formData.role 
-              } 
-            });
-          }, 500);
-        } else {
-          setSuccess('Login successful! Redirecting...');
-          setTimeout(() => {
-            navigate('/verify', { 
-              state: { 
-                email: userEmail,
-                role: formData.role 
-              } 
-            });
-          }, 500);
-        }
+        const isTemporaryPassword = formData.password === 'temp123';
+        const isNewUser = formData.userId.toUpperCase().startsWith('NEW');
+        
+        const isFirstLogin = isTemporaryPassword || isNewUser;
+        
+        // Store the flag
+        localStorage.setItem('is_first_login', isFirstLogin ? 'true' : 'false');
+
+        console.log('📝 User ID:', formData.userId);
+        console.log('🔑 Password:', formData.password);
+        console.log('🆕 Is First Login:', isFirstLogin);
+        console.log('');
+        console.log('💡 DEMO TESTING INSTRUCTIONS:');
+        console.log('   First-time user → Use password "temp123" OR User ID starting with "NEW"');
+        console.log('   Existing user  → Use any other password and User ID');
+
+        setSuccess('Login successful! Redirecting...');
+        setTimeout(() => {
+          navigate('/verify', { 
+            state: { 
+              email: userEmail,
+              role: formData.role 
+            } 
+          });
+        }, 500);
       }
     } catch (err) {
       console.error('Login error:', err);
       
-      // Demo mode fallback - navigate anyway
+      // Demo mode fallback
       console.log('Error occurred, using demo mode navigation...');
       
       const userEmail = `${formData.userId}@clinic.com`;
       localStorage.setItem('user_role', formData.role);
       localStorage.setItem('user_id', formData.userId);
       localStorage.setItem('user_email', userEmail);
+      localStorage.setItem('is_first_login', 'false'); // Default to existing user
 
       setSuccess('Login successful! Redirecting...');
       setTimeout(() => {
@@ -390,8 +338,8 @@ const LoginPage: React.FC = () => {
               <div className="text-center">
                 <p className="text-blue-100 text-sm">
                   Need Help?{' '}
-                  <a href="tel:+6512345678" className="text-white hover:text-blue-100 underline font-semibold transition">
-                    Contact Clinic Admin At +65-XXXX-XXXX
+                  <a href="email:fyp2502@gmail.com  " className="text-white hover:text-blue-100 underline font-semibold transition">
+                    Contact Clinic Admin At fyp2502@gmail.com
                   </a>
                 </p>
               </div>

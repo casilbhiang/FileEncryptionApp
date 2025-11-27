@@ -133,7 +133,7 @@ const HomePage: React.FC = () => {
     {
       number: 5,
       title: 'QR Code Pairing',
-      description: 'Staff will generate a QR code for secure key exchange. Scan the QR code and enter the PIN to complete setup.',
+      description: 'Staff will generate a QR code for secure key exchange. Scan the QR code to complete setup.',
     },
     {
       number: 6,
