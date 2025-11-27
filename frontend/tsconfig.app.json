@@ -16,7 +16,6 @@
     "jsx": "react-jsx",
 
     "strict": true,
-    "forceConsistentCasingInFileNames": false,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
