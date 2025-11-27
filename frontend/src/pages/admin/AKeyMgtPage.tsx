@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import { Trash2 } from 'lucide-react';
 import GenerateKeyPairDialog from '../../components/dialogs/GenerateKeyPairDialog';
-import DeleteKeysDialog from '../../components/dialogs/DeleteKeysDialog';
+import DeleteKeysDialog from '../../components/dialogs/Deletekeysdialog';
 
 interface KeyPair {
   id: string;
