@@ -1,0 +1,431 @@
+'use client';
+
+import React, { useState } from 'react';
+import Sidebar from '../../components/layout/Sidebar';
+import { Settings, Trash2, AlertTriangle, X } from 'lucide-react';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: 'Doctor' | 'Patient' | 'Admin';
+  status: 'Active' | 'Inactive';
+  inactiveDays?: number;
+}
+
+const AUserMgtPage: React.FC = () => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('name');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    id: '',
+    name: '',
+    email: '',
+    phone: ''
+  });
+
+  // Sample users data
+  const [users, setUsers] = useState<User[]>([
+    { id: '#U-001', name: 'Dr Min Han', email: 'minhan@uow.edu.au', role: 'Doctor', status: 'Active' },
+    { id: '#U-002', name: 'Dr Nathania Christabella', email: 'nc463@uowmail.edu.au', role: 'Doctor', status: 'Inactive', inactiveDays: 380 },
+    { id: '#U-003', name: 'Mrs Chow Jia Yi', email: 'jyc058@uowmail.edu.au', role: 'Patient', status: 'Inactive', inactiveDays: 380 },
+    { id: '#U-004', name: 'Ms Jeslyn Ho Ka Yan', email: 'kyjho95@uowmail.edu.au', role: 'Admin', status: 'Active' },
+    { id: '#U-005', name: 'Dr Basil Chiang Cheng Xun', email: 'bcxjc988@uowmail.edu.au', role: 'Doctor', status: 'Active' },
+  ]);
+
+  // Filter and sort users
+  const filteredUsers = users
+    .filter((user) => {
+      const matchesSearch = 
+        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.id.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesRole = 
+        roleFilter === 'all' || 
+        user.role.toLowerCase() === roleFilter.toLowerCase();
+
+      const matchesStatus = 
+        statusFilter === 'all' ||
+        (statusFilter === 'active' && user.status === 'Active') ||
+        (statusFilter === 'inactive' && user.status === 'Inactive');
+
+      return matchesSearch && matchesRole && matchesStatus;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name') {
+        return a.name.localeCompare(b.name);
+      } else if (sortBy === 'role') {
+        return a.role.localeCompare(b.role);
+      } else if (sortBy === 'status') {
+        return a.status.localeCompare(b.status);
+      }
+      return 0;
+    });
+
+  // Statistics
+  const totalUsers = users.length;
+  const activeUsers = users.filter(user => user.status === 'Active').length;
+  const doctors = users.filter(user => user.role === 'Doctor').length;
+  const patients = users.filter(user => user.role === 'Patient').length;
+  const inactiveUsers = users.filter(user => user.status === 'Inactive').length;
+
+  const handleDeleteClick = (user: User) => {
+    setSelectedUser(user);
+    setShowDeleteDialog(true);
+  };
+
+  const handleEditClick = (user: User) => {
+    setSelectedUser(user);
+    setEditFormData({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: ''
+    });
+    setShowEditDialog(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (selectedUser) {
+      setUsers(prevUsers => prevUsers.filter(user => user.id !== selectedUser.id));
+    }
+    setShowDeleteDialog(false);
+    setSelectedUser(null);
+  };
+
+  const handleEditSave = () => {
+    if (selectedUser) {
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          user.id === selectedUser.id 
+            ? { ...user, name: editFormData.name, email: editFormData.email }
+            : user
+        )
+      );
+    }
+    setShowEditDialog(false);
+    setSelectedUser(null);
+  };
+
+  return (
+    <>
+      <div className="min-h-screen bg-gray-100 flex">
+        {/* Sidebar */}
+        <Sidebar userRole="admin" currentPage="user-management" />
+
+        {/* Main Content */}
+        <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
+          {/* Header */}
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <h1 className="text-2xl lg:text-3xl font-bold mb-2">User Management</h1>
+              <p className="text-gray-600">Create, View, Edit And Manage User Account</p>
+            </div>
+            <button
+              onClick={() => window.location.href = '/admin/create-user'}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
+            >
+              Create User
+              <div className="text-xs font-normal">Add new account</div>
+            </button>
+          </div>
+
+          {/* Inactive Users Alert */}
+          {inactiveUsers > 0 && (
+            <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 mb-6 flex items-center gap-3">
+              <AlertTriangle className="w-6 h-6 text-yellow-600 flex-shrink-0" />
+              <div>
+                <h3 className="font-bold text-red-600">Inactive Users Alert</h3>
+                <p className="text-gray-800">
+                  {inactiveUsers} users inactive for more than 365 days - please remove all of their account
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Statistics Cards */}
+          <div className="bg-gray-200 rounded-lg p-6 mb-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white rounded-lg p-4 text-center">
+                <h3 className="text-sm font-semibold text-gray-600 mb-1">Total Users</h3>
+                <p className="text-3xl font-bold text-purple-600">{totalUsers}</p>
+              </div>
+              <div className="bg-white rounded-lg p-4 text-center">
+                <h3 className="text-sm font-semibold text-gray-600 mb-1">Active Users</h3>
+                <p className="text-3xl font-bold text-green-600">{activeUsers}</p>
+              </div>
+              <div className="bg-white rounded-lg p-4 text-center">
+                <h3 className="text-sm font-semibold text-gray-600 mb-1">Doctors</h3>
+                <p className="text-3xl font-bold text-blue-600">{doctors}</p>
+              </div>
+              <div className="bg-white rounded-lg p-4 text-center">
+                <h3 className="text-sm font-semibold text-gray-600 mb-1">Patients</h3>
+                <p className="text-3xl font-bold text-pink-400">{patients}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Users Table Section */}
+          <div className="bg-white rounded-lg shadow-sm">
+            {/* Table Header */}
+            <div className="p-4 border-b">
+              <h2 className="text-xl font-bold mb-4">All Users ({totalUsers})</h2>
+              
+              {/* Filters */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="text"
+                  placeholder="Search by name, email, or ID..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All Roles</option>
+                  <option value="doctor">Doctor</option>
+                  <option value="patient">Patient</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All Status</option>
+                  <option value="active">Active Only</option>
+                  <option value="inactive">Inactive Only</option>
+                </select>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="name">Sort: Name</option>
+                  <option value="role">Sort: Role</option>
+                  <option value="status">Sort: Status</option>
+                </select>
+              </div>
+
+              {/* Results counter */}
+              {searchQuery || roleFilter !== 'all' || statusFilter !== 'all' ? (
+                <div className="mt-3 text-sm text-gray-600">
+                  Showing {filteredUsers.length} of {users.length} users
+                </div>
+              ) : null}
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">User ID</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Name</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Email</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Role</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredUsers.length > 0 ? (
+                    filteredUsers.map((user, index) => (
+                      <tr key={index} className="hover:bg-gray-50">
+                        <td className="px-4 py-4 text-sm text-gray-900">{user.id}</td>
+                        <td className="px-4 py-4 text-sm text-gray-900">{user.name}</td>
+                        <td className="px-4 py-4 text-sm text-gray-600">{user.email}</td>
+                        <td className="px-4 py-4">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            user.role === 'Doctor' ? 'bg-blue-100 text-blue-700' :
+                            user.role === 'Patient' ? 'bg-pink-100 text-pink-700' :
+                            'bg-purple-100 text-purple-700'
+                          }`}>
+                            {user.role}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          {user.status === 'Active' ? (
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              <span className="text-sm font-medium text-green-700">Active</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                              <div>
+                                <span className="text-sm font-medium text-orange-700">Inactive</span>
+                                <div className="text-xs text-orange-600">for {user.inactiveDays} days</div>
+                              </div>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleEditClick(user)}
+                              className="p-2 hover:bg-gray-200 rounded-lg transition"
+                              title="Edit user"
+                            >
+                              <Settings className="w-5 h-5 text-gray-600" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteClick(user)}
+                              className="p-2 hover:bg-gray-200 rounded-lg transition"
+                              title="Delete user"
+                            >
+                              <Trash2 className="w-5 h-5 text-red-600" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                        No users found matching your search criteria.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Delete User Dialog */}
+      {showDeleteDialog && selectedUser && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+        >
+          <div 
+            className="bg-white rounded-lg max-w-md w-full p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
+                <AlertTriangle className="w-8 h-8 text-yellow-600" />
+              </div>
+              <h2 className="text-xl font-bold mb-2">Delete User Account?</h2>
+              <p className="text-gray-600 mb-4">You are about to permanently delete:</p>
+              <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-3 w-full">
+                <p className="font-semibold text-gray-900">{selectedUser.name}</p>
+                <p className="text-sm text-gray-600">{selectedUser.email} | {selectedUser.id}</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteDialog(false)}
+                className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                className="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition"
+              >
+                Delete User
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Dialog */}
+      {showEditDialog && selectedUser && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+        >
+          <div 
+            className="bg-white rounded-lg max-w-md w-full p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold">Edit User Setting</h2>
+              <button
+                onClick={() => setShowEditDialog(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <h3 className="font-bold text-lg">{selectedUser.name}</h3>
+              <p className="text-sm text-gray-600">{selectedUser.email} | {selectedUser.id}</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold mb-2">
+                  User ID (Auto-generated)
+                </label>
+                <input
+                  type="text"
+                  value={selectedUser.id}
+                  disabled
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2">
+                  Full Nric Name
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={editFormData.email}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, email: e.target.value }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2">
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  value={editFormData.phone}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="+65 9722 1234"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={handleEditSave}
+              className="w-full mt-6 px-4 py-3 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition"
+            >
+              Save Changes
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+export default AUserMgtPage;
