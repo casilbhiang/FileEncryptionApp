@@ -8,7 +8,14 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
     SUPABASE_URL = os.environ.get('SUPABASE_URL')
     SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
+    SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # File Upload Settings
+    STORAGE_BUCKET = 'encrypted-files'
+    MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
+    ALLOWED_FILE_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg', '.docx'}
+    UPLOAD_FOLDER = '/tmp/uploads'
     
 class DevelopmentConfig(Config):
     """Development configuration"""
