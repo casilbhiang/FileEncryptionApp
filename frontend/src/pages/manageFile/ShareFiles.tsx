@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import { ChevronDown } from 'lucide-react';
 
-const DShareFiles: React.FC = () => {
+const ShareFiles: React.FC = () => {
   const [selectedPatient, setSelectedPatient] = useState('');
   const [message, setMessage] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
@@ -166,4 +166,4 @@ const DShareFiles: React.FC = () => {
   );
 };
 
-export default DShareFiles;
+export default ShareFiles;

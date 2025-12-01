@@ -1,96 +1,107 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import { Download, Trash2 } from 'lucide-react';
+import { getMyFiles, downloadFile, deleteFile, type FileItem } from '../../services/Files';
 
-interface FileItem {
-  id: number;
-  name: string;
-  sharedBy: string;
-  status: string;
-  date: string;
-}
-
-const DMyFiles: React.FC = () => {
+const MyFiles: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('date');
   const [sortDoctor, setSortDoctor] = useState('all');
+  const [files, setFiles] = useState<FileItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Sample files data
-  const [files] = useState<FileItem[]>([
-    { id: 1, name: 'Blood_Test_Result.Pdf', sharedBy: 'mrTan (patient)', status: 'Shared', date: 'Last Edit May 3rd 2025' },
-    { id: 2, name: 'Xray_image_8322.Png', sharedBy: 'you', status: '', date: 'Last Edit May 3rd 2025' },
-    { id: 3, name: 'Referral_Letter_001.Pdf', sharedBy: 'mrTan (patient)', status: 'Shared', date: 'Last Edit May 3rd 2025' },
-    { id: 4, name: 'Blood_Test_Result.Pdf', sharedBy: 'mrTan (patient)', status: 'Shared', date: 'Last Edit May 3rd 2025' },
-    { id: 5, name: 'Xray_image_8322.Png', sharedBy: 'you', status: '', date: 'Last Edit May 3rd 2025' },
-    { id: 6, name: 'Referral_Letter_001.Pdf', sharedBy: 'you', status: 'Shared', date: 'Last Edit May 3rd 2025' },
-  ]);
+  // Fetch files from backend
+  useEffect(() => {
+    fetchFiles();
+  }, [sortBy, sortDoctor]);
 
-  // Filter and sort files
-  const filteredFiles = files
-    .filter((file) => {
-      // Search filter - searches file name and shared by
-      const matchesSearch = 
-        file.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        file.sharedBy.toLowerCase().includes(searchQuery.toLowerCase());
-
-      // Sort by doctor/source filter
-      const matchesSource = 
-        sortDoctor === 'all' ||
-        (sortDoctor === 'shared' && file.sharedBy === 'you') ||
-        (sortDoctor === 'received' && file.sharedBy !== 'you');
-
-      return matchesSearch && matchesSource;
-    })
-    .sort((a, b) => {
-      // Sorting
-      if (sortBy === 'name') {
-        return a.name.localeCompare(b.name);
-      } else if (sortBy === 'date') {
-        // For now, all have same date, but this is where date sorting would go
-        return a.date.localeCompare(b.date);
-      } else if (sortBy === 'size') {
-        // Size sorting would require file size data
-        return 0;
-      }
-      return 0;
-    });
-
-  const handleDownload = (file: FileItem) => {
-    console.log('Download file:', file);
-    alert(`Downloading: ${file.name}`);
+  const fetchFiles = async () => {
+    try {
+      setLoading(true);
+      const response = await getMyFiles(searchQuery, sortBy, sortDoctor);
+      setFiles(response.files);
+    } catch (error) {
+      console.error('Failed to fetch files:', error);
+      alert('Failed to load files');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDelete = (file: FileItem) => {
-    console.log('Delete file:', file);
-    if (window.confirm(`Are you sure you want to delete ${file.name}?`)) {
-      console.log('File deleted:', file);
+  const handleDownload = async (file: FileItem) => {
+    try {
+      const blob = await downloadFile(file.id);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Download failed:', error);
+      alert('Failed to download file');
     }
+  };
+
+  const handleDelete = async (file: FileItem) => {
+    if (window.confirm(`Are you sure you want to delete ${file.name}?`)) {
+      try {
+        await deleteFile(file.id);
+        // Refresh file list
+        fetchFiles();
+      } catch (error) {
+        console.error('Delete failed:', error);
+        alert('Failed to delete file');
+      }
+    }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
   };
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
-      {/* Sidebar */}
       <Sidebar userRole="doctor" currentPage="my-files" />
 
-      {/* Main Content */}
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
-        {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl lg:text-3xl font-bold mb-2">MY FILES</h1>
-          
-          {/* Search and Sort Controls */}
+
           <div className="flex flex-col sm:flex-row gap-3 mt-4">
             <div className="flex-1">
               <input
                 type="text"
-                placeholder="Search by file name or shared by..."
+                placeholder="Search by file name..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && fetchFiles()}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+            <button
+              onClick={fetchFiles}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+            >
+              Search
+            </button>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
@@ -111,31 +122,36 @@ const DMyFiles: React.FC = () => {
             </select>
           </div>
 
-          {/* Results counter */}
           {searchQuery || sortDoctor !== 'all' ? (
             <div className="mt-3 text-sm text-gray-600">
-              Showing {filteredFiles.length} of {files.length} files
+              Showing {files.length} files
             </div>
           ) : null}
         </div>
 
         {/* Files List */}
-        <div className="space-y-3">
-          {filteredFiles.length > 0 ? (
-            filteredFiles.map((file) => (
+        {loading ? (
+          <div className="bg-white rounded-lg p-8 shadow-sm text-center">
+            <p className="text-gray-500">Loading files...</p>
+          </div>
+        ) : files.length > 0 ? (
+          <div className="space-y-3">
+            {files.map((file) => (
               <div
                 key={file.id}
                 className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition flex items-center justify-between"
               >
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-lg mb-1 truncate">{file.name}</h3>
-                  <p className="text-sm text-gray-600">by {file.sharedBy}</p>
+                  <p className="text-sm text-gray-600">
+                    {formatFileSize(file.size)} • by {file.shared_by}
+                  </p>
                 </div>
-                
+
                 <div className="flex items-center gap-3 ml-4">
-                  {file.status && (
+                  {file.is_shared && (
                     <span className="px-4 py-1 bg-cyan-400 text-white rounded-full text-sm font-medium whitespace-nowrap">
-                      {file.status}
+                      Shared
                     </span>
                   )}
                   <button
@@ -153,21 +169,23 @@ const DMyFiles: React.FC = () => {
                     <Trash2 className="w-5 h-5 text-gray-600" />
                   </button>
                 </div>
-                
+
                 <div className="hidden lg:block ml-4 min-w-[150px] text-right">
-                  <span className="text-sm text-gray-500">{file.date}</span>
+                  <span className="text-sm text-gray-500">
+                    {formatDate(file.uploaded_at)}
+                  </span>
                 </div>
               </div>
-            ))
-          ) : (
-            <div className="bg-white rounded-lg p-8 shadow-sm text-center">
-              <p className="text-gray-500">No files found matching your search criteria.</p>
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white rounded-lg p-8 shadow-sm text-center">
+            <p className="text-gray-500">No files found.</p>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-export default DMyFiles;
+export default MyFiles;
