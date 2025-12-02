@@ -50,7 +50,8 @@ const GenerateKeyPairDialog: React.FC<GenerateKeyPairDialogProps> = ({
   const handleDownload = () => {
     if (!qrCode) return;
     const link = document.createElement('a');
-    link.href = `data:image/png;base64,${qrCode}`;
+    // Backend returns full data URI, so use it directly if it starts with data:
+    link.href = qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`;
     link.download = `key-pair-${doctorId}-${patientId}.png`;
     document.body.appendChild(link);
     link.click();
@@ -152,7 +153,7 @@ const GenerateKeyPairDialog: React.FC<GenerateKeyPairDialogProps> = ({
                 <div className="flex flex-col items-center gap-4">
                   <div className="bg-white p-4 rounded-lg border-2 border-gray-200 shadow-sm">
                     <img
-                      src={`data:image/png;base64,${qrCode}`}
+                      src={qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`}
                       alt="Key Pair QR Code"
                       className="w-48 h-48 object-contain"
                     />

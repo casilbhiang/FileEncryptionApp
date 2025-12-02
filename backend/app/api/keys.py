@@ -224,3 +224,65 @@ def get_qr_code(key_id):
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@keys_bp.route('/scan', methods=['POST'])
+def scan_qr_code():
+    """
+    Verify scanned QR code data and establish connection
+    """
+    try:
+        data = request.get_json()
+        qr_data_str = data.get('qr_data')
+        
+        if not qr_data_str:
+            return jsonify({'error': 'No QR data provided'}), 400
+            
+        # Parse QR data (assuming it's a JSON string)
+        try:
+            qr_data = json.loads(qr_data_str)
+        except json.JSONDecodeError:
+            return jsonify({'error': 'Invalid QR code format'}), 400
+            
+        key_id = qr_data.get('key_id')
+        doctor_id = qr_data.get('doctor_id')
+        patient_id = qr_data.get('patient_id')
+        
+        if not key_id or not doctor_id or not patient_id:
+            return jsonify({'error': 'Incomplete QR code data'}), 400
+            
+        # Verify key exists and is active
+        key_pair = key_pair_store.get(key_id)
+        if not key_pair:
+            return jsonify({'error': 'Invalid key pair'}), 404
+            
+        if key_pair.status != 'Active':
+            return jsonify({'error': 'Key pair is not active'}), 403
+            
+        # Verify participants match
+        if key_pair.doctor_id != doctor_id or key_pair.patient_id != patient_id:
+            return jsonify({'error': 'Key pair mismatch'}), 403
+            
+        # Log successful scan
+        audit_logger.log(
+            user_id="SYSTEM",
+            user_name="System",
+            action=AuditAction.PAIRING_SCAN,
+            target=f"{doctor_id} ↔ {patient_id}",
+            result=AuditResult.OK,
+            details=f"QR code scanned for key {key_id}"
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'Connection verified',
+            'connection': {
+                'key_id': key_id,
+                'doctor_id': doctor_id,
+                'patient_id': patient_id,
+                'status': key_pair.status
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

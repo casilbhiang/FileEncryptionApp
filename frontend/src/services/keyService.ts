@@ -95,3 +95,23 @@ export async function deleteKeyPair(keyId: string): Promise<void> {
         throw new Error(error.error || 'Failed to delete key pair');
     }
 }
+
+/**
+ * Verify scanned QR code
+ */
+export async function verifyScannedQR(qrData: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/keys/scan`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ qr_data: qrData }),
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to verify QR code');
+    }
+
+    return response.json();
+}

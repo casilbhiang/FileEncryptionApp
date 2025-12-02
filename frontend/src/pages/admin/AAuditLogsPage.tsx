@@ -138,8 +138,8 @@ const AAuditLogsPage: React.FC = () => {
                         <td className="px-4 py-4 text-sm text-gray-600 max-w-xs truncate">{log.target}</td>
                         <td className="px-4 py-4">
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${log.result === 'OK'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-red-100 text-red-700'
                             }`}>
                             {log.result}
                           </span>

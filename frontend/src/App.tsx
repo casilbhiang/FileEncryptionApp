@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { NotificationProvider } from './contexts/NotificationContext';
+import NotificationToast from './components/NotificationToast';
 
 // Public Pages
 import HomePage from './pages/Homepage';
@@ -9,19 +10,18 @@ import ResetPasswordPage from './pages/start/ResetPasswordPage';
 
 // Patient Pages
 import PHomePage from './pages/patient/PHomePage';
-import PMyFiles from './pages/patient/PMyFiles';
-import PUploadFilePage from './pages/patient/PUploadFilePage';
-import PShareFiles from './pages/patient/PShareFiles';
 import PConnectToDocPage from './pages/patient/PConnectToDocPage';
 
 // Doctor Pages
 import DHomePage from './pages/doctor/DHomePage';
-import DMyFiles from './pages/doctor/DMyFiles';
-import DUploadFilePage from './pages/doctor/DUploadFilePage';
-import DShareFiles from './pages/doctor/DShareFiles';
 import DViewPatientPage from './pages/doctor/DViewPatientPage';
 import DViewHealthProfilePage from './pages/doctor/DViewHealthProfilePage';
 import DConnectToPatientPage from './pages/doctor/DConnectToPatientPage';
+
+// Manage File Pages
+import MyFilesPage from './pages/manageFile/MyFiles';
+import UploadFilePage from './pages/manageFile/UploadFile';
+import ShareFiles from './pages/manageFile/ShareFiles';
 
 // Admin Pages
 import AHomePage from './pages/admin/AHomePage';
@@ -34,6 +34,7 @@ import ACloudStoragePage from './pages/admin/ACloudStoragePage';
 function App() {
   return (
     <NotificationProvider>
+      <NotificationToast />
       <Router>
         <Routes>
           {/* Public Routes */}
@@ -45,17 +46,17 @@ function App() {
           {/* Patient Routes */}
           <Route path="/patient" element={<PHomePage />} />
           <Route path="/patient/home" element={<PHomePage />} />
-          <Route path="/patient/my-files" element={<PMyFiles />} />
-          <Route path="/patient/upload" element={<PUploadFilePage />} />
-          <Route path="/patient/share" element={<PShareFiles />} />
+          <Route path="/patient/my-files" element={<MyFilesPage />} />
+          <Route path="/patient/upload" element={<UploadFilePage />} />
+          <Route path="/patient/share" element={<ShareFiles />} />
           <Route path="/patient/connect" element={<PConnectToDocPage />} />
 
           {/* Doctor Routes */}
           <Route path="/doctor" element={<DHomePage />} />
           <Route path="/doctor/home" element={<DHomePage />} />
-          <Route path="/doctor/my-files" element={<DMyFiles />} />
-          <Route path="/doctor/upload" element={<DUploadFilePage />} />
-          <Route path="/doctor/share" element={<DShareFiles />} />
+          <Route path="/doctor/my-files" element={<MyFilesPage />} />
+          <Route path="/doctor/upload" element={<UploadFilePage />} />
+          <Route path="/doctor/share" element={<ShareFiles />} />
           <Route path="/doctor/patients" element={<DViewPatientPage />} />
           <Route path="/doctor/patient-profile/:patientId" element={<DViewHealthProfilePage />} />
           <Route path="/doctor/connect" element={<DConnectToPatientPage />} />
