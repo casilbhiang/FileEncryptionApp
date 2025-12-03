@@ -9,12 +9,29 @@ def create_app(config_name='development'):
     # Enable CORS
     CORS(app)
     
-    # Register blueprints (we'll create these later)
-    # from app.api import api_bp
-    # app.register_blueprint(api_bp, url_prefix='/api')
+    # Register blueprints
+    from app.api.keys import keys_bp
+    from app.api.files import files_bp
+    from app.api.audit import audit_bp
+    
+    app.register_blueprint(keys_bp, url_prefix='/api/keys')
+    app.register_blueprint(files_bp, url_prefix='/api/files')
+    app.register_blueprint(audit_bp, url_prefix='/api/audit')
     
     @app.route('/health')
     def health():
         return {'status': 'healthy'}, 200
+    
+    @app.route('/api/status')
+    def api_status():
+        return {
+            'status': 'online',
+            'version': '1.0.0',
+            'endpoints': {
+                'keys': '/api/keys',
+                'files': '/api/files',
+                'audit': '/api/audit'
+            }
+        }, 200
     
     return app

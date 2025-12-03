@@ -1,39 +1,40 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
-
-interface AuditLog {
-  id: string;
-  timestamp: string;
-  user: string;
-  action: string;
-  target: string;
-  result: 'OK' | 'FAILED';
-}
+import { getAuditLogs, type AuditLog } from '../../services/auditService';
 
 const AAuditLogsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [userFilter, setUserFilter] = useState('all');
   const [actionFilter, setActionFilter] = useState('all');
   const [resultFilter, setResultFilter] = useState('all');
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Sample audit logs data
-  const [logs] = useState<AuditLog[]>([
-    { id: '1', timestamp: '25/10/2025, 15:30', user: 'ADMIN HO (#A-001)', action: 'PAIRING_EXPIRE', target: 'Dr Min Han (#U-001) → Jan Doe (#U-034)', result: 'OK' },
-    { id: '2', timestamp: '25/10/2025, 15:28', user: 'ADMIN HO (#A-001)', action: 'PAIRING_VERIFY_PIN', target: 'Dr Min Han (#U-001) → Jan Doe (#U-034)', result: 'OK' },
-    { id: '3', timestamp: '25/10/2025, 15:22', user: 'ADMIN HO (#A-001)', action: 'PAIRING_SCAN', target: 'Dr Min Han (#U-001) → Jan Doe (#U-034)', result: 'OK' },
-    { id: '4', timestamp: '25/10/2025, 15:20', user: 'ADMIN HO (#A-001)', action: 'PAIRING_CREATE', target: 'Dr Min Han (#U-001) → Jan Doe (#U-034)', result: 'OK' },
-    { id: '5', timestamp: '24/10/2025, 15:30', user: 'Dr Basil Chiang Cheng Xun (#U-034)', action: 'FILE_UPLOAD', target: 'Blood_Test.pdf', result: 'OK' },
-    { id: '6', timestamp: '23/10/2025, 15:28', user: 'Dr Basil Chiang Cheng Xun (#U-034)', action: 'FILE_DELETE', target: 'Blood_Test.pdf', result: 'FAILED' },
-    { id: '7', timestamp: '23/10/2025, 23:25', user: 'ADMIN Wong (#A-002)', action: 'KEY_BACKUP', target: 'bckp_2025-10-23_T23:25', result: 'OK' },
-    { id: '8', timestamp: '25/10/2025, 15:28', user: 'Dr Nathania Christabella (#U-035)', action: 'FILE_UPLOAD', target: 'Xray_Result.pdf', result: 'FAILED' },
-    { id: '9', timestamp: '25/10/2025, 15:28', user: 'Mrs Chow Jia Yi (#U-012)', action: 'FILE_SHARE', target: 'blood_test_results.pdf → Dr Tan', result: 'OK' },
-  ]);
+  // Load audit logs from API
+  useEffect(() => {
+    loadAuditLogs();
+  }, []);
+
+  const loadAuditLogs = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await getAuditLogs();
+      setLogs(response.logs);
+    } catch (err) {
+      console.error('Failed to load audit logs:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load audit logs');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Filter logs based on current filters
   const filteredLogs = logs.filter((log) => {
-    const matchesSearch = 
+    const matchesSearch =
       log.user.toLowerCase().includes(searchQuery.toLowerCase()) ||
       log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
       log.target.toLowerCase().includes(searchQuery.toLowerCase());
@@ -57,6 +58,13 @@ const AAuditLogsPage: React.FC = () => {
           <h1 className="text-2xl lg:text-3xl font-bold mb-2">Audit Logs</h1>
           <p className="text-gray-600">Track User Activity And System Events</p>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            <strong>Error:</strong> {error}
+          </div>
+        )}
 
         {/* Audit Logs Table */}
         <div className="bg-white rounded-lg shadow-sm">
@@ -105,44 +113,49 @@ const AAuditLogsPage: React.FC = () => {
 
           {/* Table */}
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Timestamp</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">User</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Action</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Target</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Result</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {filteredLogs.length > 0 ? (
-                  filteredLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-4 text-sm text-gray-900">{log.timestamp}</td>
-                      <td className="px-4 py-4 text-sm text-gray-900">{log.user}</td>
-                      <td className="px-4 py-4 text-sm text-gray-900">{log.action}</td>
-                      <td className="px-4 py-4 text-sm text-gray-600 max-w-xs truncate">{log.target}</td>
-                      <td className="px-4 py-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          log.result === 'OK' 
-                            ? 'bg-green-100 text-green-700' 
+            {loading ? (
+              <div className="px-4 py-8 text-center text-gray-500">
+                Loading audit logs...
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Timestamp</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">User</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Action</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Target</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Result</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredLogs.length > 0 ? (
+                    filteredLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-4 text-sm text-gray-900">{log.timestamp}</td>
+                        <td className="px-4 py-4 text-sm text-gray-900">{log.user}</td>
+                        <td className="px-4 py-4 text-sm text-gray-900">{log.action}</td>
+                        <td className="px-4 py-4 text-sm text-gray-600 max-w-xs truncate">{log.target}</td>
+                        <td className="px-4 py-4">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${log.result === 'OK'
+                            ? 'bg-green-100 text-green-700'
                             : 'bg-red-100 text-red-700'
-                        }`}>
-                          {log.result}
-                        </span>
+                            }`}>
+                            {log.result}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                        No audit logs found matching your criteria.
                       </td>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
-                      No audit logs found matching your criteria.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+              </table>
+            )}
           </div>
 
           {/* Results count */}

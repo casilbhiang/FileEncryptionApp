@@ -7,7 +7,7 @@ export interface Notification {
   user_id: string;
   title: string;
   message: string;
-  type: 'file_received' | 'file_uploaded' | 'file_shared' | 'key_generated' | 'user_created' | 'system';
+  type: 'file_received' | 'file_uploaded' | 'file_shared' | 'key_generated' | 'user_created' | 'system' | 'decryption_failed' | 'error';
   read: boolean;
   created_at: string;
 }
@@ -49,7 +49,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
       read: false,
       created_at: new Date().toISOString()
     };
-    
+
     setNotifications(prev => [newNotif, ...prev]);
   };
 
