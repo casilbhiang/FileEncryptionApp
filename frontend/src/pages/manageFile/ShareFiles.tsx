@@ -1,10 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
 import { ChevronDown } from 'lucide-react';
 
 const ShareFiles: React.FC = () => {
+  const location = useLocation();
+  const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
+
   const [selectedPatient, setSelectedPatient] = useState('');
   const [message, setMessage] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
@@ -20,8 +24,8 @@ const ShareFiles: React.FC = () => {
   ];
 
   const handleFileToggle = (fileId: string) => {
-    setSelectedFiles(prev => 
-      prev.includes(fileId) 
+    setSelectedFiles(prev =>
+      prev.includes(fileId)
         ? prev.filter(id => id !== fileId)
         : [...prev, fileId]
     );
@@ -35,7 +39,7 @@ const ShareFiles: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-100 flex">
       {/* Sidebar */}
-      <Sidebar userRole="doctor" currentPage="share" />
+      <Sidebar userRole={userRole} currentPage="share" />
 
       {/* Main Content */}
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
@@ -50,7 +54,7 @@ const ShareFiles: React.FC = () => {
           {/* Patient Name Dropdown */}
           <div className="mb-6">
             <label className="block text-sm font-semibold text-gray-900 mb-2">
-              Patient name
+              {userRole === 'doctor' ? 'Patient name' : 'Recipient name'}
             </label>
             <div className="relative">
               <select
@@ -58,7 +62,7 @@ const ShareFiles: React.FC = () => {
                 onChange={(e) => setSelectedPatient(e.target.value)}
                 className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500"
               >
-                <option value="">Select a patient</option>
+                <option value="">Select a {userRole === 'doctor' ? 'patient' : 'recipient'}</option>
                 <option value="jenifer">Miss. Jenifer</option>
                 <option value="harris">Mr. Harris</option>
                 <option value="jack">Mr. Jack Ma</option>
@@ -92,8 +96,8 @@ const ShareFiles: React.FC = () => {
                 className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-purple-500"
               >
                 <span className="text-gray-600">
-                  {selectedFiles.length > 0 
-                    ? `${selectedFiles.length} file(s) selected` 
+                  {selectedFiles.length > 0
+                    ? `${selectedFiles.length} file(s) selected`
                     : 'Select files to share'}
                 </span>
                 <ChevronDown className="w-5 h-5 text-gray-400" />

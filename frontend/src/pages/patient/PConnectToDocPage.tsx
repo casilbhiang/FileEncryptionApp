@@ -121,7 +121,7 @@ const PConnectToDocPage: React.FC = () => {
                     className={`px-8 py-3 text-white rounded-lg font-semibold transition flex items-center gap-2 ${isConnected ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'}`}
                   >
                     <QrCode className="w-5 h-5" />
-                    {isConnected ? 'Already Connected' : 'Scan QR Code'}
+                    {isConnected ? 'Connected' : 'Scan QR Code'}
                   </button>
                 </>
               ) : (

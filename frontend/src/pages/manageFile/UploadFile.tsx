@@ -20,6 +20,8 @@ interface UploadedFile {
 const UploadFilePage: React.FC = () => {
   const location = useLocation();
   const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
+  // Mock user ID based on role for testing encryption
+  const userId = userRole === 'doctor' ? 'DR001' : 'PT001';
 
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -75,8 +77,8 @@ const UploadFilePage: React.FC = () => {
           );
         }, 200);
 
-        // Upload file with abort signal
-        const response = await uploadFile(file, undefined, abortController.signal);
+        // Upload file with abort signal and user ID
+        const response = await uploadFile(file, undefined, abortController.signal, userId);
         uploadedFileId = response.file_id;
 
         clearInterval(progressInterval);

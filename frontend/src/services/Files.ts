@@ -16,12 +16,16 @@ export interface UploadResponse {
 }
 
 /* File Upload */
-export const uploadFile = async (file: File, sharedWith?: string, signal?: AbortSignal): Promise<UploadResponse> => {
+export const uploadFile = async (file: File, sharedWith?: string, signal?: AbortSignal, userId?: string): Promise<UploadResponse> => {
     const formData = new FormData();
     formData.append('file', file);
 
     if (sharedWith) {
         formData.append('shared_with', sharedWith);
+    }
+
+    if (userId) {
+        formData.append('user_id', userId);
     }
 
     const response = await fetch(`${API_BASE_URL}/upload`, {

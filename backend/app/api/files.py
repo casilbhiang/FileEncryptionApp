@@ -9,6 +9,7 @@ import uuid
 import io
 from datetime import datetime, timedelta
 from supabase import create_client
+import base64
 
 # User's imports
 from app.crypto.encryption import EncryptionManager
@@ -114,46 +115,71 @@ def encrypt_file():
 
 @files_bp.route('/decrypt/<file_id>', methods=['GET'])
 def decrypt_file(file_id):
-    """Decrypt a file and download it (Local/In-Memory Store)"""
+    """Decrypt a file and download it (from Supabase)"""
     try:
         user_id = request.args.get('user_id')
         if not user_id:
             return jsonify({'error': 'user_id is required'}), 400
         
-        # Get file record
-        encrypted_file = encrypted_file_store.get(file_id)
-        if not encrypted_file:
-            return jsonify({'error': 'File not found'}), 404
+        # Get file record from Supabase
+        try:
+            response = supabase.table('encrypted_files').select('*').eq('id', file_id).execute()
+            if not response.data:
+                return jsonify({'error': 'File not found'}), 404
+            encrypted_file = response.data[0]
+        except Exception as e:
+            return jsonify({'error': f'Database error: {str(e)}'}), 500
         
-        # Get key pair
-        key_pair = key_pair_store.get(encrypted_file.key_pair_id)
+        # Get metadata
+        metadata = encrypted_file.get('encryption_metadata', {})
+        key_pair_id = metadata.get('key_pair_id')
+        
+        if not key_pair_id:
+            # Fallback for old files or placeholder data
+            return jsonify({'error': 'File is not properly encrypted (missing key ID)'}), 422
+        
+        # Get key pair from persistent store
+        key_pair = key_pair_store.get(key_pair_id)
         if not key_pair:
             return jsonify({'error': 'Encryption key not found'}), 404
         
-        # Verify authorization
+        # Verify authorization (Doctor or Patient)
         if user_id != key_pair.doctor_id and user_id != key_pair.patient_id:
-            return jsonify({'error': 'Unauthorized to decrypt this file'}), 403
+             # Also allow owner to decrypt (e.g. for verification)
+            if user_id != encrypted_file.get('owner_id'):
+                return jsonify({'error': 'Unauthorized to decrypt this file'}), 403
         
         try:
+            # Download encrypted file from Supabase Storage
+            storage_path = encrypted_file['storage_path']
+            print(f"Downloading from: {storage_path}")
+            file_data = supabase.storage.from_(encrypted_file['storage_bucket']).download(storage_path)
+            
             # Get encryption key
             key = EncryptionManager.base64_to_key(key_pair.encryption_key)
             
             # Decrypt file
+            # Note: EncryptionManager.decrypt_file expects base64 strings
+            # We need to convert our downloaded bytes to base64 string for the manager
+            ciphertext_b64 = base64.b64encode(file_data).decode('utf-8')
+            nonce_b64 = metadata.get('iv') # We stored nonce as 'iv' in upload
+            
             decrypted_data = EncryptionManager.decrypt_file(
-                encrypted_file.ciphertext,
-                encrypted_file.nonce,
+                ciphertext_b64,
+                nonce_b64,
                 key
             )
             
             # Return file
             return send_file(
                 io.BytesIO(decrypted_data),
-                mimetype=encrypted_file.mime_type,
+                mimetype=encrypted_file['mime_type'],
                 as_attachment=True,
-                download_name=encrypted_file.filename
+                download_name=encrypted_file['original_filename']
             )
             
         except Exception as e:
+            print(f"Decryption error: {e}")
             # User Story #17 & #14: Notify if decryption fails
             return jsonify({
                 'error': 'Decryption failed',
@@ -162,7 +188,9 @@ def decrypt_file(file_id):
             }), 422
             
     except Exception as e:
+        print(f"General error: {e}")
         return jsonify({'error': str(e)}), 500
+
 
 
 @files_bp.route('/list', methods=['GET'])
@@ -242,6 +270,27 @@ def upload_file():
         file_data = file.read()
         original_filename = secure_filename(file.filename)
         
+        # --- ENCRYPTION LOGIC ---
+        # Find a key pair for this user
+        # Allow user_id to be passed in form data, fallback to test_user
+        user_id = request.form.get('user_id') or test_user['user_id']
+        
+        print(f"Uploading for user: {user_id}")
+        
+        key_pairs = key_pair_store.list_by_user(user_id)
+        active_key_pair = next((kp for kp in key_pairs if kp.status == 'Active'), None)
+        
+        if not active_key_pair:
+            return jsonify({'error': f'No active encryption key found for user {user_id}. Please generate a key pair first.'}), 400
+
+        # Encrypt
+        key = EncryptionManager.base64_to_key(active_key_pair.encryption_key)
+        # encrypt_file returns (ciphertext_b64, nonce_b64)
+        ciphertext_b64, nonce_b64 = EncryptionManager.encrypt_file(file_data, key)
+        
+        # Convert base64 ciphertext back to bytes for storage efficiency
+        encrypted_bytes = base64.b64decode(ciphertext_b64)
+        
         # Create unique encrypted filename
         encrypted_filename = f"{uuid.uuid4()}{file_ext}.enc"
         storage_path = f"{test_user['id']}/{encrypted_filename}"
@@ -250,7 +299,7 @@ def upload_file():
         print(f"Uploading to: {storage_path}")
         supabase.storage.from_(STORAGE_BUCKET).upload(
             path=storage_path,
-            file=file_data,
+            file=encrypted_bytes,
             file_options={"content-type": "application/octet-stream"}
         )
         
@@ -259,10 +308,15 @@ def upload_file():
             'owner_id': test_user['id'],
             'original_filename': original_filename,
             'encrypted_filename': encrypted_filename,
-            'file_size': file_size,
+            'file_size': len(encrypted_bytes),
             'mime_type': file.content_type,
             'file_extension': file_ext,
-            'encryption_metadata': {'iv': 'test', 'auth_tag': 'test', 'algorithm': 'AES-GCM-256'},
+            'encryption_metadata': {
+                'iv': nonce_b64, # Storing nonce as 'iv'
+                'auth_tag': 'embedded', # Auth tag is embedded in GCM ciphertext
+                'algorithm': 'AES-GCM-256',
+                'key_pair_id': active_key_pair.key_id
+            },
             'storage_bucket': STORAGE_BUCKET,
             'storage_path': storage_path,
             'upload_status': 'pending' 

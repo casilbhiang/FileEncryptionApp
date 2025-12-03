@@ -9,12 +9,39 @@ from app.models.encryption_models import KeyPair, EncryptedFile
 class KeyPairStore:
     """In-memory store for encryption key pairs"""
     
-    def __init__(self):
+    def __init__(self, persistence_file='key_pairs.json'):
         self._store: Dict[str, KeyPair] = {}
+        self.persistence_file = persistence_file
+        self._load()
     
+    def _load(self):
+        """Load key pairs from JSON file"""
+        import json
+        import os
+        if os.path.exists(self.persistence_file):
+            try:
+                with open(self.persistence_file, 'r') as f:
+                    data = json.load(f)
+                    for k, v in data.items():
+                        self._store[k] = KeyPair.from_dict(v)
+                print(f"Loaded {len(self._store)} key pairs from {self.persistence_file}")
+            except Exception as e:
+                print(f"Failed to load key pairs: {e}")
+
+    def _save(self):
+        """Save key pairs to JSON file"""
+        import json
+        try:
+            data = {k: v.to_dict() for k, v in self._store.items()}
+            with open(self.persistence_file, 'w') as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            print(f"Failed to save key pairs: {e}")
+
     def create(self, key_pair: KeyPair) -> KeyPair:
         """Create a new key pair"""
         self._store[key_pair.key_id] = key_pair
+        self._save()
         return key_pair
     
     def get(self, key_id: str) -> Optional[KeyPair]:
@@ -46,12 +73,14 @@ class KeyPairStore:
         kp = self._store.get(key_id)
         if kp:
             kp.status = status
+            self._save()
         return kp
     
     def delete(self, key_id: str) -> bool:
         """Delete a key pair"""
         if key_id in self._store:
             del self._store[key_id]
+            self._save()
             return True
         return False
 
