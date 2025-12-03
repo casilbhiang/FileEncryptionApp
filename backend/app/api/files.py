@@ -36,9 +36,9 @@ if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
 # Using HEAD's definition (no prefix) so __init__.py controls it.
 files_bp = Blueprint('files', __name__)
 
-# Test user (from Friend's code)
+# Test user 
 test_user = {
-    'id': '790f3fdd-7d0a-4ab8-b6a3-d413d3b04853', 
+    'id': '9caebda2-d0d0-4685-a595-52c3f0ae9ad9', 
     'user_id': 'DR001',
     'full_name': 'Test Name'
 }
@@ -233,10 +233,6 @@ def delete_local_record(file_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
-# ==========================================
-# FRIEND'S SUPABASE UPLOAD ENDPOINTS
-# ==========================================
 
 # ===== Upload File (status: 'pending') =====
 @files_bp.route('/upload', methods=['POST'])

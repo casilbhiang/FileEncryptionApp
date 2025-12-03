@@ -1,16 +1,43 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import { QrCode, Camera, AlertTriangle, CheckCircle, Stethoscope } from 'lucide-react';
 import QRScanner from '../../components/QRScanner';
-import { verifyScannedQR } from '../../services/keyService';
+import { verifyScannedQR, getUserConnections } from '../../services/keyService';
 
 const PConnectToDocPage: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [connectionDetails, setConnectionDetails] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Mock patient ID - in production this would come from auth context
+  const patientId = 'PT001';
+
+  // Load existing connections on mount
+  useEffect(() => {
+    const loadConnections = async () => {
+      try {
+        const result = await getUserConnections(patientId);
+        if (result.success && result.connections && result.connections.length > 0) {
+          // Get the first active connection
+          const activeConnection = result.connections.find((c: any) => c.status === 'Active');
+          if (activeConnection) {
+            setConnectionDetails(activeConnection);
+            setIsConnected(true);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load connections:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadConnections();
+  }, [patientId]);
 
   const handleScanQRCode = () => {
     setShowScanner(true);

@@ -32,7 +32,7 @@ class KeyPairStore:
         """Save key pairs to JSON file"""
         import json
         try:
-            data = {k: v.to_dict() for k, v in self._store.items()}
+            data = {k: v.to_dict_with_key() for k, v in self._store.items()}
             with open(self.persistence_file, 'w') as f:
                 json.dump(data, f, indent=2)
         except Exception as e:

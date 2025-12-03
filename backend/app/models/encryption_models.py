@@ -42,6 +42,19 @@ class KeyPair:
         data['encryption_key'] = self.encryption_key
         return data
 
+    @classmethod
+    def from_dict(cls, data):
+        """Create KeyPair from dictionary"""
+        return cls(
+            key_id=data['key_id'],
+            doctor_id=data['doctor_id'],
+            patient_id=data['patient_id'],
+            encryption_key=data['encryption_key'],
+            status=data.get('status', 'Active'),
+            created_at=datetime.fromisoformat(data['created_at']) if data.get('created_at') else None,
+            expires_at=datetime.fromisoformat(data['expires_at']) if data.get('expires_at') else None
+        )
+
 
 class EncryptedFile:
     """Represents metadata for an encrypted file"""

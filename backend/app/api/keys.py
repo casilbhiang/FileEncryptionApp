@@ -286,3 +286,29 @@ def scan_qr_code():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@keys_bp.route('/connections/<user_id>', methods=['GET'])
+def get_user_connections(user_id):
+    """
+    Get all connections (key pairs) for a user (doctor or patient)
+    """
+    try:
+        connections = key_pair_store.list_by_user(user_id)
+        
+        return jsonify({
+            'success': True,
+            'connections': [
+                {
+                    'key_id': kp.key_id,
+                    'doctor_id': kp.doctor_id,
+                    'patient_id': kp.patient_id,
+                    'status': kp.status,
+                    'created_at': kp.created_at.isoformat() if kp.created_at else None
+                }
+                for kp in connections
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
