@@ -45,6 +45,404 @@ class FileService:
         
         return cls._supabase_client
     
+    # ==================== NEW METHOD FOR UNIFIED RECENT ACTIVITY ====================
+    @staticmethod
+    def get_recent_activity(user_id: str, limit: int = 3) -> List[Dict[str, Any]]:
+        """
+        Get recent activity for both patients and doctors
+        Combines files they uploaded and files shared with them
+        
+        Args:
+            user_id: UUID of the current user
+            limit: Number of recent activities to return (default 3)
+            
+        Returns:
+            List of activity items with type, file info, and timestamp
+        """
+        try:
+            logger.info(f"Getting recent activity for user: {user_id}")
+            
+            supabase = FileService._get_supabase()
+            
+            # 1. Get files uploaded by the user (most recent first)
+            uploaded_files_response = supabase.table('encrypted_files')\
+                .select('id, original_filename, file_extension, uploaded_at, owner_id')\
+                .eq('owner_id', user_id)\
+                .eq('is_deleted', False)\
+                .eq('upload_status', 'completed')\
+                .order('uploaded_at', desc=True)\
+                .limit(limit)\
+                .execute()
+            
+            # 2. Get files shared with the user (most recent shares first)
+            shared_files_response = supabase.table('test_file_shares')\
+                .select('file_id, shared_at, shared_by, shared_with, access_level')\
+                .eq('shared_with', user_id)\
+                .eq('share_status', 'active')\
+                .order('shared_at', desc=True)\
+                .limit(limit)\
+                .execute()
+            
+            # 3. Get file details for shared files
+            shared_file_ids = [share['file_id'] for share in shared_files_response.data]
+            shared_files_details = []
+            
+            if shared_file_ids:
+                shared_files_details_response = supabase.table('encrypted_files')\
+                    .select('id, original_filename, file_extension, uploaded_at, owner_id')\
+                    .in_('id', shared_file_ids)\
+                    .eq('is_deleted', False)\
+                    .eq('upload_status', 'completed')\
+                    .execute()
+                
+                shared_files_details = shared_files_details_response.data
+            
+            # 4. Get user information for owners and sharers
+            all_user_ids = set()
+            
+            # Add owner IDs from uploaded files
+            for file in uploaded_files_response.data:
+                all_user_ids.add(file['owner_id'])
+            
+            # Add shared_by IDs from shares
+            for share in shared_files_response.data:
+                all_user_ids.add(share['shared_by'])
+            
+            # Add owner IDs from shared files
+            for file in shared_files_details:
+                all_user_ids.add(file['owner_id'])
+            
+            users_response = supabase.table('test_users')\
+                .select('id, user_id, full_name, role, email')\
+                .in_('id', list(all_user_ids))\
+                .execute() if all_user_ids else {"data": []}
+            
+            users_dict = {user['id']: user for user in users_response.data}
+            
+            # 5. Create activity items from uploaded files
+            activity_items = []
+            
+            for file in uploaded_files_response.data:
+                activity_item = FileService._create_upload_activity_item(
+                    file, users_dict, user_id
+                )
+                if activity_item:
+                    activity_items.append(activity_item)
+            
+            # 6. Create activity items from shared files
+            # Create mapping of file_id to file details for shared files
+            shared_files_dict = {file['id']: file for file in shared_files_details}
+            
+            for share in shared_files_response.data:
+                file_id = share['file_id']
+                file_details = shared_files_dict.get(file_id)
+                
+                if file_details:
+                    activity_item = FileService._create_share_activity_item(
+                        share, file_details, users_dict, user_id
+                    )
+                    if activity_item:
+                        activity_items.append(activity_item)
+            
+            # 7. Sort all activity items by timestamp (most recent first)
+            activity_items.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+            
+            # 8. Return only the most recent items up to limit
+            recent_activity = activity_items[:limit]
+            
+            logger.info(f"Found {len(recent_activity)} recent activities for user {user_id}")
+            return recent_activity
+            
+        except Exception as e:
+            logger.error(f"Error in get_recent_activity: {str(e)}", exc_info=True)
+            import traceback
+            logger.error(traceback.format_exc())
+            return []
+    
+    # ==================== NEW HELPER METHODS FOR ACTIVITY ITEMS ====================
+    @staticmethod
+    def _create_upload_activity_item(file_data: Dict[str, Any], 
+                                     users_dict: Dict[str, Dict], 
+                                     current_user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Create an activity item for a file upload
+        """
+        try:
+            # Get owner info
+            owner_id = file_data.get('owner_id')
+            owner = users_dict.get(owner_id, {})
+            
+            # Determine if current user is the owner
+            is_current_user = str(owner_id) == str(current_user_id)
+            
+            # Get file name for display
+            file_extension = file_data.get('file_extension', '')
+            original_filename = file_data.get('original_filename', 'Unknown File')
+            display_name = FileService._format_filename(original_filename, file_extension)
+            
+            # Get detailed timestamp
+            uploaded_at = file_data.get('uploaded_at')
+            formatted_date = FileService._format_date_only(uploaded_at)
+            formatted_time = FileService._format_time_only(uploaded_at)
+            formatted_datetime = FileService._format_datetime_detailed(uploaded_at)
+            
+            # Create activity message based on role
+            if is_current_user:
+                # User uploaded their own file
+                message = f"You uploaded {display_name}"
+            else:
+                # Someone else uploaded a file (shouldn't happen for uploads)
+                owner_name = owner.get('full_name', 'Unknown User')
+                message = f"{owner_name} uploaded {display_name}"
+            
+            return {
+                'type': 'upload',
+                'file_id': file_data.get('id'),
+                'file_name': display_name,
+                'message': message,
+                'timestamp': uploaded_at,
+                'formatted_date': formatted_date,
+                'formatted_time': formatted_time,
+                'formatted_datetime': formatted_datetime,
+                'action_by': owner_id if not is_current_user else current_user_id,
+                'action_by_name': owner.get('full_name', '') if not is_current_user else 'You',
+                'action_by_role': owner.get('role', '') if not is_current_user else '',
+                'icon': 'upload'
+            }
+            
+        except Exception as e:
+            logger.error(f"Error creating upload activity item: {str(e)}")
+            return None
+    
+    @staticmethod
+    def _create_share_activity_item(share_data: Dict[str, Any], 
+                                    file_data: Dict[str, Any],
+                                    users_dict: Dict[str, Dict],
+                                    current_user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Create an activity item for a file share
+        """
+        try:
+            # Get user info
+            shared_by_id = share_data.get('shared_by')
+            shared_with_id = share_data.get('shared_with')
+            owner_id = file_data.get('owner_id')
+            
+            shared_by_user = users_dict.get(shared_by_id, {})
+            owner_user = users_dict.get(owner_id, {})
+            
+            # Determine roles
+            is_current_user_shared_by = str(shared_by_id) == str(current_user_id)
+            is_current_user_shared_with = str(shared_with_id) == str(current_user_id)
+            is_current_user_owner = str(owner_id) == str(current_user_id)
+            
+            # Get file name for display
+            file_extension = file_data.get('file_extension', '')
+            original_filename = file_data.get('original_filename', 'Unknown File')
+            display_name = FileService._format_filename(original_filename, file_extension)
+            
+            # Get detailed timestamp
+            shared_at = share_data.get('shared_at')
+            formatted_date = FileService._format_date_only(shared_at)
+            formatted_time = FileService._format_time_only(shared_at)
+            formatted_datetime = FileService._format_datetime_detailed(shared_at)
+            
+            # Create activity message based on different scenarios
+            message = ""
+            
+            if is_current_user_shared_by:
+                # User shared a file with someone
+                shared_with_user = users_dict.get(shared_with_id, {})
+                shared_with_name = shared_with_user.get('full_name', 'another user')
+                message = f"You shared {display_name} with {shared_with_name}"
+            elif is_current_user_shared_with:
+                # User received a shared file
+                shared_by_name = shared_by_user.get('full_name', 'another user')
+                message = f"{shared_by_name} shared {display_name} with you"
+            elif is_current_user_owner:
+                # User's file was shared (but not by them and not with them)
+                shared_by_name = shared_by_user.get('full_name', 'another user')
+                shared_with_user = users_dict.get(shared_with_id, {})
+                shared_with_name = shared_with_user.get('full_name', 'another user')
+                message = f"{shared_by_name} shared your file {display_name} with {shared_with_name}"
+            else:
+                # User is neither owner, sharer, nor recipient (shouldn't normally happen)
+                shared_by_name = shared_by_user.get('full_name', 'another user')
+                message = f"{shared_by_name} shared {display_name}"
+            
+            return {
+                'type': 'share',
+                'file_id': file_data.get('id'),
+                'file_name': display_name,
+                'message': message,
+                'timestamp': shared_at,
+                'formatted_date': formatted_date,
+                'formatted_time': formatted_time,
+                'formatted_datetime': formatted_datetime,
+                'action_by': shared_by_id,
+                'action_by_name': shared_by_user.get('full_name', ''),
+                'action_by_role': shared_by_user.get('role', ''),
+                'shared_with': shared_with_id,
+                'access_level': share_data.get('access_level', 'view'),
+                'icon': 'share'
+            }
+            
+        except Exception as e:
+            logger.error(f"Error creating share activity item: {str(e)}")
+            return None
+    
+    # ==================== NEW HELPER METHODS FOR FORMATTING ====================
+    @staticmethod
+    def _format_filename(original_filename: str, file_extension: str) -> str:
+        """
+        Format filename with extension
+        """
+        if not original_filename:
+            return 'Unknown File'
+        
+        display_name = original_filename
+        if file_extension and not original_filename.lower().endswith(f".{file_extension.lower()}"):
+            display_name = f"{original_filename}.{file_extension}"
+        
+        return display_name
+    
+    @staticmethod
+    def _format_datetime_detailed(timestamp: Optional[str]) -> str:
+        """
+        Format timestamp to detailed date and time
+        e.g., "Jan 15, 2024 at 14:30:45"
+        """
+        if not timestamp:
+            return "Date unavailable"
+        
+        try:
+            # Parse timestamp
+            if timestamp.endswith('Z'):
+                timestamp = timestamp[:-1] + '+00:00'
+            
+            dt = datetime.fromisoformat(timestamp)
+            
+            # Format: "Jan 15, 2024 at 14:30:45"
+            formatted = dt.strftime("%b %d, %Y at %H:%M:%S")
+            
+            return formatted
+            
+        except Exception as e:
+            logger.warning(f"Could not parse timestamp {timestamp}: {str(e)}")
+            return "Date unavailable"
+    
+    @staticmethod
+    def _format_date_only(timestamp: Optional[str]) -> str:
+        """
+        Format timestamp to date only
+        e.g., "Jan 15, 2024"
+        """
+        if not timestamp:
+            return "Date unavailable"
+        
+        try:
+            if timestamp.endswith('Z'):
+                timestamp = timestamp[:-1] + '+00:00'
+            
+            dt = datetime.fromisoformat(timestamp)
+            
+            # Format: "Jan 15, 2024"
+            formatted = dt.strftime("%b %d, %Y")
+            
+            return formatted
+            
+        except Exception as e:
+            logger.warning(f"Could not parse date {timestamp}: {str(e)}")
+            return "Date unavailable"
+    
+    @staticmethod
+    def _format_time_only(timestamp: Optional[str]) -> str:
+        """
+        Format timestamp to time only
+        e.g., "14:30:45"
+        """
+        if not timestamp:
+            return "Time unavailable"
+        
+        try:
+            if timestamp.endswith('Z'):
+                timestamp = timestamp[:-1] + '+00:00'
+            
+            dt = datetime.fromisoformat(timestamp)
+            
+            # Format: "14:30:45" (24-hour format)
+            formatted = dt.strftime("%H:%M:%S")
+            
+            return formatted
+            
+        except Exception as e:
+            logger.warning(f"Could not parse time {timestamp}: {str(e)}")
+            return "Time unavailable"
+    
+    # ==================== NEW METHOD FOR USER DISPLAY INFO ====================
+    @staticmethod
+    def get_user_display_info(user_id: str) -> Dict[str, str]:
+        """
+        Get user display information for the dashboard
+        
+        Args:
+            user_id: UUID of the user
+            
+        Returns:
+            Dictionary with user display information
+        """
+        try:
+            supabase = FileService._get_supabase()
+            
+            response = supabase.table('test_users')\
+                .select('user_id, full_name, role, email')\
+                .eq('id', user_id)\
+                .single()\
+                .execute()
+            
+            if response.data:
+                user_data = response.data
+                role = user_data.get('role', 'user')
+                full_name = user_data.get('full_name', 'User')
+                
+                # Create a welcome message based on role
+                if role == 'doctor':
+                    welcome = f"Dr. {full_name.split()[0]}" if 'Dr.' not in full_name else full_name
+                elif role == 'patient':
+                    welcome = full_name
+                else:
+                    welcome = full_name
+                
+                return {
+                    'user_id': user_data.get('user_id', ''),
+                    'full_name': full_name,
+                    'role': role,
+                    'email': user_data.get('email', ''),
+                    'welcome_message': f"Welcome back, {welcome}!",
+                    'dashboard_title': f"{role.title()} Dashboard"
+                }
+            
+            return {
+                'user_id': '',
+                'full_name': 'User',
+                'role': 'user',
+                'email': '',
+                'welcome_message': 'Welcome!',
+                'dashboard_title': 'Dashboard'
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting user display info: {str(e)}")
+            return {
+                'user_id': '',
+                'full_name': 'User',
+                'role': 'user',
+                'email': '',
+                'welcome_message': 'Welcome!',
+                'dashboard_title': 'Dashboard'
+            }
+    
+    # ==================== EXISTING METHODS (KEEP THESE AS THEY ARE) ====================
     @staticmethod
     def get_recent_uploads_for_user(user_id: str, limit: int = 10) -> List[Dict[str, Any]]:
         """

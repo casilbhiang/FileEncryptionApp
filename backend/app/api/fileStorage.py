@@ -6,6 +6,7 @@ Handles both DHomePage (recent activity) and MyFiles (full library with filters)
 
 from flask import Blueprint, jsonify, request
 import re
+from typing import Dict, Any
 from services.files_service import FileService
 
 # Create blueprint
@@ -70,22 +71,47 @@ def get_file_storage():
         mode = request.args.get('mode', 'recent')  # 'recent' or 'library'
         
         if mode == 'recent':
-            # DHomePage mode: simple, recent files
+            # DHomePage mode: recent activity (uploads AND shares)
             limit = request.args.get('limit', default=10, type=int)
             if limit > 50:  # Safety limit
                 limit = 50
             
-            # Get data from service layer using UUID
-            files = FileService.get_recent_uploads_for_user(user_uuid, limit)
+            # Get recent activity from service layer using UUID
+            recent_activity = FileService.get_recent_activity(user_uuid, limit)
+            
+            # Get user display info
+            user_info = FileService.get_user_display_info(user_uuid)
+            
+            # Format activity items for frontend
+            formatted_files = []
+            for activity in recent_activity:
+                formatted_files.append({
+                    'id': activity.get('file_id', activity.get('id', '')),
+                    'name': activity.get('file_name', ''),
+                    'sharedBy': activity.get('action_by_name', ''),
+                    'status': get_activity_status_text(activity),
+                    'date': activity.get('formatted_datetime', 'Jan 1, 2024 at 00:00:00'),
+                    'type': activity.get('type', 'upload'),
+                    'message': activity.get('message', ''),
+                    'timestamp': activity.get('timestamp', ''),
+                    'formatted_date': activity.get('formatted_date', ''),
+                    'formatted_time': activity.get('formatted_time', ''),
+                    'icon': activity.get('icon', '')
+                })
             
             response_data = {
                 'success': True,
-                'data': files,
-                'count': len(files),
+                'data': formatted_files,
+                'count': len(formatted_files),
                 'mode': 'recent',
-                'description': 'Recent file activity',
+                'description': 'Recent file activity (uploads and shares)',
                 'user_id': user_id_string,
-                'user_uuid': user_uuid  # For debugging
+                'user_uuid': user_uuid,
+                'user_info': {
+                    'user_name': user_info.get('full_name', 'User'),
+                    'role': user_info.get('role', 'user'),
+                    'welcome_message': user_info.get('welcome_message', '')
+                }
             }
             
         else:  # mode == 'library'
@@ -180,6 +206,23 @@ def get_file_storage():
             'error': 'Internal server error',
             'message': str(e)
         }), 500
+
+def get_activity_status_text(activity: Dict[str, Any]) -> str:
+    """
+    Generate status text for activity items
+    """
+    activity_type = activity.get('type', '')
+    
+    if activity_type == 'upload':
+        return "Uploaded"
+    elif activity_type == 'share':
+        access_level = activity.get('access_level', 'view')
+        if access_level == 'edit':
+            return "Shared with edit access"
+        else:
+            return "Shared with view access"
+    else:
+        return "Updated"
 
 @fileStorage_bp.route('/api/file-storage/test', methods=['GET', 'OPTIONS'])
 def test_endpoint():
