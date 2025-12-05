@@ -110,15 +110,22 @@ def create_user():
                 'message': 'Failed to create user'
             }), 500
 
+        print(f"DEBUG: User created successfully, response data: {response.data}")
+        print(f"DEBUG: About to log user creation event")
+
         # Log user creation
         try:
-            supabase.rpc('log_auth_event', {
+            print(f"Attempting to log user creation event for user_id: {response.data[0]['id']}")
+            rpc_response = supabase.rpc('log_simple_auth_event', {
                 'p_user_id': response.data[0]['id'],
                 'p_event_type': 'user_created',
                 'p_email': email
             }).execute()
+            print(f"User creation log result: {rpc_response}")
         except Exception as e:
             print(f"Failed to log user creation: {e}")
+            import traceback
+            traceback.print_exc()
 
         return jsonify({
             'success': True,
@@ -171,7 +178,7 @@ def login():
         if not response.data or len(response.data) == 0:
             # Log failed login attempt
             try:
-                supabase.rpc('log_auth_event', {
+                supabase.rpc('log_simple_auth_event', {
                     'p_user_id': None,
                     'p_event_type': 'login_failed',
                     'p_email': None,
@@ -212,7 +219,7 @@ def login():
             # Password is incorrect
             # Log failed login attempt
             try:
-                supabase.rpc('log_auth_event', {
+                supabase.rpc('log_simple_auth_event', {
                     'p_user_id': user['id'],
                     'p_event_type': 'login_failed',
                     'p_email': user['email'],
@@ -255,7 +262,7 @@ def login():
 
         # Log login attempt in audit table
         try:
-            supabase.rpc('log_auth_event', {
+            supabase.rpc('log_simple_auth_event', {
                 'p_user_id': user['id'],
                 'p_event_type': 'otp_sent',
                 'p_email': user['email'],
@@ -360,7 +367,7 @@ def verify_code():
 
         # Log successful login
         try:
-            supabase.rpc('log_auth_event', {
+            supabase.rpc('log_simple_auth_event', {
                 'p_user_id': user['id'],
                 'p_event_type': 'login_success',
                 'p_email': user['email']
@@ -454,7 +461,7 @@ def resend_code():
         # Log OTP resend
         try:
             supabase = get_supabase_admin_client()
-            supabase.rpc('log_auth_event', {
+            supabase.rpc('log_simple_auth_event', {
                 'p_user_id': user['id'],
                 'p_event_type': 'otp_sent',
                 'p_email': email,
@@ -543,13 +550,17 @@ def reset_password():
 
         # Log password reset
         try:
-            supabase.rpc('log_auth_event', {
+            print(f"Attempting to log password reset event for user_id: {user['id']}")
+            rpc_response = supabase.rpc('log_simple_auth_event', {
                 'p_user_id': user['id'],
                 'p_event_type': 'password_reset',
                 'p_email': user['email']
             }).execute()
+            print(f"Password reset log result: {rpc_response}")
         except Exception as e:
             print(f"Failed to log password reset: {e}")
+            import traceback
+            traceback.print_exc()
 
         return jsonify({
             'success': True,
@@ -568,10 +579,45 @@ def logout():
     """
     Handle user logout
     POST /api/auth/logout
+    Body: { "user_id": "DOC001" }
     """
     try:
+        data = request.get_json()
+        print(f"DEBUG: Logout request data: {data}")
+        user_id = data.get('user_id') if data else None
+        print(f"DEBUG: Extracted user_id: {user_id}")
+
+        # Log logout event if user_id provided
+        if user_id:
+            print(f"DEBUG: user_id is truthy, proceeding with logout logging")
+            try:
+                supabase = get_supabase_admin_client()
+
+                # Get user details for logging
+                print(f"Looking up user with user_id: {user_id}")
+                user_response = supabase.table('users').select('*').eq('user_id', user_id).execute()
+                print(f"User lookup result: {user_response.data}")
+
+                if user_response.data and len(user_response.data) > 0:
+                    user = user_response.data[0]
+                    print(f"Found user: id={user['id']}, email={user['email']}, user_id={user['user_id']}")
+
+                    # Log logout event
+                    print(f"Attempting to log logout event for UUID: {user['id']}")
+                    rpc_response = supabase.rpc('log_simple_auth_event', {
+                        'p_user_id': user['id'],
+                        'p_event_type': 'logout',
+                        'p_email': user['email']
+                    }).execute()
+                    print(f"Logout log result: {rpc_response.data}")
+                else:
+                    print(f"No user found with user_id: {user_id}")
+            except Exception as e:
+                print(f"Failed to log logout event: {e}")
+                import traceback
+                traceback.print_exc()
+
         # In production, invalidate the session token
-        # For now, just return success
         return jsonify({
             'success': True,
             'message': 'Logged out successfully'
@@ -581,4 +627,61 @@ def logout():
         return jsonify({
             'success': False,
             'message': 'An error occurred during logout'
+        }), 500
+
+@auth_bp.route('/users', methods=['GET'])
+def get_users():
+    """
+    Get all users from the database
+    GET /api/auth/users
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Fetch all users from database
+        response = supabase.table('users').select('*').order('created_at', desc=False).execute()
+
+        if not response.data:
+            return jsonify({
+                'success': True,
+                'users': []
+            }), 200
+
+        # Calculate inactive days for each user
+        users_with_status = []
+        for user in response.data:
+            # Calculate inactive days if last_login exists
+            inactive_days = None
+            if user.get('last_login'):
+                try:
+                    last_login = datetime.fromisoformat(user['last_login'].replace('Z', '+00:00'))
+                    days_diff = (datetime.now() - last_login.replace(tzinfo=None)).days
+                    if days_diff > 90:  # Consider inactive if more than 90 days
+                        inactive_days = days_diff
+                except Exception as e:
+                    print(f"Error calculating inactive days for user {user.get('user_id')}: {e}")
+
+            users_with_status.append({
+                'id': user['user_id'],
+                'name': user['full_name'],
+                'email': user['email'],
+                'role': user['role'].capitalize(),
+                'status': 'Active' if user.get('is_active', False) else 'Inactive',
+                'inactiveDays': inactive_days,
+                'lastLogin': user.get('last_login'),
+                'createdAt': user.get('created_at')
+            })
+
+        return jsonify({
+            'success': True,
+            'users': users_with_status
+        }), 200
+
+    except Exception as e:
+        print(f"Get users error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while fetching users'
         }), 500

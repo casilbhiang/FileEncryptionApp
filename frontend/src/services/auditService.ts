@@ -2,7 +2,7 @@
  * API Service for Audit Logs
  */
 
-const API_BASE_URL = 'http://127.0.0.1:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
 
 export interface AuditLog {
     id: string;
@@ -35,7 +35,7 @@ export async function getAuditLogs(
     if (result) params.append('result', result);
     if (search) params.append('search', search);
 
-    const url = `${API_BASE_URL}/audit/logs${params.toString() ? '?' + params.toString() : ''}`;
+    const url = `${API_BASE_URL}/api/audit/logs${params.toString() ? '?' + params.toString() : ''}`;
     const response = await fetch(url);
 
     if (!response.ok) {
