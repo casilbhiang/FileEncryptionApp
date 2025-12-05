@@ -10,10 +10,12 @@ def create_app(config_name='development'):
     CORS(app)
     
     # Register blueprints
+    from app.api.auth import auth_bp
     from app.api.keys import keys_bp
     from app.api.files import files_bp
     from app.api.audit import audit_bp
-    
+
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(keys_bp, url_prefix='/api/keys')
     app.register_blueprint(files_bp, url_prefix='/api/files')
     app.register_blueprint(audit_bp, url_prefix='/api/audit')
@@ -28,6 +30,7 @@ def create_app(config_name='development'):
             'status': 'online',
             'version': '1.0.0',
             'endpoints': {
+                'auth': '/api/auth',
                 'keys': '/api/keys',
                 'files': '/api/files',
                 'audit': '/api/audit'
