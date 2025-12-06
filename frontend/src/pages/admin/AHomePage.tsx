@@ -5,7 +5,7 @@ import Sidebar from '../../components/layout/Sidebar';
 import { CheckCircle } from 'lucide-react';
 
 const AHomePage: React.FC = () => {
-  const userName = localStorage.getItem('user_id') || 'Admin Ho';
+  const userName = localStorage.getItem('user_name') || 'Admin';
 
   // System health data
   const systemHealth = [

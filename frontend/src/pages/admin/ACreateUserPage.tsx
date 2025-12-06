@@ -26,11 +26,15 @@ const ACreateUserPage: React.FC = () => {
     vaccinations: '',
   });
 
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
   const handleGenerate = () => {
     // Generate random user ID and password
     const randomUserId = `#U-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
     const randomPassword = Math.random().toString(36).substring(2, 10);
-    
+
     setFormData(prev => ({
       ...prev,
       userId: randomUserId,
@@ -38,12 +42,79 @@ const ACreateUserPage: React.FC = () => {
     }));
   };
 
-  const handleCreateUser = () => {
-    console.log('Creating user:', formData, 'Role:', selectedRole);
-    if (selectedRole === 'Patient') {
-      console.log('Health Profile:', healthProfile);
+  const handleCreateUser = async () => {
+    setError('');
+    setSuccess('');
+
+    // Validation
+    if (!formData.fullName) {
+      setError('Please enter full name');
+      return;
     }
-    // Handle user creation logic here
+    if (!formData.email) {
+      setError('Please enter email address');
+      return;
+    }
+    if (!selectedRole) {
+      setError('Please select a user role');
+      return;
+    }
+
+    // Clear old generated credentials
+    setFormData(prev => ({
+      ...prev,
+      userId: '',
+      password: ''
+    }));
+
+    setIsLoading(true);
+
+    try {
+      const API_URL = import.meta.env.VITE_API_URL;
+
+      if (!API_URL) {
+        setError('API URL not configured');
+        setIsLoading(false);
+        return;
+      }
+
+      const requestBody: any = {
+        full_name: formData.fullName,
+        email: formData.email,
+        role: selectedRole.toLowerCase(),
+      };
+
+      const response = await fetch(`${API_URL}/api/auth/create-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || 'Failed to create user');
+        setIsLoading(false);
+        return;
+      }
+
+      // Update form with generated credentials
+      setFormData(prev => ({
+        ...prev,
+        userId: data.user.user_id,
+        password: data.user.temporary_password
+      }));
+
+      setSuccess(`User created successfully! User ID: ${data.user.user_id}`);
+
+    } catch (err) {
+      console.error('Create user error:', err);
+      setError('Failed to create user. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -62,9 +133,10 @@ const ACreateUserPage: React.FC = () => {
           <div className="flex gap-3">
             <button
               onClick={handleCreateUser}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
+              disabled={isLoading}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition disabled:bg-blue-400 disabled:cursor-not-allowed"
             >
-              Create User
+              {isLoading ? 'Creating...' : 'Create User'}
             </button>
             <button
               onClick={() => window.history.back()}
@@ -77,6 +149,20 @@ const ACreateUserPage: React.FC = () => {
 
         {/* Form */}
         <div className="bg-white rounded-lg shadow-sm p-6 max-w-4xl">
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-600 text-sm font-medium">{error}</p>
+            </div>
+          )}
+
+          {/* Success Message */}
+          {success && (
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-green-600 text-sm font-medium">{success}</p>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             {/* Full Name */}
             <div>

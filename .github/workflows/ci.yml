@@ -33,6 +33,10 @@ jobs:
 
       - name: Run tests
         working-directory: backend
+        env:
+          SUPABASE_URL: "https://dummy.supabase.co"
+          SUPABASE_SERVICE_ROLE_KEY: "dummy-key-for-testing"
+          FLASK_ENV: "testing"
         run: pytest -v tests/
 
 
@@ -61,4 +65,5 @@ jobs:
         env:
           VITE_SUPABASE_URL: "https://dummy.supabase.co"
           VITE_SUPABASE_KEY: "public-anon-key"
+          VITE_API_URL: "http://localhost:5000"
         run: npm run build

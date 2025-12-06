@@ -1,18 +1,32 @@
 import os
 from dotenv import load_dotenv
+from pathlib import Path
 
-load_dotenv()
+# Get the directory where config.py is located
+basedir = Path(__file__).resolve().parent
+
+# Load .env file from the backend directory
+dotenv_path = basedir / '.env'
+load_dotenv(dotenv_path)
 
 class Config:
     """Base configuration"""
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'hard-to-guess-string'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    
+
     # Supabase Settings
     SUPABASE_URL = os.environ.get('SUPABASE_URL')
-    SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
-    SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY')
-    
+    SUPABASE_KEY = os.environ.get('SUPABASE_ANON_KEY')
+    SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
+
+    # Email configuration
+    SMTP_HOST = os.environ.get('SMTP_HOST', 'smtp.gmail.com')
+    SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
+    SMTP_USER = os.environ.get('SMTP_USER')
+    SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD')
+    EMAIL_FROM = os.environ.get('EMAIL_FROM')
+    EMAIL_FROM_NAME = os.environ.get('EMAIL_FROM_NAME', 'FileEncryption App')
+
     # File Upload Settings
     STORAGE_BUCKET = 'encrypted-files'
     MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB

@@ -4,7 +4,7 @@ import React from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 
 const DHomePage: React.FC = () => {
-  const userName = localStorage.getItem('user_id') || 'DR MIN HAN';
+  const userName = localStorage.getItem('user_name') || 'Doctor';
 
   // Sample recent uploads data
   const recentUploads = [
