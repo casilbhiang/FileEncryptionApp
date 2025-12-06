@@ -15,26 +15,33 @@ export interface UploadResponse {
     filename: string;
 }
 
+export interface EncryptionMetadata {
+    iv: string;
+    authTag: string;
+    algorithm: string;
+}
+
 /* File Upload */
-export const uploadFile = async (file: File, sharedWith?: string, signal?: AbortSignal): Promise<UploadResponse> => {
+export const uploadFile = async ( file: File, encryptionMetadata?: EncryptionMetadata, signal?: AbortSignal ): Promise<UploadResponse> => {
     const formData = new FormData();
     formData.append('file', file);
-
-    if (sharedWith) {
-        formData.append('shared_with', sharedWith);
+    
+    // Add encryption metadata if provided
+    if (encryptionMetadata) {
+        formData.append('encryption_metadata', JSON.stringify(encryptionMetadata));
     }
-
+    
     const response = await fetch(`${API_BASE_URL}/upload`, {
         method: 'POST',
         body: formData,
         signal,
     });
-
+    
     if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Upload failed');
     }
-
+    
     return response.json();
 };
 

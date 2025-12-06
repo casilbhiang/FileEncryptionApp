@@ -1,16 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
-import { Upload, X, Folder, Check, Trash2 } from 'lucide-react';
+import { Upload, X, Folder, Check, Trash2, Lock } from 'lucide-react';
 import { uploadFile, deleteFile } from '../../services/Files';
+import { encryptFile, getStoredEncryptionKey, hasEncryptionKey } from '../../services/Encryption';
 
 interface UploadedFile {
   id: number | string;
   name: string;
   size: string;
-  status: 'uploading' | 'completed' | 'failed' | 'cancelled';
+  status: 'encrypting' | 'uploading' | 'completed' | 'failed' | 'cancelled';
   progress?: number;
   errorMessage?: string;
   abortController?: AbortController;
@@ -23,6 +24,44 @@ const UploadFilePage: React.FC = () => {
 
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [encryptionKey, setEncryptionKey] = useState<CryptoKey | null>(null);
+  const [isLoadingKey, setIsLoadingKey] = useState(true);
+  const [keyAvailable, setKeyAvailable] = useState(false);
+
+  // HARDCODED USER:
+  const TEST_USER_ID = '0ae915b0-8b94-453a-abcb-d83e26264463';
+
+  useEffect(() => { loadEncryptionKey(); }, []);
+
+  const loadEncryptionKey = async () => {
+    try {
+      setIsLoadingKey(true);
+
+      // Check if key exists
+      const hasKey = hasEncryptionKey(TEST_USER_ID);
+      setKeyAvailable(hasKey);
+
+      if (hasKey) {
+        console.log('Encryption key found in storage, retrieving...');
+        const key = await getStoredEncryptionKey(TEST_USER_ID);
+
+        if (key) {
+          setEncryptionKey(key);
+          console.log('Encryption key loaded successfully');
+        } else {
+          console.log('Failed to retrieve encryption key from storage');
+          setKeyAvailable(false);
+        }
+      } else {
+        console.log('No encryption key found for user, need to scan QR code');
+      }
+    } catch (error) {
+      console.error('Error loading encryption key: ', error);
+      setKeyAvailable(false);
+    } finally {
+      setIsLoadingKey(false);
+    }
+  };
 
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return bytes + ' B';
@@ -46,28 +85,55 @@ const UploadFilePage: React.FC = () => {
   };
 
   const handleFiles = async (files: File[]) => {
+    // Check if encryption key is available
+    if (!encryptionKey || !keyAvailable) {
+      alert('No encryption key found!\n\nPlease scan the QR code provided by the System Administrator to set up encryption before uploading files.');
+      return;
+    }
+
     for (const file of files) {
       const tempId = Date.now() + Math.random();
       const abortController = new AbortController();
       let uploadedFileId: string | null = null;
 
-      // Add file to list with uploading status
+      // Add file to list with encrypting status
       const newFile: UploadedFile = {
         id: tempId,
         name: file.name,
         size: `0 KB of ${formatFileSize(file.size)}`,
-        status: 'uploading',
+        status: 'encrypting',
         progress: 0,
         abortController,
       };
 
-      setUploadedFiles(prev => [...prev, newFile]);
+      setUploadedFiles((prev) => [...prev, newFile]);
 
       try {
+        // STEP 1: Encrypt File (Client-side)
+        console.log('Encrypting file:', file.name);
+        const encryptionResult = await encryptFile(file, encryptionKey);
+
+        // Check if cancelled during encryption
+        if (abortController.signal.aborted) {
+          console.log('Cancelled during encryption');
+          setUploadedFiles((prev) => prev.filter((f) => f.id !== tempId));
+          return;
+        }
+
+        // Update status to uploading
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.id === tempId ? { ...f, status: 'uploading' as const } : f
+          )
+        );
+
+        // STEP 2: Upload Encrypted Blob
+        console.log('Uploading encrypted file to server...');
+
         // Simulate progress
         const progressInterval = setInterval(() => {
-          setUploadedFiles(prev =>
-            prev.map(f =>
+          setUploadedFiles((prev) =>
+            prev.map((f) =>
               f.id === tempId && f.progress !== undefined && f.progress < 90
                 ? { ...f, progress: f.progress + 10 }
                 : f
@@ -75,40 +141,50 @@ const UploadFilePage: React.FC = () => {
           );
         }, 200);
 
-        // Upload file with abort signal
-        const response = await uploadFile(file, undefined, abortController.signal);
-        uploadedFileId = response.file_id;
+        // Create encrypted file blob with original filename
+        const encryptedFile = new File([encryptionResult.encryptedBlob], file.name, {
+          type: 'application/octet-stream',
+        });
 
+        // Upload with encryption metadata
+        const response = await uploadFile(
+          encryptedFile,
+          {
+            iv: encryptionResult.iv,
+            authTag: encryptionResult.authTag,
+            algorithm: encryptionResult.algorithm,
+          },
+          abortController.signal
+        );
+
+        uploadedFileId = response.file_id;
         clearInterval(progressInterval);
 
         // Check if cancelled after upload completes
         if (abortController.signal.aborted) {
-          console.log('Upload was cancelled (post-completion), cleaning up backend file:', uploadedFileId);
-          // Delete the file from backend since upload was cancelled
+          console.log('Upload cancelled, cleaning up:', uploadedFileId);
           try {
             await deleteFile(uploadedFileId);
-            console.log('Cancelled file removed from backend');
           } catch (error) {
             console.error('Failed to remove cancelled file:', error);
           }
-          // Remove from UI
-          setUploadedFiles(prev => prev.filter(f => f.id !== tempId));
+          setUploadedFiles((prev) => prev.filter((f) => f.id !== tempId));
           return;
         }
 
-        // Confirm upload completion to backend
+        // STEP 3: Confirm Upload
         try {
           await fetch(`http://localhost:5000/api/files/confirm/${uploadedFileId}`, {
             method: 'POST',
           });
-          console.log('Upload confirmed to backend:', uploadedFileId);
+          console.log('Upload confirmed:', uploadedFileId);
         } catch (error) {
           console.error('Failed to confirm upload:', error);
         }
 
         // Update to completed
-        setUploadedFiles(prev =>
-          prev.map(f =>
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
             f.id === tempId
               ? {
                 ...f,
@@ -123,29 +199,24 @@ const UploadFilePage: React.FC = () => {
           )
         );
       } catch (error) {
-        // Check if it was cancelled
+        // Handle cancellation
         if (error instanceof Error && error.name === 'AbortError') {
-          console.log('Upload cancelled by user (during transfer):', file.name);
-
-          // If we got a file ID before cancellation, delete it
+          console.log('Upload cancelled by user');
           if (uploadedFileId) {
             try {
-              console.log('Deleting partially uploaded file:', uploadedFileId);
               await deleteFile(uploadedFileId);
-              console.log('Partially uploaded file deleted');
             } catch (deleteError) {
-              console.error('Failed to delete partially uploaded file:', deleteError);
+              console.error('Failed to delete cancelled file:', deleteError);
             }
           }
-
-          // Remove from UI immediately
-          setUploadedFiles(prev => prev.filter(f => f.id !== tempId));
+          setUploadedFiles((prev) => prev.filter((f) => f.id !== tempId));
           return;
         }
 
-        // Display fail if got error
-        setUploadedFiles(prev =>
-          prev.map(f =>
+        // Handle encryption/upload errors
+        console.error('Upload error:', error);
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
             f.id === tempId
               ? {
                 ...f,
@@ -160,8 +231,9 @@ const UploadFilePage: React.FC = () => {
     }
   };
 
+
   const handleCancelUpload = async (file: UploadedFile) => {
-    if (file.status === 'uploading' && file.abortController) {
+    if ((file.status === 'uploading' || file.status === 'encrypting') && file.abortController) {
       console.log(`Cancelling upload: ${file.name}`);
 
       // Abort the fetch request
@@ -195,6 +267,17 @@ const UploadFilePage: React.FC = () => {
     // Remove from UI
     setUploadedFiles(files => files.filter(file => file.id !== id));
   };
+
+  if (isLoadingKey) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <Lock className="w-16 h-16 text-purple-600 mx-auto mb-4 animate-pulse" />
+          <p className="text-lg text-gray-700">Loading encryption key...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
@@ -232,7 +315,7 @@ const UploadFilePage: React.FC = () => {
                 Choose a file or drag & drop it here
               </h3>
               <p className="text-sm text-gray-500 mb-6">
-                JPEG, PNG, PDF, and MP4 formats, up to 50MB
+                PDF, PNG, JPEG, and JPG formats, up to 50MB
               </p>
               <label className="px-6 py-2 border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition cursor-pointer">
                 Browse File
@@ -241,7 +324,7 @@ const UploadFilePage: React.FC = () => {
                   className="hidden"
                   onChange={handleFileSelect}
                   multiple
-                  accept=".pdf,.png,.jpg,.jpeg,.mp4"
+                  accept=".pdf,.png,.jpg,.jpeg"
                 />
               </label>
             </div>

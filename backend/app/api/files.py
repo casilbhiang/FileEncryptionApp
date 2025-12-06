@@ -1,222 +1,37 @@
-"""
-API endpoints for file encryption and decryption (User's AES-GCM)
-AND File Upload to Supabase (Friend's logic)
-"""
-from flask import Blueprint, request, jsonify, send_file
+# Backend API for File Management Encryption (may remove?) JY VER
+
+from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
 import os
 import uuid
-import io
-from datetime import datetime, timedelta
 from supabase import create_client
-
-# User's imports
-from app.crypto.encryption import EncryptionManager
-from app.models.encryption_models import EncryptedFile
-from app.models.storage import key_pair_store, encrypted_file_store
+from datetime import datetime, timedelta
 
 # Configuration
 SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY') # Using Service Role Key for backend
-# Fallback to anon key if service role not found, but service role is better for backend
-if not SUPABASE_SERVICE_ROLE_KEY:
-    SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
-
+SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 STORAGE_BUCKET = 'encrypted-files'
 MAX_FILE_SIZE = 50*1024*1024
-ALLOWED_FILE_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg', '.docx'}
+ALLOWED_FILE_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg'}
 
 # Initialize Supabase
-supabase = None
-if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
-    supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-# Blueprint
-# Using HEAD's definition (no prefix) so __init__.py controls it.
-files_bp = Blueprint('files', __name__)
+# Blueprint for file routes
+files_bp = Blueprint('files', __name__, url_prefix='/api/files')
 
-# Test user (from Friend's code)
+# Test user (hardcode)
 test_user = {
-    'id': '790f3fdd-7d0a-4ab8-b6a3-d413d3b04853', 
-    'user_id': 'DR001',
-    'full_name': 'Test Name'
+    'id': '0ae915b0-8b94-453a-abcb-d83e26264463', 
+    'user_id': 'ADM002',
+    'email': 'fyp2502@gmail.com',
+    'full_name': 'final year project'
 }
-
-# ==========================================
-# USER'S AES-GCM ENDPOINTS
-# ==========================================
-
-@files_bp.route('/encrypt', methods=['POST'])
-def encrypt_file():
-    """Encrypt a file before upload (Local/In-Memory Store)"""
-    try:
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file part'}), 400
-        
-        file = request.files['file']
-        key_pair_id = request.form.get('key_pair_id')
-        owner_id = request.form.get('owner_id')
-        
-        if not file or file.filename == '':
-            return jsonify({'error': 'No selected file'}), 400
-        
-        if not key_pair_id or not owner_id:
-            return jsonify({'error': 'key_pair_id and owner_id are required'}), 400
-        
-        # Get key pair
-        key_pair = key_pair_store.get(key_pair_id)
-        if not key_pair:
-            return jsonify({'error': 'Key pair not found'}), 404
-        
-        if key_pair.status != 'Active':
-            return jsonify({'error': 'Key pair is not active'}), 403
-        
-        # Read file data
-        file_data = file.read()
-        file_size = len(file_data)
-        
-        # Get encryption key
-        key = EncryptionManager.base64_to_key(key_pair.encryption_key)
-        
-        # Encrypt file
-        ciphertext_b64, nonce_b64 = EncryptionManager.encrypt_file(file_data, key)
-        
-        # Generate file ID
-        file_id = f"f-{uuid.uuid4().hex[:16]}"
-        
-        # Create encrypted file record
-        encrypted_file = EncryptedFile(
-            file_id=file_id,
-            filename=file.filename,
-            owner_id=owner_id,
-            key_pair_id=key_pair_id,
-            ciphertext=ciphertext_b64,
-            nonce=nonce_b64,
-            file_size=file_size,
-            mime_type=file.content_type or 'application/octet-stream'
-        )
-        
-        # Store file record
-        encrypted_file_store.create(encrypted_file)
-        
-        return jsonify({
-            'success': True,
-            'file_id': file_id,
-            'filename': encrypted_file.filename,
-            'ciphertext': ciphertext_b64,
-            'nonce': nonce_b64,
-            'file_size': file_size
-        }), 201
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@files_bp.route('/decrypt/<file_id>', methods=['GET'])
-def decrypt_file(file_id):
-    """Decrypt a file and download it (Local/In-Memory Store)"""
-    try:
-        user_id = request.args.get('user_id')
-        if not user_id:
-            return jsonify({'error': 'user_id is required'}), 400
-        
-        # Get file record
-        encrypted_file = encrypted_file_store.get(file_id)
-        if not encrypted_file:
-            return jsonify({'error': 'File not found'}), 404
-        
-        # Get key pair
-        key_pair = key_pair_store.get(encrypted_file.key_pair_id)
-        if not key_pair:
-            return jsonify({'error': 'Encryption key not found'}), 404
-        
-        # Verify authorization
-        if user_id != key_pair.doctor_id and user_id != key_pair.patient_id:
-            return jsonify({'error': 'Unauthorized to decrypt this file'}), 403
-        
-        try:
-            # Get encryption key
-            key = EncryptionManager.base64_to_key(key_pair.encryption_key)
-            
-            # Decrypt file
-            decrypted_data = EncryptionManager.decrypt_file(
-                encrypted_file.ciphertext,
-                encrypted_file.nonce,
-                key
-            )
-            
-            # Return file
-            return send_file(
-                io.BytesIO(decrypted_data),
-                mimetype=encrypted_file.mime_type,
-                as_attachment=True,
-                download_name=encrypted_file.filename
-            )
-            
-        except Exception as e:
-            # User Story #17 & #14: Notify if decryption fails
-            return jsonify({
-                'error': 'Decryption failed',
-                'message': 'The file could not be decrypted. The encryption key may be incorrect or the file may be corrupted.',
-                'details': str(e)
-            }), 422
-            
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@files_bp.route('/list', methods=['GET'])
-def list_files():
-    """List encrypted files (Local/In-Memory Store)"""
-    try:
-        owner_id = request.args.get('owner_id')
-        key_pair_id = request.args.get('key_pair_id')
-        
-        if owner_id:
-            files = encrypted_file_store.list_by_owner(owner_id)
-        elif key_pair_id:
-            files = encrypted_file_store.list_by_key_pair(key_pair_id)
-        else:
-            return jsonify({'error': 'owner_id or key_pair_id is required'}), 400
-        
-        return jsonify({
-            'success': True,
-            'files': [f.to_dict() for f in files],
-            'count': len(files)
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@files_bp.route('/<file_id>', methods=['DELETE'])
-def delete_local_record(file_id):
-    """Delete an encrypted file record (Local/In-Memory Store)"""
-    try:
-        success = encrypted_file_store.delete(file_id)
-        if not success:
-            return jsonify({'error': 'File not found'}), 404
-        
-        return jsonify({
-            'success': True,
-            'message': 'File deleted successfully'
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-# ==========================================
-# FRIEND'S SUPABASE UPLOAD ENDPOINTS
-# ==========================================
 
 # ===== Upload File (status: 'pending') =====
 @files_bp.route('/upload', methods=['POST'])
 def upload_file():
     try:
-        if not supabase:
-             return jsonify({'error': 'Supabase not configured'}), 500
-
         if 'file' not in request.files:
             return jsonify({'error': 'No file provided'}), 400
         
@@ -290,9 +105,6 @@ def upload_file():
 @files_bp.route('/confirm/<file_id>', methods=['POST'])
 def confirm_upload(file_id):
     try:
-        if not supabase:
-             return jsonify({'error': 'Supabase not configured'}), 500
-
         print(f"Confirming upload for file_id: {file_id}")
         
         result = supabase.table('encrypted_files')\
@@ -319,9 +131,6 @@ def confirm_upload(file_id):
 @files_bp.route('/my-files', methods=['GET'])
 def get_my_files():
     try:
-        if not supabase:
-             return jsonify({'error': 'Supabase not configured'}), 500
-
         response = supabase.table('encrypted_files')\
             .select('*')\
             .eq('owner_id', test_user['id'])\
@@ -353,9 +162,6 @@ def get_my_files():
 @files_bp.route('/download/<file_id>', methods=['GET'])
 def download_file(file_id):
     try:
-        if not supabase:
-             return jsonify({'error': 'Supabase not configured'}), 500
-
         response = supabase.table('encrypted_files')\
             .select('*')\
             .eq('id', file_id)\
@@ -385,9 +191,6 @@ def download_file(file_id):
 @files_bp.route('/delete/<file_id>', methods=['DELETE'])
 def delete_file(file_id):
     try:
-        if not supabase:
-             return jsonify({'error': 'Supabase not configured'}), 500
-
         print(f"DELETE request received for file_id: {file_id}")
         
         result = supabase.table('encrypted_files')\
@@ -416,9 +219,6 @@ def cleanup_pending_uploads():
     Does NOT affect completed files.
     """
     try:
-        if not supabase:
-             return jsonify({'error': 'Supabase not configured'}), 500
-
         # Only delete pending uploads older than 3 minutes
         cutoff_time = (datetime.now() - timedelta(minutes=3)).isoformat()
         
@@ -466,3 +266,16 @@ def cleanup_pending_uploads():
         print(f"Cleanup error: {e}")
         print(f"Full traceback:\n{error_details}")
         return jsonify({'error': f'{str(e)}', 'details': error_details}), 500
+    
+# ========== Encryption & Decryption ========== 
+# PLACEHOLDER FOR NOW
+def encrypt_file(file_data, user_key):
+    return {
+        'encrypted_data': file_data,
+        'iv': 'mock-iv',
+        'auth_tag': 'mock-tag',
+        'key_identifier': 'mock-key-id'
+    }
+
+def decrypt_file(encrypted_data, key, iv, auth_tag):
+    return encrypted_data
