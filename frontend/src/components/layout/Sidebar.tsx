@@ -76,9 +76,32 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
 
   const navItems = navigationItems[userRole];
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      // Call backend logout endpoint to log the event
+      const API_URL = import.meta.env.VITE_API_URL;
+      await fetch(`${API_URL}/api/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: localStorage.getItem('user_id'),
+        }),
+      });
+    } catch (error) {
+      console.error('Logout API error:', error);
+      // Continue with logout even if API call fails
+    } finally {
+      // Clear all local storage data
+      localStorage.clear();
+
+      // Clear session storage as well
+      sessionStorage.clear();
+
+      // Navigate to login page
+      navigate('/login');
+    }
   };
 
   const handleNavigate = (path: string) => {

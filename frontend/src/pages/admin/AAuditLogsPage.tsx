@@ -40,7 +40,7 @@ const AAuditLogsPage: React.FC = () => {
       log.target.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesUser = userFilter === 'all' || log.user.includes(userFilter);
-    const matchesAction = actionFilter === 'all' || log.action.includes(actionFilter.toUpperCase());
+    const matchesAction = actionFilter === 'all' || log.action.toLowerCase().includes(actionFilter.toLowerCase());
     const matchesResult = resultFilter === 'all' || log.result === resultFilter.toUpperCase();
 
     return matchesSearch && matchesUser && matchesAction && matchesResult;
@@ -94,10 +94,11 @@ const AAuditLogsPage: React.FC = () => {
                 className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Actions</option>
-                <option value="pairing">Pairing</option>
-                <option value="file">File Operations</option>
-                <option value="key">Key Management</option>
-                <option value="user">User Management</option>
+                <option value="login">Login</option>
+                <option value="logout">Logout</option>
+                <option value="otp">OTP Sent</option>
+                <option value="password">Password Reset</option>
+                <option value="user">User Created</option>
               </select>
               <select
                 value={resultFilter}

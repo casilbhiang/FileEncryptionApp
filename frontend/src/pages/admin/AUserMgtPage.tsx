@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import { Settings, Trash2, AlertTriangle, X } from 'lucide-react';
 
@@ -28,14 +28,37 @@ const AUserMgtPage: React.FC = () => {
     phone: ''
   });
 
-  // Sample users data
-  const [users, setUsers] = useState<User[]>([
-    { id: '#U-001', name: 'Dr Min Han', email: 'minhan@uow.edu.au', role: 'Doctor', status: 'Active' },
-    { id: '#U-002', name: 'Dr Nathania Christabella', email: 'nc463@uowmail.edu.au', role: 'Doctor', status: 'Inactive', inactiveDays: 380 },
-    { id: '#U-003', name: 'Mrs Chow Jia Yi', email: 'jyc058@uowmail.edu.au', role: 'Patient', status: 'Inactive', inactiveDays: 380 },
-    { id: '#U-004', name: 'Ms Jeslyn Ho Ka Yan', email: 'kyjho95@uowmail.edu.au', role: 'Admin', status: 'Active' },
-    { id: '#U-005', name: 'Dr Basil Chiang Cheng Xun', email: 'bcxjc988@uowmail.edu.au', role: 'Doctor', status: 'Active' },
-  ]);
+  // Users data from database
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string>('');
+
+  // Fetch users from backend on component mount
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const API_URL = import.meta.env.VITE_API_URL;
+      const response = await fetch(`${API_URL}/api/auth/users`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch users');
+      }
+
+      setUsers(data.users);
+    } catch (err: any) {
+      console.error('Error fetching users:', err);
+      setError(err.message || 'Failed to load users');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Filter and sort users
   const filteredUsers = users
@@ -225,20 +248,36 @@ const AUserMgtPage: React.FC = () => {
 
             {/* Table */}
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">User ID</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Name</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Email</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Role</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {filteredUsers.length > 0 ? (
-                    filteredUsers.map((user, index) => (
+              {isLoading ? (
+                <div className="py-12 text-center">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <p className="mt-3 text-gray-600">Loading users...</p>
+                </div>
+              ) : error ? (
+                <div className="py-12 text-center">
+                  <p className="text-red-600 mb-2">Error: {error}</p>
+                  <button
+                    onClick={fetchUsers}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : (
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">User ID</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Name</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Email</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Role</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {filteredUsers.length > 0 ? (
+                      filteredUsers.map((user, index) => (
                       <tr key={index} className="hover:bg-gray-50">
                         <td className="px-4 py-4 text-sm text-gray-900">{user.id}</td>
                         <td className="px-4 py-4 text-sm text-gray-900">{user.name}</td>
@@ -295,8 +334,9 @@ const AUserMgtPage: React.FC = () => {
                       </td>
                     </tr>
                   )}
-                </tbody>
-              </table>
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </div>
