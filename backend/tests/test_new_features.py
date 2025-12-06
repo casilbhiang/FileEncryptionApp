@@ -86,10 +86,10 @@ def test_scan_qr_code_mismatch(client, mock_key_pair):
     assert response.status_code == 403
     assert 'Key pair mismatch' in response.get_json()['error']
 
-@patch('app.api.files.encrypted_file_store')
-@patch('app.api.files.key_pair_store')
-@patch('app.api.files.supabase')
-@patch('app.api.files.EncryptionManager')
+#@patch('app.api.files.encrypted_file_store')
+#@patch('app.api.files.key_pair_store')
+#@patch('app.api.files.supabase')
+#@patch('app.api.files.EncryptionManager')
 def test_decryption_failure_notification(mock_encrypt_mgr, mock_supabase, mock_kp_store, mock_file_store, client):
     """
     Test that a decryption failure returns a 422 status code (User Story [DR] #17 & [PT] #14)
