@@ -10,7 +10,7 @@ SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 STORAGE_BUCKET = 'encrypted-files'
 MAX_FILE_SIZE = 50*1024*1024
-ALLOWED_FILE_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg', '.docx'}
+ALLOWED_FILE_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg'}
 
 # Initialize Supabase
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
@@ -20,9 +20,10 @@ files_bp = Blueprint('files', __name__, url_prefix='/api/files')
 
 # Test user (hardcode)
 test_user = {
-    'id': '790f3fdd-7d0a-4ab8-b6a3-d413d3b04853', 
-    'user_id': 'DR001',
-    'full_name': 'Test Name'
+    'id': '0ae915b0-8b94-453a-abcb-d83e26264463', 
+    'user_id': 'ADM002',
+    'email': 'fyp2502@gmail.com',
+    'full_name': 'final year project'
 }
 
 # ===== Upload File (status: 'pending') =====
