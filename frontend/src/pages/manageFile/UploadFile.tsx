@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import { Upload, X, Folder, Check, Trash2, Lock } from 'lucide-react';
 import { uploadFile, deleteFile } from '../../services/Files';
-import { encryptFile, getStoredEncryptionKey, hasEncryptionKey } from '../../services/Encryption';
+import { encryptFile, getStoredEncryptionKey, hasEncryptionKey } from '../../services/Encryption(JY)';
 
 interface UploadedFile {
   id: number | string;
@@ -106,7 +106,7 @@ const UploadFilePage: React.FC = () => {
 
       try {
         // STEP 1: Encrypt File (Client-side)
-        console.log('🔐 Encrypting file:', file.name);
+        console.log('Encrypting file:', file.name);
         const encryptionResult = await encryptFile(file, encryptionKey);
 
         // Check if cancelled during encryption
