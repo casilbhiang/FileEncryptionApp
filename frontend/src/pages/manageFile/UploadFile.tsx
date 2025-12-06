@@ -5,7 +5,7 @@ import { useLocation } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
 import { Upload, X, Folder, Check, Trash2, Lock } from 'lucide-react';
 import { uploadFile, deleteFile } from '../../services/Files';
-import { encryptFile, getStoredEncryptionKey, hasEncryptionKey } from '../../services/Encryption(JY)';
+import { encryptFile, getStoredEncryptionKey, hasEncryptionKey } from '../../services/Encryption';
 
 interface UploadedFile {
   id: number | string;

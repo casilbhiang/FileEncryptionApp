@@ -1,4 +1,5 @@
-/* Web Crypto API for AES-GCM-256 Encryption */
+/* Web Crypto API for AES-GCM-256 Encryption */ 
+// JY VER
 
 interface EncryptionResult {
     encryptedBlob: Blob;
