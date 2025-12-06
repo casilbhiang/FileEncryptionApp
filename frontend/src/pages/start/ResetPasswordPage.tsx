@@ -18,7 +18,7 @@ const ResetPasswordPage: React.FC = () => {
 
   const userId = state?.userId || localStorage.getItem('user_id') || 'user';
   //const role = state?.role || localStorage.getItem('user_role') || 'patient';
-  const email = state?.email || localStorage.getItem('user_email') || '';
+  //const email = state?.email || localStorage.getItem('user_email') || '';
 
   const [formData, setFormData] = useState({
     oldPassword: '',
