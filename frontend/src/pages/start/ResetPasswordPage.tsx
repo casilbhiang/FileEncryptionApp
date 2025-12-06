@@ -18,13 +18,15 @@ const ResetPasswordPage: React.FC = () => {
 
   const userId = state?.userId || localStorage.getItem('user_id') || 'user';
   //const role = state?.role || localStorage.getItem('user_role') || 'patient';
-  const email = state?.email || localStorage.getItem('user_email') || '';
+  //const email = state?.email || localStorage.getItem('user_email') || '';
 
   const [formData, setFormData] = useState({
+    oldPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
 
+  const [showOldPassword, setShowOldPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -138,7 +140,7 @@ const ResetPasswordPage: React.FC = () => {
           },
           body: JSON.stringify({
             user_id: userId,
-            email: email,
+            old_password: formData.oldPassword,
             new_password: formData.newPassword,
           }),
         });
@@ -254,6 +256,34 @@ const ResetPasswordPage: React.FC = () => {
               )}
 
               <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Old/Temporary Password */}
+                <div>
+                  <label className="text-white text-sm font-semibold mb-3 block">Current Temporary Password</label>
+                  <div className="relative">
+                    <input
+                      type={showOldPassword ? 'text' : 'password'}
+                      name="oldPassword"
+                      value={formData.oldPassword}
+                      onChange={handleInputChange}
+                      disabled={isLoading}
+                      placeholder="Enter your temporary password"
+                      className="w-full px-4 py-3 pr-12 bg-transparent border-2 border-white rounded-full text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:ring-2 focus:ring-white transition font-medium disabled:opacity-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowOldPassword(!showOldPassword)}
+                      disabled={isLoading}
+                      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white hover:text-gray-200 transition disabled:opacity-50"
+                    >
+                      {showOldPassword ? (
+                        <EyeOff className="w-5 h-5" />
+                      ) : (
+                        <Eye className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
                 {/* New Password */}
                 <div>
                   <label className="text-white text-sm font-semibold mb-3 block">New Password</label>

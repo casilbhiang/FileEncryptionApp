@@ -109,3 +109,48 @@ export const shareFile = async (fileId: string, sharedWith: string): Promise<voi
         throw new Error('Share failed');
     }
 };
+
+/* Decrypt File - User Stories DR#17 & PT#14 */
+export interface DecryptFileParams {
+    fileId: string;
+    userId: string;
+}
+
+export interface DecryptionError {
+    error: string;
+    message: string;
+    details?: string;
+}
+
+export const decryptFile = async ({ fileId, userId }: DecryptFileParams): Promise<Blob> => {
+    const response = await fetch(`http://localhost:5000/api/files/decrypt/${fileId}?user_id=${userId}`);
+
+    if (!response.ok) {
+        // Handle decryption failure (422) or other errors
+        if (response.status === 422) {
+            const errorData: DecryptionError = await response.json();
+            const error = new Error(errorData.message || 'Decryption failed');
+            (error as any).isDecryptionError = true;
+            (error as any).details = errorData.details;
+            throw error;
+        }
+
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || 'Failed to decrypt file');
+    }
+
+    return response.blob();
+};
+
+/* Confirm Upload */
+export const confirmUpload = async (fileId: string): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/confirm/${fileId}`, {
+        method: 'POST',
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to confirm upload');
+    }
+};
+

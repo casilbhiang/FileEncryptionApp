@@ -169,24 +169,35 @@ const VerificationPage: React.FC = () => {
 
         setSuccess('Verification successful!');
         setCode('');
-        
+
+        // Store user information in localStorage
+        if (data.user) {
+          localStorage.setItem('user_id', data.user.user_id);
+          localStorage.setItem('user_name', data.user.full_name);
+          localStorage.setItem('user_email', data.user.email);
+          localStorage.setItem('user_role', data.user.role);
+          if (data.token) {
+            localStorage.setItem('auth_token', data.token);
+          }
+        }
+
         // 🔑 KEY ROUTING LOGIC - Based on is_first_login flag from backend
         setTimeout(() => {
-          if (data.is_first_login === true) {
+          if (data.is_first_login === true || data.user?.is_first_login === true) {
             // First time login - User must reset temporary password
             console.log('First login detected - redirecting to reset password page');
-            navigate('/reset-password', { 
+            navigate('/reset-password', {
               replace: true,
               state: {
                 email: email,
-                role: data.role || role,
-                userId: data.user_id
+                role: data.user?.role || data.role || role,
+                userId: data.user?.user_id || data.user_id
               }
             });
           } else {
             // Regular login - Go to dashboard
             console.log('Regular login - redirecting to dashboard');
-            navigate(`/${data.role || role}`, { replace: true });
+            navigate(`/${data.user?.role || data.role || role}`, { replace: true });
           }
         }, 1500);
       } else {

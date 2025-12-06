@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
 import { Upload, X, Folder, Check, Trash2, Lock } from 'lucide-react';
 import { uploadFile, deleteFile } from '../../services/Files';
@@ -18,6 +19,9 @@ interface UploadedFile {
 }
 
 const UploadFilePage: React.FC = () => {
+  const location = useLocation();
+  const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
+
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [encryptionKey, setEncryptionKey] = useState<CryptoKey | null>(null);
@@ -75,7 +79,7 @@ const UploadFilePage: React.FC = () => {
   const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setIsDragging(false);
-    
+
     const files = Array.from(event.dataTransfer.files);
     await handleFiles(files);
   };
@@ -183,14 +187,14 @@ const UploadFilePage: React.FC = () => {
           prev.map((f) =>
             f.id === tempId
               ? {
-                  ...f,
-                  id: uploadedFileId!,
-                  backendFileId: uploadedFileId!,
-                  status: 'completed',
-                  progress: 100,
-                  size: formatFileSize(file.size),
-                  abortController: undefined,
-                }
+                ...f,
+                id: uploadedFileId!,
+                backendFileId: uploadedFileId!,
+                status: 'completed',
+                progress: 100,
+                size: formatFileSize(file.size),
+                abortController: undefined,
+              }
               : f
           )
         );
@@ -215,11 +219,11 @@ const UploadFilePage: React.FC = () => {
           prev.map((f) =>
             f.id === tempId
               ? {
-                  ...f,
-                  status: 'failed',
-                  errorMessage: error instanceof Error ? error.message : 'Upload failed',
-                  abortController: undefined,
-                }
+                ...f,
+                status: 'failed',
+                errorMessage: error instanceof Error ? error.message : 'Upload failed',
+                abortController: undefined,
+              }
               : f
           )
         );
@@ -231,10 +235,10 @@ const UploadFilePage: React.FC = () => {
   const handleCancelUpload = async (file: UploadedFile) => {
     if ((file.status === 'uploading' || file.status === 'encrypting') && file.abortController) {
       console.log(`Cancelling upload: ${file.name}`);
-      
+
       // Abort the fetch request
       file.abortController.abort();
-      
+
       // Update UI to show cancelled
       setUploadedFiles(prev =>
         prev.map(f =>
@@ -248,7 +252,7 @@ const UploadFilePage: React.FC = () => {
 
   const handleRemoveFile = async (id: number | string) => {
     const file = uploadedFiles.find(f => f.id === id);
-    
+
     // If it's a completed file with a backend ID, delete from backend
     if (file && file.backendFileId) {
       try {
@@ -259,7 +263,7 @@ const UploadFilePage: React.FC = () => {
         console.error('Failed to remove file from backend:', error);
       }
     }
-    
+
     // Remove from UI
     setUploadedFiles(files => files.filter(file => file.id !== id));
   };
@@ -277,7 +281,7 @@ const UploadFilePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
-      <Sidebar userRole="doctor" currentPage="upload" />
+      <Sidebar userRole={userRole} currentPage="upload" />
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
         <div className="mb-6">
           <div className="flex items-start justify-between">
@@ -294,9 +298,8 @@ const UploadFilePage: React.FC = () => {
         {/* Upload Area */}
         <div className="bg-white rounded-lg p-8 mb-6">
           <div
-            className={`border-2 border-dashed rounded-lg p-12 text-center transition ${
-              isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
-            }`}
+            className={`border-2 border-dashed rounded-lg p-12 text-center transition ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+              }`}
             onDrop={handleDrop}
             onDragOver={(e) => {
               e.preventDefault();
@@ -375,10 +378,10 @@ const UploadFilePage: React.FC = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => 
+                  onClick={() =>
                     file.status === 'uploading'
-                    ? handleCancelUpload(file)
-                    : handleRemoveFile(file.id)}
+                      ? handleCancelUpload(file)
+                      : handleRemoveFile(file.id)}
                   className="p-2 hover:bg-gray-100 rounded-lg transition flex-shrink-0"
                   title={file.status === 'uploading' ? 'Cancel upload' : 'Remove file'}
                 >

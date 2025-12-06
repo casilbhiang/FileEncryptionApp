@@ -1,16 +1,26 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
-import { Download, Trash2 } from 'lucide-react';
-import { getMyFiles, downloadFile, deleteFile, type FileItem } from '../../services/Files';
+import { Download, Trash2, Loader2 } from 'lucide-react';
+import { getMyFiles, deleteFile, type FileItem } from '../../services/Files';
+import { useFileDecryption } from '../../hooks/useFileDecryption';
 
 const MyFiles: React.FC = () => {
+  const location = useLocation();
+  const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
+  // TODO: Get actual user ID from auth context
+  const userId = userRole === 'doctor' ? 'DR001' : 'PT001';
+
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('date');
   const [sortDoctor, setSortDoctor] = useState('all');
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const { handleDecrypt, isDecrypting } = useFileDecryption();
+  const [decryptingFileId, setDecryptingFileId] = useState<string | null>(null);
 
   // Fetch files from backend
   useEffect(() => {
@@ -32,20 +42,26 @@ const MyFiles: React.FC = () => {
 
   const handleDownload = async (file: FileItem) => {
     try {
-      const blob = await downloadFile(file.id);
-      
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = file.name;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      setDecryptingFileId(file.id);
+
+      // Use the hook to decrypt (handles notifications automatically)
+      const blob = await handleDecrypt({ fileId: file.id, userId }, file.name);
+
+      if (blob) {
+        // Create download link if decryption succeeded
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
     } catch (error) {
-      console.error('Download failed:', error);
-      alert('Failed to download file');
+      console.error('Download process failed:', error);
+    } finally {
+      setDecryptingFileId(null);
     }
   };
 
@@ -70,16 +86,16 @@ const MyFiles: React.FC = () => {
 
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     });
   };
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
-      <Sidebar userRole="doctor" currentPage="my-files" />
+      <Sidebar userRole={userRole} currentPage="my-files" />
 
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
         <div className="mb-6">
@@ -156,10 +172,15 @@ const MyFiles: React.FC = () => {
                   )}
                   <button
                     onClick={() => handleDownload(file)}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition"
+                    disabled={isDecrypting && decryptingFileId === file.id}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition disabled:opacity-50"
                     title="Download"
                   >
-                    <Download className="w-5 h-5 text-gray-600" />
+                    {isDecrypting && decryptingFileId === file.id ? (
+                      <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                    ) : (
+                      <Download className="w-5 h-5 text-gray-600" />
+                    )}
                   </button>
                   <button
                     onClick={() => handleDelete(file)}
