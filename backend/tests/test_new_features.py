@@ -20,11 +20,14 @@ def mock_key_pair():
     key = EncryptionManager.generate_key()
     key_b64 = EncryptionManager.key_to_base64(key)
     
+    from config import Config
+    encrypted_key = EncryptionManager.encrypt_dek(key_b64, Config.MASTER_KEY)
+
     kp = KeyPair(
         key_id=key_id,
         doctor_id="DR001",
         patient_id="PT001",
-        encryption_key=key_b64,
+        encryption_key=encrypted_key,
         status="Active"
     )
     key_pair_store.create(kp)

@@ -11,15 +11,20 @@ const DConnectToPatientPage: React.FC = () => {
   const [showScanner, setShowScanner] = useState(false);
   const [connectionDetails, setConnectionDetails] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+
 
   // Mock doctor ID - in production this would come from auth context
-  const doctorId = 'DR001';
+  // Get doctor ID from localStorage
+  const doctorId = localStorage.getItem('user_id');
 
   // Load existing connections on mount
   useEffect(() => {
     const loadConnections = async () => {
       try {
+        if (!doctorId) {
+          console.warn('No doctor ID found');
+          return;
+        }
         const result = await getUserConnections(doctorId);
         if (result.success && result.connections && result.connections.length > 0) {
           // Get the first active connection
@@ -31,8 +36,6 @@ const DConnectToPatientPage: React.FC = () => {
         }
       } catch (err) {
         console.error('Failed to load connections:', err);
-      } finally {
-        setIsLoading(false);
       }
     };
 
@@ -47,6 +50,22 @@ const DConnectToPatientPage: React.FC = () => {
   const handleScanSuccess = async (decodedText: string) => {
     try {
       setShowScanner(false);
+
+      // Parse QR data to extract key
+      const qrData = JSON.parse(decodedText);
+
+      if (qrData.key && doctorId) {
+        try {
+          // Import and store the key locally
+          const { importKeyFromBase64, storeEncryptionKey } = await import('../../services/Encryption');
+          const key = await importKeyFromBase64(qrData.key);
+          await storeEncryptionKey(key, doctorId);
+          console.log('Encryption key cached from QR scan');
+        } catch (keyError) {
+          console.error('Failed to cache key:', keyError);
+        }
+      }
+
       // Verify the scanned QR code
       const result = await verifyScannedQR(decodedText);
 

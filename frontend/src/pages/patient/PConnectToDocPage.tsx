@@ -12,7 +12,7 @@ const PConnectToDocPage: React.FC = () => {
   const [showScanner, setShowScanner] = useState(false);
   const [connectionDetails, setConnectionDetails] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+
   const [keyMissing, setKeyMissing] = useState(false);
 
   // Mock patient ID - in production this would come from auth context
@@ -43,8 +43,6 @@ const PConnectToDocPage: React.FC = () => {
         }
       } catch (err) {
         console.error('Failed to load connections:', err);
-      } finally {
-        setIsLoading(false);
       }
     };
 
@@ -111,8 +109,8 @@ const PConnectToDocPage: React.FC = () => {
 
         {/* Connection Status Alert */}
         <div className={`border-2 rounded-lg p-4 mb-6 max-w-2xl ${isConnected && !keyMissing ? 'bg-green-50 border-green-300' :
-            isConnected && keyMissing ? 'bg-orange-50 border-orange-300' :
-              'bg-yellow-50 border-yellow-300'
+          isConnected && keyMissing ? 'bg-orange-50 border-orange-300' :
+            'bg-yellow-50 border-yellow-300'
           }`}>
           <div className="flex items-center gap-3">
             {isConnected && !keyMissing ? (
@@ -124,8 +122,8 @@ const PConnectToDocPage: React.FC = () => {
             )}
             <div>
               <p className={`${isConnected && !keyMissing ? 'text-green-800' :
-                  isConnected && keyMissing ? 'text-orange-900' :
-                    'text-yellow-800'
+                isConnected && keyMissing ? 'text-orange-900' :
+                  'text-yellow-800'
                 } font-medium`}>
                 {isConnected && !keyMissing ? 'Connected Successfully!' :
                   isConnected && keyMissing ? 'Session Key Required' :
