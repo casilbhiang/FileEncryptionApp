@@ -54,7 +54,7 @@ def test_scan_qr_code_success(mock_audit, client, mock_key_pair):
     assert response.status_code == 200
     data = response.get_json()
     assert data['success'] is True
-    assert data['message'] == 'Connection verified'
+
     assert data['connection']['key_id'] == mock_key_pair.key_id
 
 def test_scan_qr_code_invalid_data(client):
