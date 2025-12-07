@@ -59,7 +59,7 @@ const LoginPage: React.FC = () => {
 
     try {
       const API_URL = import.meta.env.VITE_API_URL;
-      
+
       if (API_URL) {
         // ============================================
         // TODO FOR BACKEND DEVELOPER - IMPLEMENT LOGIN
@@ -91,7 +91,7 @@ const LoginPage: React.FC = () => {
         //    - Frontend will use this to decide: reset password or verify code
         //
         // ============================================
-        
+
         const response = await fetch(`${API_URL}/api/auth/login`, {
           method: 'POST',
           headers: {
@@ -119,20 +119,20 @@ const LoginPage: React.FC = () => {
 
         if (data.user) {
           localStorage.setItem('user_role', data.user.role);
-          localStorage.setItem('user_id', data.user.id);
+          localStorage.setItem('user_id', data.user.user_id); // Fixed: Save readable ID (DOC004) not UUID
           localStorage.setItem('user_email', data.user.email || `${formData.userId}@clinic.com`);
-          
+
           // 🔑 Store first login status from backend
           localStorage.setItem('is_first_login', data.user.is_first_login ? 'true' : 'false');
         }
 
         setSuccess('Login successful! Redirecting...');
         setTimeout(() => {
-          navigate('/verify', { 
-            state: { 
+          navigate('/verify', {
+            state: {
               email: data.user?.email || `${formData.userId}@clinic.com`,
-              role: formData.role 
-            } 
+              role: formData.role
+            }
           });
         }, 1000);
       } else {
@@ -140,9 +140,9 @@ const LoginPage: React.FC = () => {
         // DEMO MODE - FOR TESTING WITHOUT BACKEND
         // ============================================
         console.log('🎮 Demo mode: No backend detected');
-        
+
         const userEmail = `${formData.userId}@clinic.com`;
-        
+
         localStorage.setItem('user_role', formData.role);
         localStorage.setItem('user_id', formData.userId);
         localStorage.setItem('user_email', userEmail);
@@ -150,12 +150,12 @@ const LoginPage: React.FC = () => {
         // 🔑 DEMO LOGIC: Determine if first-time login
         // Option 1: Check if password is "temp123" (temporary password)
         // Option 2: Check if user ID starts with "NEW" (new user)
-        
+
         const isTemporaryPassword = formData.password === 'temp123';
         const isNewUser = formData.userId.toUpperCase().startsWith('NEW');
-        
+
         const isFirstLogin = isTemporaryPassword || isNewUser;
-        
+
         // Store the flag
         localStorage.setItem('is_first_login', isFirstLogin ? 'true' : 'false');
 
@@ -169,20 +169,20 @@ const LoginPage: React.FC = () => {
 
         setSuccess('Login successful! Redirecting...');
         setTimeout(() => {
-          navigate('/verify', { 
-            state: { 
+          navigate('/verify', {
+            state: {
               email: userEmail,
-              role: formData.role 
-            } 
+              role: formData.role
+            }
           });
         }, 500);
       }
     } catch (err) {
       console.error('Login error:', err);
-      
+
       // Demo mode fallback
       console.log('Error occurred, using demo mode navigation...');
-      
+
       const userEmail = `${formData.userId}@clinic.com`;
       localStorage.setItem('user_role', formData.role);
       localStorage.setItem('user_id', formData.userId);
@@ -191,11 +191,11 @@ const LoginPage: React.FC = () => {
 
       setSuccess('Login successful! Redirecting...');
       setTimeout(() => {
-        navigate('/verify', { 
-          state: { 
+        navigate('/verify', {
+          state: {
             email: userEmail,
-            role: formData.role 
-          } 
+            role: formData.role
+          }
         });
       }, 500);
     } finally {
@@ -210,7 +210,7 @@ const LoginPage: React.FC = () => {
           {/* Left Side - Logo Display */}
           <div className="hidden md:flex flex-col items-center justify-center text-center px-4">
             <div>
-              <img 
+              <img
                 src={simncryptLogo}
                 alt="SIM NCRYPT"
                 className="h-96 w-96 mx-auto rounded-3xl object-contain shadow-2xl"
@@ -347,7 +347,7 @@ const LoginPage: React.FC = () => {
 
             {/* Mobile Logo */}
             <div className="md:hidden text-center mt-8">
-              <img 
+              <img
                 src={simncryptLogo}
                 alt="SIM NCRYPT"
                 className="h-12 w-12 mx-auto rounded-lg object-cover mb-3"

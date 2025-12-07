@@ -21,8 +21,6 @@ interface UploadedFile {
 const UploadFilePage: React.FC = () => {
   const location = useLocation();
   const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
-  // Mock user ID based on role for testing encryption
-  const userId = userRole === 'doctor' ? 'DR001' : 'PT001';
 
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -30,22 +28,33 @@ const UploadFilePage: React.FC = () => {
   const [isLoadingKey, setIsLoadingKey] = useState(true);
   const [keyAvailable, setKeyAvailable] = useState(false);
 
-  // HARDCODED USER:
-  const TEST_USER_ID = '0ae915b0-8b94-453a-abcb-d83e26264463';
+  // Get active user ID from storage
+  const [userId, setUserId] = useState<string | null>(null);
 
-  useEffect(() => { loadEncryptionKey(); }, []);
+  useEffect(() => {
+    const storedUserId = localStorage.getItem('user_id');
+    if (storedUserId) {
+      setUserId(storedUserId);
+      loadEncryptionKey(storedUserId);
+    } else {
+      console.error('No User ID found in localStorage');
+      // Ideally redirect to login
+      setKeyAvailable(false);
+      setIsLoadingKey(false);
+    }
+  }, []);
 
-  const loadEncryptionKey = async () => {
+  const loadEncryptionKey = async (activeUserId: string) => {
     try {
       setIsLoadingKey(true);
 
       // Check if key exists
-      const hasKey = hasEncryptionKey(TEST_USER_ID);
+      const hasKey = hasEncryptionKey(activeUserId);
       setKeyAvailable(hasKey);
 
       if (hasKey) {
         console.log('Encryption key found in storage, retrieving...');
-        const key = await getStoredEncryptionKey(TEST_USER_ID);
+        const key = await getStoredEncryptionKey(activeUserId);
 
         if (key) {
           setEncryptionKey(key);
@@ -88,8 +97,8 @@ const UploadFilePage: React.FC = () => {
 
   const handleFiles = async (files: File[]) => {
     // Check if encryption key is available
-    if (!encryptionKey || !keyAvailable) {
-      alert('No encryption key found!\n\nPlease scan the QR code provided by the System Administrator to set up encryption before uploading files.');
+    if (!encryptionKey || !keyAvailable || !userId) {
+      alert('No encryption key found or user not logged in!\n\nPlease scan the QR code provided by the System Administrator to set up encryption before uploading files.');
       return;
     }
 
@@ -151,6 +160,7 @@ const UploadFilePage: React.FC = () => {
         // Upload with encryption metadata
         const response = await uploadFile(
           encryptedFile,
+          userId,
           {
             iv: encryptionResult.iv,
             authTag: encryptionResult.authTag,
@@ -166,7 +176,7 @@ const UploadFilePage: React.FC = () => {
         if (abortController.signal.aborted) {
           console.log('Upload cancelled, cleaning up:', uploadedFileId);
           try {
-            await deleteFile(uploadedFileId);
+            if (userId) await deleteFile(uploadedFileId, userId);
           } catch (error) {
             console.error('Failed to remove cancelled file:', error);
           }
@@ -206,7 +216,7 @@ const UploadFilePage: React.FC = () => {
           console.log('Upload cancelled by user');
           if (uploadedFileId) {
             try {
-              await deleteFile(uploadedFileId);
+              if (userId) await deleteFile(uploadedFileId, userId);
             } catch (deleteError) {
               console.error('Failed to delete cancelled file:', deleteError);
             }
@@ -256,10 +266,10 @@ const UploadFilePage: React.FC = () => {
     const file = uploadedFiles.find(f => f.id === id);
 
     // If it's a completed file with a backend ID, delete from backend
-    if (file && file.backendFileId) {
+    if (file && file.backendFileId && userId) {
       try {
         console.log('Deleting file from backend:', file.backendFileId);
-        await deleteFile(file.backendFileId);
+        await deleteFile(file.backendFileId, userId);
         console.log('File removed from backend:', file.backendFileId);
       } catch (error) {
         console.error('Failed to remove file from backend:', error);
