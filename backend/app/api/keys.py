@@ -30,19 +30,23 @@ def generate_key_pair():
         if existing and existing.status == 'Active':
             return jsonify({'error': 'Active key pair already exists for these users'}), 409
         
-        # Generate new encryption key
+        # Generate new encryption key (DEK)
         encryption_key = EncryptionManager.generate_key()
         key_b64 = EncryptionManager.key_to_base64(encryption_key)
+
+        # Encrypt the DEK for storage using Master Key
+        from config import Config
+        encrypted_key_b64 = EncryptionManager.encrypt_dek(key_b64, Config.MASTER_KEY)
         
         # Generate key pair ID
         key_id = EncryptionManager.generate_key_pair_id()
         
-        # Create key pair
+        # Create key pair (Store ENCRYPTED key)
         key_pair = KeyPair(
             key_id=key_id,
             doctor_id=doctor_id,
             patient_id=patient_id,
-            encryption_key=key_b64,
+            encryption_key=encrypted_key_b64,  # Storing encrypted blob
             status='Active'
         )
         
@@ -59,10 +63,10 @@ def generate_key_pair():
             details=f"Generated key pair {key_id}"
         )
         
-        # Generate QR code with key data
+        # Generate QR code with PLAINTEXT key data (decrypted)
         qr_data = {
             'key_id': key_id,
-            'key': key_b64,
+            'key': key_b64,  # QR code gets the usable key
             'doctor_id': doctor_id,
             'patient_id': patient_id
         }
@@ -70,7 +74,7 @@ def generate_key_pair():
         
         return jsonify({
             'success': True,
-            'key_pair': key_pair.to_dict(),
+            'key_pair': key_pair.to_dict(),  # Returns encrypted key in dict
             'qr_code': f'data:image/png;base64,{qr_code}'
         }), 201
         
@@ -124,10 +128,21 @@ def get_key_pair(key_id):
             return jsonify({'error': 'Key pair not found'}), 404
         
         if include_key:
-            return jsonify({
-                'success': True,
-                'key_pair': key_pair.to_dict_with_key()
-            }), 200
+            # If requesting the raw key, we must decrypt it first
+            try:
+                from config import Config
+                decrypted_key = EncryptionManager.decrypt_dek(key_pair.encryption_key, Config.MASTER_KEY)
+                
+                # Create a temporary copy to return decrypted data
+                kp_dict = key_pair.to_dict_with_key()
+                kp_dict['encryption_key'] = decrypted_key
+                
+                return jsonify({
+                    'success': True,
+                    'key_pair': kp_dict
+                }), 200
+            except Exception as dec_err:
+                return jsonify({'error': f'Failed to decrypt key: {str(dec_err)}'}), 500
         else:
             return jsonify({
                 'success': True,
@@ -208,10 +223,17 @@ def get_qr_code(key_id):
         if not key_pair:
             return jsonify({'error': 'Key pair not found'}), 404
         
+        # Decrypt key for QR code
+        try:
+            from config import Config
+            decrypted_key = EncryptionManager.decrypt_dek(key_pair.encryption_key, Config.MASTER_KEY)
+        except Exception as dec_err:
+            return jsonify({'error': f'Failed to decrypt key: {str(dec_err)}'}), 500
+        
         # Generate QR code
         qr_data = {
             'key_id': key_pair.key_id,
-            'key': key_pair.encryption_key,
+            'key': decrypted_key,
             'doctor_id': key_pair.doctor_id,
             'patient_id': key_pair.patient_id
         }
@@ -263,25 +285,94 @@ def scan_qr_code():
         if key_pair.doctor_id != doctor_id or key_pair.patient_id != patient_id:
             return jsonify({'error': 'Key pair mismatch'}), 403
             
+        # Decrypt key to return to user
+        try:
+            from config import Config
+            decrypted_key = EncryptionManager.decrypt_dek(key_pair.encryption_key, Config.MASTER_KEY)
+        except Exception as dec_err:
+            audit_logger.log(
+                user_id="SYSTEM",  # System verifying
+                user_name="System",
+                action=AuditAction.PAIRING_SCAN,
+                target=f"Key {key_id}",
+                result=AuditResult.FAILED,
+                details=f"Decryption failed: {str(dec_err)}"
+            )
+            return jsonify({'error': 'Failed to decrypt key'}), 500
+        
         # Log successful scan
         audit_logger.log(
             user_id="SYSTEM",
             user_name="System",
             action=AuditAction.PAIRING_SCAN,
-            target=f"{doctor_id} ↔ {patient_id}",
+            target=f"{key_pair.doctor_id} <-> {key_pair.patient_id}",
             result=AuditResult.OK,
             details=f"QR code scanned for key {key_id}"
         )
+
+        # Persist Connection in Supabase
+        # This allows the "My Patients" or "My Doctors" lists to work
+        try:
+            from app.utils.supabase_client import get_supabase_admin_client
+            supabase = get_supabase_admin_client()
+            
+            # Upsert connection to avoid duplicates
+            connection_data = {
+                'doctor_id': key_pair.doctor_id,
+                'patient_id': key_pair.patient_id,
+                # 'status': 'active' # If table has status
+            }
+            # We use upsert if we have a unique constraint, or insert with ignore
+            # For now, simple insert. If it fails due to duplicates, we catch it.
+            supabase.table('doctor_patient_connections').insert(connection_data).execute()
+            
+            audit_logger.log(
+                user_id="SYSTEM",
+                user_name="System",
+                action=AuditAction.PAIRING_CREATE,
+                target=f"{key_pair.doctor_id} <-> {key_pair.patient_id}",
+                result=AuditResult.OK,
+                details="Connection record created"
+            )
+        except Exception as conn_err:
+            print(f"Connection persistence warning: {conn_err}")
+            # We don't fail the request if this fails (it might be a duplicate)
         
         return jsonify({
             'success': True,
-            'message': 'Connection verified',
             'connection': {
-                'key_id': key_id,
-                'doctor_id': doctor_id,
-                'patient_id': patient_id,
+                'key_id': key_pair.key_id,
+                'key': decrypted_key,
+                'doctor_id': key_pair.doctor_id,
+                'patient_id': key_pair.patient_id,
                 'status': key_pair.status
             }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@keys_bp.route('/connections/<user_id>', methods=['GET'])
+def get_user_connections(user_id):
+    """
+    Get all connections (key pairs) for a user (doctor or patient)
+    """
+    try:
+        connections = key_pair_store.list_by_user(user_id)
+        
+        return jsonify({
+            'success': True,
+            'connections': [
+                {
+                    'key_id': kp.key_id,
+                    'doctor_id': kp.doctor_id,
+                    'patient_id': kp.patient_id,
+                    'status': kp.status,
+                    'created_at': kp.created_at.isoformat() if kp.created_at else None
+                }
+                for kp in connections
+            ]
         }), 200
         
     except Exception as e:

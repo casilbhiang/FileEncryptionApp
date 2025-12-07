@@ -22,37 +22,40 @@ export interface EncryptionMetadata {
 }
 
 /* File Upload */
-export const uploadFile = async ( file: File, encryptionMetadata?: EncryptionMetadata, signal?: AbortSignal ): Promise<UploadResponse> => {
+export const uploadFile = async (file: File, userId: string, encryptionMetadata?: EncryptionMetadata, signal?: AbortSignal): Promise<UploadResponse> => {
     const formData = new FormData();
     formData.append('file', file);
-    
+    formData.append('user_id', userId);
+
     // Add encryption metadata if provided
     if (encryptionMetadata) {
         formData.append('encryption_metadata', JSON.stringify(encryptionMetadata));
     }
-    
+
     const response = await fetch(`${API_BASE_URL}/upload`, {
         method: 'POST',
         body: formData,
         signal,
     });
-    
+
     if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Upload failed');
     }
-    
+
     return response.json();
 };
 
 /* Get User Files */
 export const getMyFiles = async (
+    userId: string,
     search?: string,
     sortBy?: string,
     filter?: string,
 ): Promise<{ files: FileItem[]; total: number }> => {
 
     const params = new URLSearchParams();
+    params.append('user_id', userId);
     if (search) params.append('search', search);
     if (sortBy) params.append('sort_by', sortBy);
     if (filter) params.append('filter', filter);
@@ -85,8 +88,8 @@ export const downloadFile = async (fileId: string): Promise<Blob> => {
 };
 
 /* Delete File */
-export const deleteFile = async (fileId: string): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/delete/${fileId}`, {
+export const deleteFile = async (fileId: string, userId: string): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/delete/${fileId}?user_id=${userId}`, {
         method: 'DELETE',
     });
 

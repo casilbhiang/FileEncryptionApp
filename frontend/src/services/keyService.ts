@@ -115,3 +115,22 @@ export async function verifyScannedQR(qrData: string): Promise<any> {
 
     return response.json();
 }
+
+/**
+ * Get all connections for a user
+ */
+export async function getUserConnections(userId: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/keys/connections/${userId}`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to fetch connections');
+    }
+
+    return response.json();
+}
