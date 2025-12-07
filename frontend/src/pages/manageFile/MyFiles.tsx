@@ -10,8 +10,8 @@ import { useFileDecryption } from '../../hooks/useFileDecryption';
 const MyFiles: React.FC = () => {
   const location = useLocation();
   const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
-  // TODO: Get actual user ID from auth context
-  const userId = userRole === 'doctor' ? 'DR001' : 'PT001';
+  // Get userId from localStorage
+  const [userId] = useState<string | null>(() => localStorage.getItem('user_id'));
 
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('date');
@@ -30,8 +30,10 @@ const MyFiles: React.FC = () => {
   const fetchFiles = async () => {
     try {
       setLoading(true);
-      const response = await getMyFiles(searchQuery, sortBy, sortDoctor);
-      setFiles(response.files);
+      if (userId) {
+        const response = await getMyFiles(userId, searchQuery, sortBy, sortDoctor);
+        setFiles(response.files);
+      }
     } catch (error) {
       console.error('Failed to fetch files:', error);
       alert('Failed to load files');
@@ -44,19 +46,21 @@ const MyFiles: React.FC = () => {
     try {
       setDecryptingFileId(file.id);
 
-      // Use the hook to decrypt (handles notifications automatically)
-      const blob = await handleDecrypt({ fileId: file.id, userId }, file.name);
+      if (userId) {
+        // Use the hook to decrypt (handles notifications automatically)
+        const blob = await handleDecrypt({ fileId: file.id, userId }, file.name);
 
-      if (blob) {
-        // Create download link if decryption succeeded
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = file.name;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+        if (blob) {
+          // Create download link if decryption succeeded
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = file.name;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+        }
       }
     } catch (error) {
       console.error('Download process failed:', error);
@@ -68,9 +72,11 @@ const MyFiles: React.FC = () => {
   const handleDelete = async (file: FileItem) => {
     if (window.confirm(`Are you sure you want to delete ${file.name}?`)) {
       try {
-        await deleteFile(file.id);
-        // Refresh file list
-        fetchFiles();
+        if (userId) {
+          await deleteFile(file.id, userId);
+          // Refresh file list
+          fetchFiles();
+        }
       } catch (error) {
         console.error('Delete failed:', error);
         alert('Failed to delete file');

@@ -56,3 +56,43 @@ class EncryptionManager:
     def generate_key_pair_id() -> str:
         """Generate a unique ID for a key pair"""
         return f"k-{secrets.token_hex(4)}"
+
+    @staticmethod
+    def encrypt_dek(dek_b64: str, master_key_hex: str) -> str:
+        """
+        Encrypt a Data Encryption Key (DEK) using the Master Key
+        Returns: base64(nonce + ciphertext)
+        """
+        if not master_key_hex:
+            raise ValueError("Master Key not configured")
+            
+        master_key = bytes.fromhex(master_key_hex)
+        dek_bytes = base64.b64decode(dek_b64)
+        
+        aesgcm = AESGCM(master_key)
+        nonce = os.urandom(12)
+        ciphertext = aesgcm.encrypt(nonce, dek_bytes, None)
+        
+        # Bundle nonce + ciphertext
+        return base64.b64encode(nonce + ciphertext).decode('utf-8')
+
+    @staticmethod
+    def decrypt_dek(encrypted_dek_b64: str, master_key_hex: str) -> str:
+        """
+        Decrypt a Data Encryption Key (DEK) using the Master Key
+        Returns: base64(dek)
+        """
+        if not master_key_hex:
+            raise ValueError("Master Key not configured")
+            
+        master_key = bytes.fromhex(master_key_hex)
+        bundle = base64.b64decode(encrypted_dek_b64)
+        
+        # Extract nonce (first 12 bytes) and ciphertext
+        nonce = bundle[:12]
+        ciphertext = bundle[12:]
+        
+        aesgcm = AESGCM(master_key)
+        dek_bytes = aesgcm.decrypt(nonce, ciphertext, None)
+        
+        return base64.b64encode(dek_bytes).decode('utf-8')
