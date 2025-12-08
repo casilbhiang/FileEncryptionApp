@@ -11,7 +11,9 @@
       "Bash(grep:*)",
       "Bash(npm run dev:*)",
       "Bash(python:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(ipconfig:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

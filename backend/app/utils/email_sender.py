@@ -132,7 +132,7 @@ FileEncryption App Team
 
         # Connect to Gmail SMTP server and send email
         print(f"Connecting to {smtp_host}:{smtp_port}...")
-        server = smtplib.SMTP(smtp_host, smtp_port)
+        server = smtplib.SMTP(smtp_host, smtp_port, timeout=5)
         server.starttls()  # Enable TLS encryption
 
         print(f"Logging in as {smtp_user}...")
@@ -271,7 +271,7 @@ FileEncryption App Team
         message.attach(part2)
 
         # Send email
-        server = smtplib.SMTP(smtp_host, smtp_port)
+        server = smtplib.SMTP(smtp_host, smtp_port, timeout=5)
         server.starttls()
         server.login(smtp_user, smtp_password)
         server.send_message(message)

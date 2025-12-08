@@ -59,7 +59,10 @@ const LoginPage: React.FC = () => {
 
     try {
       const API_URL = import.meta.env.VITE_API_URL;
-      
+      console.log('=== LOGIN DEBUG ===');
+      console.log('API_URL:', API_URL);
+      console.log('Full URL:', `${API_URL}/api/auth/login`);
+
       if (API_URL) {
         // ============================================
         // TODO FOR BACKEND DEVELOPER - IMPLEMENT LOGIN
