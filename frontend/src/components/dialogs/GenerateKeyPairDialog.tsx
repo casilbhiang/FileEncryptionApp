@@ -1,137 +1,187 @@
 import React, { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Key, User, QrCode, CheckCircle, Download } from 'lucide-react';
 
 interface GenerateKeyPairDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onGenerate: (doctorUserId: string, patientUserId: string) => void;
+  onGenerate: (doctorId: string, patientId: string) => Promise<string | null>; // Returns QR code string or null
 }
 
 const GenerateKeyPairDialog: React.FC<GenerateKeyPairDialogProps> = ({
   isOpen,
   onClose,
-  onGenerate
+  onGenerate,
 }) => {
-  const [showQRCode, setShowQRCode] = useState(false);
-  const [generateForm, setGenerateForm] = useState({
-    doctorUserId: '',
-    patientUserId: ''
-  });
-
-  const handleClose = () => {
-    setShowQRCode(false);
-    setGenerateForm({ doctorUserId: '', patientUserId: '' });
-    onClose();
-  };
-
-  const handleGenerateQR = () => {
-    if (generateForm.doctorUserId && generateForm.patientUserId) {
-      // First show the QR code
-      setShowQRCode(true);
-      // Then call the parent's onGenerate function
-      // DON'T close the dialog here
-      onGenerate(generateForm.doctorUserId, generateForm.patientUserId);
-    }
-  };
-
-  const handleDone = () => {
-    // This closes the dialog after viewing QR code
-    handleClose();
-  };
+  const [doctorId, setDoctorId] = useState('');
+  const [patientId, setPatientId] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   if (!isOpen) return null;
 
+  const handleClose = () => {
+    setDoctorId('');
+    setPatientId('');
+    setQrCode(null);
+    setSuccess(false);
+    setIsGenerating(false);
+    onClose();
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (doctorId && patientId) {
+      try {
+        setIsGenerating(true);
+        const qrData = await onGenerate(doctorId, patientId);
+        if (qrData) {
+          setQrCode(qrData);
+          setSuccess(true);
+        }
+      } catch (error) {
+        console.error('Generation failed:', error);
+      } finally {
+        setIsGenerating(false);
+      }
+    }
+  };
+
+  const handleDownload = () => {
+    if (!qrCode) return;
+    const link = document.createElement('a');
+    // Backend returns full data URI, so use it directly if it starts with data:
+    link.href = qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`;
+    link.download = `key-pair-${doctorId}-${patientId}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-lg w-full p-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-orange-500">Generate Key Pair</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+          <div className="flex items-center gap-2 text-gray-900 font-semibold">
+            {success ? (
+              <CheckCircle className="w-5 h-5 text-green-600" />
+            ) : (
+              <Key className="w-5 h-5 text-blue-600" />
+            )}
+            {success ? 'Key Pair Generated!' : 'Generate New Key Pair'}
+          </div>
           <button
             onClick={handleClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition"
+            className="text-gray-400 hover:text-gray-600 transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X size={20} />
           </button>
         </div>
 
-        <p className="text-sm text-gray-600 mb-8 text-center">
-          Generate an AES-GCM key pair for secure encryption
-        </p>
-
-        {!showQRCode ? (
-          <>
-            <div className="space-y-6 mb-8">
-              <div className="flex items-center gap-4">
-                <input
-                  type="text"
-                  placeholder="Doctor_UserId"
-                  value={generateForm.doctorUserId}
-                  onChange={(e) => setGenerateForm(prev => ({ ...prev, doctorUserId: e.target.value }))}
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
-                />
-                <div className="text-3xl text-gray-400 font-bold">+</div>
-                <input
-                  type="text"
-                  placeholder="Patient_UserId"
-                  value={generateForm.patientUserId}
-                  onChange={(e) => setGenerateForm(prev => ({ ...prev, patientUserId: e.target.value }))}
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
-                />
+        {/* Body */}
+        <div className="p-6">
+          {!success ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-blue-800 mb-6">
+                <p className="flex gap-2">
+                  <QrCode className="w-5 h-5 flex-shrink-0" />
+                  <span>
+                    This will generate a unique AES-GCM encryption key and a QR code for secure exchange between the doctor and patient.
+                  </span>
+                </p>
               </div>
-            </div>
 
-            <button
-              onClick={handleGenerateQR}
-              disabled={!generateForm.doctorUserId || !generateForm.patientUserId}
-              className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-            >
-              Generate QR CODE
-            </button>
-          </>
-        ) : (
-          <>
-            {/* QR Code Display */}
-            <div className="text-center">
-              <div className="w-56 h-56 bg-white border-2 border-gray-300 rounded-lg mx-auto flex items-center justify-center p-4">
-                {/* Simple QR Code Pattern */}
-                <div className="w-full h-full grid grid-cols-8 gap-0.5">
-                  {Array.from({ length: 64 }, (_, i) => (
-                    <div
-                      key={i}
-                      className={`w-full h-full ${
-                        // Create a QR code-like pattern
-                        (i % 8 === 0 || i % 8 === 7 || Math.floor(i / 8) === 0 || Math.floor(i / 8) === 7) ||
-                        (i >= 16 && i <= 23) || (i >= 40 && i <= 47) ||
-                        (i % 13 === 0) || (i % 17 === 0) || (i % 19 === 0)
-                          ? 'bg-black'
-                          : 'bg-white'
-                      }`}
-                    />
-                  ))}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Doctor ID
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={doctorId}
+                    onChange={(e) => setDoctorId(e.target.value)}
+                    placeholder="e.g., DR-001"
+                    className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    required
+                  />
                 </div>
               </div>
-              <p className="text-sm text-gray-500 mt-3 font-semibold">QR Code for key exchange</p>
-              <p className="text-xs text-gray-400 mt-2">
-                Key ID: {generateForm.doctorUserId}-{generateForm.patientUserId}
-              </p>
 
-              <div className="mt-6 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Patient ID
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={patientId}
+                    onChange={(e) => setPatientId(e.target.value)}
+                    placeholder="e.g., PT-001"
+                    className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="mt-8 flex justify-end gap-3">
                 <button
-                  onClick={() => alert('Downloading QR Code...')}
-                  className="w-full px-4 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition"
+                  type="button"
+                  onClick={handleClose}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                 >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isGenerating}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm disabled:bg-blue-400 flex items-center gap-2"
+                >
+                  {isGenerating ? 'Generating...' : 'Generate Key Pair'}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="text-center space-y-6">
+              <div className="bg-green-50 border border-green-100 rounded-lg p-4 text-sm text-green-800">
+                <p>Successfully generated key pair for <strong>{doctorId}</strong> and <strong>{patientId}</strong>.</p>
+              </div>
+
+              {qrCode && (
+                <div className="flex flex-col items-center gap-4">
+                  <div className="bg-white p-4 rounded-lg border-2 border-gray-200 shadow-sm">
+                    <img
+                      src={qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`}
+                      alt="Key Pair QR Code"
+                      className="w-48 h-48 object-contain"
+                    />
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    Scan this QR code to securely share the encryption key.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={handleDownload}
+                  className="w-full px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors shadow-sm flex items-center justify-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
                   Download QR Code
                 </button>
                 <button
-                  onClick={handleDone}
-                  className="w-full px-4 py-3 bg-gray-600 text-white rounded-lg font-semibold hover:bg-gray-700 transition"
+                  onClick={handleClose}
+                  className="w-full px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                 >
-                  Done
+                  Close
                 </button>
               </div>
             </div>
-          </>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

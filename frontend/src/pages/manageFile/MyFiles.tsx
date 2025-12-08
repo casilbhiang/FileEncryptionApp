@@ -1,25 +1,27 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
-import { Download, Trash2, ChevronLeft, ChevronRight, Upload, Share2, Eye } from 'lucide-react';
-
-const API_BASE_URL = 'http://localhost:5000';
-
-interface FileItem {
-  id: string;
-  name: string;
-  size?: number;
-  file_size?: number;
-  shared_by?: string;
-  uploaded_at: string;
-  shared_at?: string;
-  last_accessed_at?: string;
-  is_shared?: boolean;
-  file_extension?: string;
-}
+import { 
+  Download, 
+  Trash2, 
+  Loader2, 
+  Upload, 
+  Share2, 
+  Eye, 
+  ChevronLeft, 
+  ChevronRight 
+} from 'lucide-react';
+import { getMyFiles, deleteFile, type FileItem } from '../../services/Files';
+import { useFileDecryption } from '../../hooks/useFileDecryption';
 
 const MyFiles: React.FC = () => {
+  const location = useLocation();
+  const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
+  // Get userId from localStorage
+  const [userId] = useState<string | null>(() => localStorage.getItem('user_id'));
+
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('uploaded_at');
   const [sortDoctor, setSortDoctor] = useState('all');
@@ -33,6 +35,9 @@ const MyFiles: React.FC = () => {
   const [totalFiles, setTotalFiles] = useState(0);
   const filesPerPage = 5;
 
+  const { handleDecrypt, isDecrypting } = useFileDecryption();
+  const [decryptingFileId, setDecryptingFileId] = useState<string | null>(null);
+
   // Fetch files from backend
   useEffect(() => {
     fetchFiles();
@@ -41,62 +46,16 @@ const MyFiles: React.FC = () => {
   const fetchFiles = async () => {
     try {
       setLoading(true);
-      setError('');
-      
-      const userId = localStorage.getItem('user_id');
-      
-      if (!userId) {
-        setError('Please log in to view your files.');
-        setLoading(false);
-        return;
-      }
-
-      // Build query parameters
-      const params = new URLSearchParams({
-        mode: 'library',
-        limit: filesPerPage.toString(),
-        page: currentPage.toString(),
-        sort_by: sortBy,
-        sort_order: 'desc',
-      });
-      
-      if (searchQuery) {
-        params.append('search', searchQuery);
-      }
-      
-      if (sortDoctor === 'shared') {
-        params.append('shared_status', 'shared');
-      } else if (sortDoctor === 'received') {
-        params.append('shared_status', 'owned');
-      } else {
-        params.append('shared_status', 'all');
-      }
-
-      const response = await fetch(`${API_BASE_URL}/api/file-storage?${params.toString()}`, {
-        headers: { 'X-User-ID': userId },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.success) {
-        setFiles(data.data || []);
+      if (userId) {
+        const response = await getMyFiles(userId, searchQuery, sortBy, sortDoctor);
+        setFiles(response.files);
         
-        if (data.pagination) {
-          setTotalFiles(data.pagination.total || 0);
-          setTotalPages(data.pagination.pages || 1);
-        } else {
-          setTotalFiles(data.data?.length || 0);
-          setTotalPages(1);
-        }
-      } else {
-        setError(data.error || 'Could not load files');
+        // TODO: You need to update the service to return pagination data
+        // For now, we'll calculate it from the files array
+        setTotalFiles(response.files.length);
+        setTotalPages(Math.ceil(response.files.length / filesPerPage));
       }
-      
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to fetch files:', error);
       setError('Cannot connect to server.');
     } finally {
@@ -111,37 +70,39 @@ const MyFiles: React.FC = () => {
 
   const handleDownload = async (file: FileItem) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/file-storage/download/${file.id}`, {
-        headers: { 'X-User-ID': localStorage.getItem('user_id') || '' },
-      });
-      
-      if (!response.ok) throw new Error('Download failed');
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = file.name;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      setDecryptingFileId(file.id);
+
+      if (userId) {
+        // Use the hook to decrypt (handles notifications automatically)
+        const blob = await handleDecrypt({ fileId: file.id, userId }, file.name);
+
+        if (blob) {
+          // Create download link if decryption succeeded
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = file.name;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+        }
+      }
     } catch (error) {
-      console.error('Download failed:', error);
-      alert('Failed to download file');
+      console.error('Download process failed:', error);
+    } finally {
+      setDecryptingFileId(null);
     }
   };
 
   const handleDelete = async (file: FileItem) => {
     if (window.confirm(`Delete ${file.name}?`)) {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/file-storage/delete/${file.id}`, {
-          method: 'DELETE',
-          headers: { 'X-User-ID': localStorage.getItem('user_id') || '' },
-        });
-        
-        if (!response.ok) throw new Error('Delete failed');
-        fetchFiles();
+        if (userId) {
+          await deleteFile(file.id, userId);
+          // Refresh file list
+          fetchFiles();
+        }
       } catch (error) {
         console.error('Delete failed:', error);
         alert('Failed to delete file');
@@ -149,6 +110,7 @@ const MyFiles: React.FC = () => {
     }
   };
 
+  // --- ADDED FUNCTIONS FROM OLD VERSION ---
   const formatFileSize = (bytes: number | undefined): string => {
     if (!bytes) return '0 B';
     if (bytes < 1024) return bytes + ' B';
@@ -156,7 +118,6 @@ const MyFiles: React.FC = () => {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  // DETAILED TIMESTAMP FORMAT (not friendly format)
   const formatDetailedTimestamp = (timestamp: string | undefined): string => {
     if (!timestamp) return 'Never';
     
@@ -219,11 +180,19 @@ const MyFiles: React.FC = () => {
     setSortDoctor('all');
     setSortBy('uploaded_at');
     setCurrentPage(1);
+    fetchFiles();
+  };
+
+  // Paginate files for display
+  const getPaginatedFiles = () => {
+    const startIndex = (currentPage - 1) * filesPerPage;
+    const endIndex = startIndex + filesPerPage;
+    return files.slice(startIndex, endIndex);
   };
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
-      <Sidebar userRole="doctor" currentPage="my-files" />
+      <Sidebar userRole={userRole} currentPage="my-files" />
 
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
         <div className="mb-6">
@@ -298,7 +267,7 @@ const MyFiles: React.FC = () => {
         ) : files.length > 0 ? (
           <div>
             <div className="space-y-3">
-              {files.map((file) => (
+              {getPaginatedFiles().map((file) => (
                 <div key={file.id} className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
                   {/* File Header */}
                   <div className="flex flex-col sm:flex-row justify-between gap-3 mb-4">
@@ -320,10 +289,15 @@ const MyFiles: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleDownload(file)}
-                        className="p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                        disabled={isDecrypting && decryptingFileId === file.id}
+                        className="p-2 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
                         title="Download"
                       >
-                        <Download className="w-5 h-5 text-blue-600" />
+                        {isDecrypting && decryptingFileId === file.id ? (
+                          <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                        ) : (
+                          <Download className="w-5 h-5 text-blue-600" />
+                        )}
                       </button>
                       <button
                         onClick={() => handleDelete(file)}
@@ -388,6 +362,7 @@ const MyFiles: React.FC = () => {
                     onClick={() => goToPage(currentPage - 1)}
                     disabled={currentPage === 1 || loading}
                     className="p-2 rounded-lg border hover:bg-gray-50 disabled:opacity-50"
+                    title="Previous page"
                   >
                     <ChevronLeft className="w-5 h-5" />
                   </button>
@@ -409,6 +384,7 @@ const MyFiles: React.FC = () => {
                     onClick={() => goToPage(currentPage + 1)}
                     disabled={currentPage === totalPages || loading}
                     className="p-2 rounded-lg border hover:bg-gray-50 disabled:opacity-50"
+                    title="Next page"
                   >
                     <ChevronRight className="w-5 h-5" />
                   </button>

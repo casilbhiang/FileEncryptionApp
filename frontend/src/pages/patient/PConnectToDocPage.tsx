@@ -1,17 +1,97 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
-import { QrCode, Camera, AlertTriangle } from 'lucide-react';
+import { QrCode, Camera, AlertTriangle, CheckCircle, Stethoscope, Key } from 'lucide-react';
+import QRScanner from '../../components/QRScanner';
+import { verifyScannedQR, getUserConnections } from '../../services/keyService';
+import { hasEncryptionKey } from '../../services/Encryption';
 
 const PConnectToDocPage: React.FC = () => {
-  const [isConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [connectionDetails, setConnectionDetails] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const [keyMissing, setKeyMissing] = useState(false);
+
+  // Mock patient ID - in production this would come from auth context
+  // Get patient ID from localStorage
+  const patientId = localStorage.getItem('user_id');
+
+  // Load existing connections on mount
+  useEffect(() => {
+    const loadConnections = async () => {
+      try {
+        if (!patientId) {
+          console.warn('No patient ID found');
+          return;
+        }
+
+        // Check local key
+        const hasKey = hasEncryptionKey(patientId);
+        setKeyMissing(!hasKey);
+
+        const result = await getUserConnections(patientId);
+        if (result.success && result.connections && result.connections.length > 0) {
+          // Get the first active connection
+          const activeConnection = result.connections.find((c: any) => c.status === 'Active');
+          if (activeConnection) {
+            setConnectionDetails(activeConnection);
+            setIsConnected(true);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load connections:', err);
+      }
+    };
+
+    loadConnections();
+  }, [patientId]);
 
   const handleScanQRCode = () => {
     setShowScanner(true);
-    // In a real app, this would activate the camera and QR scanner
-    console.log('Opening QR scanner...');
+    setError(null);
+  };
+
+  const handleScanSuccess = async (decodedText: string) => {
+    try {
+      setShowScanner(false);
+
+      // Parse QR data to extract key
+      const qrData = JSON.parse(decodedText);
+
+      if (qrData.key && patientId) {
+        try {
+          // Import and store the key locally
+          const { importKeyFromBase64, storeEncryptionKey } = await import('../../services/Encryption');
+          const key = await importKeyFromBase64(qrData.key);
+          await storeEncryptionKey(key, patientId);
+          console.log('Encryption key cached from QR scan');
+          setKeyMissing(false);
+        } catch (keyError) {
+          console.error('Failed to cache key:', keyError);
+          // We continue even if caching fails, though upload might need rescanning
+        }
+      }
+
+      // Verify the scanned QR code
+      const result = await verifyScannedQR(decodedText);
+
+      setConnectionDetails(result.connection);
+      setIsConnected(true);
+      setError(null);
+    } catch (err: any) {
+      console.error('Scan verification failed:', err);
+      setError(err.message || 'Failed to verify QR code');
+      setShowScanner(false);
+    }
+  };
+
+  const handleScanFailure = (err: any) => {
+    // Only log if it's a real error, not just "no QR code found"
+    if (err?.message?.includes('No MultiFormat Readers')) return;
+    console.warn('Scan error:', err);
   };
 
   return (
@@ -23,19 +103,48 @@ const PConnectToDocPage: React.FC = () => {
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl lg:text-3xl font-bold mb-2">Connect To Patient</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold mb-2">Connect To Doctor</h1>
           <p className="text-gray-600">Scan QR Code To Establish Secure Connection</p>
         </div>
 
         {/* Connection Status Alert */}
-        <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 mb-6 max-w-2xl">
+        <div className={`border-2 rounded-lg p-4 mb-6 max-w-2xl ${isConnected && !keyMissing ? 'bg-green-50 border-green-300' :
+          isConnected && keyMissing ? 'bg-orange-50 border-orange-300' :
+            'bg-yellow-50 border-yellow-300'
+          }`}>
           <div className="flex items-center gap-3">
-            <AlertTriangle className="w-6 h-6 text-yellow-600 flex-shrink-0" />
-            <p className="text-yellow-800 font-medium">
-              {isConnected ? 'Connected Successfully!' : 'Not Connected to Any Doctor'}
-            </p>
+            {isConnected && !keyMissing ? (
+              <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0" />
+            ) : isConnected && keyMissing ? (
+              <Key className="w-6 h-6 text-orange-600 flex-shrink-0" />
+            ) : (
+              <AlertTriangle className="w-6 h-6 text-yellow-600 flex-shrink-0" />
+            )}
+            <div>
+              <p className={`${isConnected && !keyMissing ? 'text-green-800' :
+                isConnected && keyMissing ? 'text-orange-900' :
+                  'text-yellow-800'
+                } font-medium`}>
+                {isConnected && !keyMissing ? 'Connected Successfully!' :
+                  isConnected && keyMissing ? 'Session Key Required' :
+                    'Not Connected to Any Doctor'}
+              </p>
+
+              {isConnected && keyMissing && (
+                <p className="text-orange-800 text-sm mt-1">
+                  You are paired with a doctor, but this browser session is missing the encryption key. Please scan the QR code to restore access.
+                </p>
+              )}
+            </div>
           </div>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6 max-w-2xl">
+            <strong>Error:</strong> {error}
+          </div>
+        )}
 
         {/* How to Connect Section */}
         <div className="bg-white rounded-lg p-6 lg:p-8 max-w-3xl">
@@ -81,53 +190,50 @@ const PConnectToDocPage: React.FC = () => {
                   </p>
                   <button
                     onClick={handleScanQRCode}
-                    className="px-8 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition flex items-center gap-2"
+                    // Allow rescanning if key is missing OR not connected
+                    // disabled={isConnected && !keyMissing} 
+                    className={`px-8 py-3 text-white rounded-lg font-semibold transition flex items-center gap-2 bg-purple-600 hover:bg-purple-700`}
                   >
                     <QrCode className="w-5 h-5" />
-                    Scan QR Code
+                    {isConnected && !keyMissing ? 'Re-Scan QR Code' : 'Scan QR Code'}
                   </button>
                 </>
               ) : (
-                <>
-                  {/* Camera Preview Placeholder */}
-                  <div className="w-full max-w-sm aspect-square bg-gray-900 rounded-lg mb-4 flex items-center justify-center">
-                    <div className="text-center">
-                      <Camera className="w-16 h-16 text-white mx-auto mb-2" />
-                      <p className="text-white text-sm">Camera Preview</p>
-                      <p className="text-gray-400 text-xs">Point at QR code</p>
-                    </div>
-                  </div>
+                <div className="w-full max-w-md">
+                  <h3 className="text-lg font-semibold mb-4">Scanning...</h3>
+                  <QRScanner
+                    onScanSuccess={handleScanSuccess}
+                    onScanFailure={handleScanFailure}
+                  />
                   <button
                     onClick={() => setShowScanner(false)}
-                    className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition"
+                    className="mt-4 px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition"
                   >
                     Cancel
                   </button>
-                </>
+                </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Already Connected Section (Optional) */}
-        {isConnected && (
-          <div className="bg-white rounded-lg p-6 mt-6 max-w-3xl">
-            <h2 className="text-xl font-bold mb-4">Connected Doctors</h2>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                    <span className="text-green-600 font-bold">DS</span>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">Dr. Sarah Johnson</h3>
-                    <p className="text-sm text-gray-600">Cardiology</p>
-                  </div>
+        {/* Connected Doctor Info */}
+        {isConnected && connectionDetails && (
+          <div className="bg-white rounded-lg p-6 mt-6 max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h2 className="text-xl font-bold mb-4">Connected Doctor</h2>
+            <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                  <Stethoscope className="w-6 h-6 text-green-600" />
                 </div>
-                <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-                  Connected
-                </span>
+                <div>
+                  <h3 className="font-semibold text-gray-900">Doctor ID: {connectionDetails.doctor_id}</h3>
+                  <p className="text-sm text-gray-600">Key ID: {connectionDetails.key_id}</p>
+                </div>
               </div>
+              <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                Active
+              </span>
             </div>
           </div>
         )}

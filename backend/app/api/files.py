@@ -1,3 +1,5 @@
+# Backend API for File Management Encryption (may remove?) JY VER
+
 from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
 import os
@@ -10,20 +12,18 @@ SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 STORAGE_BUCKET = 'encrypted-files'
 MAX_FILE_SIZE = 50*1024*1024
-ALLOWED_FILE_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg', '.docx'}
+ALLOWED_FILE_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg'}
 
 # Initialize Supabase
+if not SUPABASE_SERVICE_ROLE_KEY:
+    SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
+
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 # Blueprint for file routes
 files_bp = Blueprint('files', __name__, url_prefix='/api/files')
 
-# Test user (hardcode)
-test_user = {
-    'id': '790f3fdd-7d0a-4ab8-b6a3-d413d3b04853', 
-    'user_id': 'DR001',
-    'full_name': 'Test Name'
-}
+# Test user (REMOVED)
 
 # ===== Upload File (status: 'pending') =====
 @files_bp.route('/upload', methods=['POST'])
@@ -33,33 +33,50 @@ def upload_file():
             return jsonify({'error': 'No file provided'}), 400
         
         file = request.files['file']
-        
+        user_id = request.form.get('user_id')
+        encryption_metadata_str = request.form.get('encryption_metadata')
+
+        if not user_id:
+             return jsonify({'error': 'User ID is required'}), 400
+             
+        if not encryption_metadata_str:
+             # If no metadata provided, assuming it might be a normal file or error? 
+             # For this app, we expect encryption.
+             return jsonify({'error': 'Encryption metadata is required'}), 400
+
+        import json
+        encryption_metadata = json.loads(encryption_metadata_str)
+
         if file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
         
-        # Check file extension
-        file_ext = os.path.splitext(file.filename)[1].lower()
+        # Check file extension (sanity check, though encrypted files might have .enc or original ext)
+        # The frontend sends original filename in 'file.name' usually, but let's check.
+        # If client sends "foo.pdf" as blob name, we trust it.
+        original_filename = secure_filename(file.filename)
+        file_ext = os.path.splitext(original_filename)[1].lower()
+        
         if file_ext not in ALLOWED_FILE_EXTENSIONS:
             return jsonify({'error': f'File type not allowed. Allowed types: {ALLOWED_FILE_EXTENSIONS}'}), 400
-        
-        # Check file size
+            
+        # Check file size (Supabase limit is high, but we have a variable)
         file.seek(0, os.SEEK_END)
         file_size = file.tell()
         file.seek(0)
         
         if file_size > MAX_FILE_SIZE:
-            return jsonify({'error': 'File size exceeds the maximum limit of 50MB'}), 400
-        
-        # Read file
+             return jsonify({'error': 'File size exceeds the maximum limit of 50MB'}), 400
+
         file_data = file.read()
-        original_filename = secure_filename(file.filename)
         
         # Create unique encrypted filename
-        encrypted_filename = f"{uuid.uuid4()}{file_ext}.enc"
-        storage_path = f"{test_user['id']}/{encrypted_filename}"
+        # We append .enc to denote it's stored encrypted
+        unique_id = str(uuid.uuid4())
+        encrypted_filename = f"{unique_id}{file_ext}.enc"
+        storage_path = f"{user_id}/{encrypted_filename}"
         
-        # Upload to Supabase Storage
-        print(f"Uploading to: {storage_path}")
+        # Upload to Supabase Storage (It is ALREADY encrypted by client)
+        print(f"Uploading to: {storage_path} for user {user_id}")
         supabase.storage.from_(STORAGE_BUCKET).upload(
             path=storage_path,
             file=file_data,
@@ -68,20 +85,27 @@ def upload_file():
         
         # Save metadata to database with 'pending' status
         file_record = {
-            'owner_id': test_user['id'],
+            'owner_id': user_id,
             'original_filename': original_filename,
             'encrypted_filename': encrypted_filename,
             'file_size': file_size,
-            'mime_type': file.content_type,
+            'mime_type': file.content_type, # This might be application/octet-stream if set by client
             'file_extension': file_ext,
-            'encryption_metadata': {'iv': 'test', 'auth_tag': 'test', 'algorithm': 'AES-GCM-256'},
+            'encryption_metadata': encryption_metadata,
             'storage_bucket': STORAGE_BUCKET,
             'storage_path': storage_path,
             'upload_status': 'pending' 
         }
         
         result = supabase.table('encrypted_files').insert(file_record).execute()
-        file_id = result.data[0]['id']
+        
+        # Handle potential response format differences
+        if hasattr(result, 'data') and len(result.data) > 0:
+             file_id = result.data[0]['id']
+        else:
+             # Fallback or error
+             print("Insert result:", result)
+             return jsonify({'error': 'Failed to save file record'}), 500
         
         print(f'File uploaded successfully with PENDING status! File ID: {file_id}')
         
@@ -128,9 +152,13 @@ def confirm_upload(file_id):
 @files_bp.route('/my-files', methods=['GET'])
 def get_my_files():
     try:
+        user_id = request.args.get('user_id')
+        if not user_id:
+             return jsonify({'error': 'User ID is required'}), 400
+
         response = supabase.table('encrypted_files')\
             .select('*')\
-            .eq('owner_id', test_user['id'])\
+            .eq('owner_id', user_id)\
             .eq('is_deleted', False)\
             .eq('upload_status', 'completed')\
             .order('uploaded_at', desc=True)\
@@ -189,11 +217,15 @@ def download_file(file_id):
 def delete_file(file_id):
     try:
         print(f"DELETE request received for file_id: {file_id}")
+        user_id = request.args.get('user_id')
+        
+        if not user_id:
+             return jsonify({'error': 'User ID is required'}), 400
         
         result = supabase.table('encrypted_files')\
             .update({'is_deleted': True})\
             .eq('id', file_id)\
-            .eq('owner_id', test_user['id'])\
+            .eq('owner_id', user_id)\
             .execute()
         
         if result.data:

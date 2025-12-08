@@ -21,7 +21,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  
+
   // Use notification context
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotification } = useNotifications();
 
@@ -63,6 +63,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
       { id: 'user-management', label: 'User Management', icon: Users, path: '/admin/user-management' },
       { id: 'key-management', label: 'Key Management', icon: Key, path: '/admin/key-management' },
       { id: 'audit-logs', label: 'Audit Logs', icon: FileText, path: '/admin/audit-logs' },
+      { id: 'key-logs', label: 'Key Logs', icon: Key, path: '/admin/key-logs' },
       { id: 'cloud-storage', label: 'Cloud Storage', icon: Cloud, path: '/admin/cloud-storage' },
     ],
   };
@@ -76,9 +77,32 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
 
   const navItems = navigationItems[userRole];
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      // Call backend logout endpoint to log the event
+      const API_URL = import.meta.env.VITE_API_URL;
+      await fetch(`${API_URL}/api/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: localStorage.getItem('user_id'),
+        }),
+      });
+    } catch (error) {
+      console.error('Logout API error:', error);
+      // Continue with logout even if API call fails
+    } finally {
+      // Clear all local storage data
+      localStorage.clear();
+
+      // Clear session storage as well
+      sessionStorage.clear();
+
+      // Navigate to login page
+      navigate('/login');
+    }
   };
 
   const handleNavigate = (path: string) => {
@@ -117,7 +141,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
             className="fixed inset-0 z-50"
             onClick={() => setShowNotifications(false)}
           />
-          
+
           {/* Notification Panel - Fixed position */}
           <div className="fixed top-20 left-4 lg:left-72 w-80 lg:w-96 bg-white rounded-lg shadow-2xl z-50 max-h-96 overflow-hidden flex flex-col border border-gray-200">
             {/* Header */}
@@ -147,9 +171,8 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
                 notifications.map((notif) => (
                   <div
                     key={notif.id}
-                    className={`p-4 border-b hover:bg-gray-50 cursor-pointer transition ${
-                      !notif.read ? 'bg-cyan-50' : 'bg-white'
-                    }`}
+                    className={`p-4 border-b hover:bg-gray-50 cursor-pointer transition ${!notif.read ? 'bg-cyan-50' : 'bg-white'
+                      }`}
                     onClick={() => markAsRead(notif.id)}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -205,7 +228,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
                 <p className="text-sm text-gray-600">NCRYPT</p>
               </div>
             </div>
-            
+
             {/* Notification Bell */}
             <button
               onClick={() => setShowNotifications(!showNotifications)}
@@ -237,11 +260,10 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
               <button
                 key={item.id}
                 onClick={() => handleNavigate(item.path)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium mb-2 transition ${
-                  isActive
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium mb-2 transition ${isActive
                     ? 'bg-blue-100 text-blue-700'
                     : 'hover:bg-gray-100 text-gray-700'
-                }`}
+                  }`}
               >
                 <Icon className="w-5 h-5" />
                 {item.label}

@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { NotificationProvider } from './contexts/NotificationContext';
+import NotificationToast from './components/NotificationToast';
 
 // Public Pages
 import HomePage from './pages/Homepage';
@@ -33,6 +34,7 @@ import ACloudStoragePage from './pages/admin/ACloudStoragePage';
 function App() {
   return (
     <NotificationProvider>
+      <NotificationToast />
       <Router>
         <Routes>
           {/* Public Routes */}
