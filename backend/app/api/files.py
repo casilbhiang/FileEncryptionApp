@@ -12,7 +12,7 @@ SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 STORAGE_BUCKET = 'encrypted-files'
 MAX_FILE_SIZE = 50*1024*1024
-ALLOWED_FILE_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg', '.txt', '.docx'}
+ALLOWED_FILE_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg'}
 
 # Initialize Supabase
 if not SUPABASE_SERVICE_ROLE_KEY:
