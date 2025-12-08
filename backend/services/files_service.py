@@ -366,12 +366,10 @@ class FileService:
                         shared_at = user_shares[0].get('shared_at')
                         is_shared = True
                 
-                # Format file name
+                # Format file name using the helper method
                 file_extension = file.get('file_extension', '')
                 original_filename = file.get('original_filename', 'Unknown File')
-                display_name = original_filename
-                if file_extension and not original_filename.lower().endswith(file_extension.lower()):
-                    display_name = f"{original_filename}.{file_extension}"
+                display_name = FileService._format_filename(original_filename, file_extension)
                 
                 # Determine shared_by display
                 if str(owner_id) == str(user_id):
@@ -417,9 +415,30 @@ class FileService:
         if not original_filename:
             return 'Unknown File'
         
+        # Clean the file_extension - remove leading dot if present
+        clean_extension = file_extension
+        if clean_extension and clean_extension.startswith('.'):
+            clean_extension = clean_extension[1:]
+        
         display_name = original_filename
-        if file_extension and not original_filename.lower().endswith(f".{file_extension.lower()}"):
-            display_name = f"{original_filename}.{file_extension}"
+        
+        if clean_extension:
+            original_lower = original_filename.lower()
+            ext_lower = clean_extension.lower()
+            
+            # Remove any trailing dots from the original filename first
+            original_clean = original_filename.rstrip('.')
+            
+            # Check if the filename already ends with the extension
+            # Check for: .ext, ext, .EXT, EXT
+            if (not original_lower.endswith(f".{ext_lower}") and 
+                not original_lower == ext_lower and
+                not original_lower.endswith(ext_lower)):
+                # Only add extension if not already there
+                display_name = f"{original_clean}.{clean_extension}"
+            else:
+                # If extension is already there, just use the original
+                display_name = original_filename
         
         return display_name
     
