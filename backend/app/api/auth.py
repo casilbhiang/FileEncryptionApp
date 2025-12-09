@@ -260,6 +260,13 @@ def login():
         print("="*60 + "\n")
         sys.stdout.flush()
 
+        if not email_sent:
+            print("WARNING: Email failed to send. Proceeding for manual OTP entry (Dev Mode).")
+            # return jsonify({
+            #    'success': False,
+            #    'message': 'Failed to send OTP email. Please check server logs or SMTP settings.'
+            # }), 500
+
         # Log login attempt in audit table
         try:
             supabase.rpc('log_simple_auth_event', {

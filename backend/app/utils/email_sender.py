@@ -32,7 +32,7 @@ def send_otp_email(recipient_email: str, otp_code: str, user_name: str = None) -
 
         # Debug: print what we're actually loading
         print(f"DEBUG: smtp_user from config = {smtp_user}")
-        print(f"DEBUG: smtp_password from config = {smtp_password[:4]}...")
+        print(f"DEBUG: smtp_password from config = {'Set' if smtp_password else 'None'}...")
 
         # Validate configuration
         if not smtp_user or smtp_user == 'your-email@gmail.com':
@@ -132,7 +132,7 @@ FileEncryption App Team
 
         # Connect to Gmail SMTP server and send email
         print(f"Connecting to {smtp_host}:{smtp_port}...")
-        server = smtplib.SMTP(smtp_host, smtp_port)
+        server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
         server.starttls()  # Enable TLS encryption
 
         print(f"Logging in as {smtp_user}...")
