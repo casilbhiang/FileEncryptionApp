@@ -1,159 +1,259 @@
+// services/Files.ts - ENHANCED VERSION
+
 const API_BASE_URL = 'http://localhost:5000/api/files';
 
 export interface FileItem {
-    id: string;
-    name: string;
-    size: number;
-    uploaded_at: string;
-    shared_by: string;
-    is_shared?: boolean;
+  id: string;
+  name: string;
+  size: number;
+  uploaded_at: string;
+  shared_by: string;
+  is_shared: boolean;
+  // Make sure ALL these are in your interface:
+  file_extension?: string;
+  shared_at?: string;
+  last_accessed_at?: string;
+  file_size?: number; // For backward compatibility
+  // These are optional, add if you want them:
+  owner_id?: string;
+  owner_name?: string;
+  owner_role?: string;
 }
 
 export interface UploadResponse {
-    message: string;
-    file_id: string;
-    filename: string;
+  message: string;
+  file_id: string;
+  filename: string;
 }
 
 export interface EncryptionMetadata {
-    iv: string;
-    authTag: string;
-    algorithm: string;
+  iv: string;
+  authTag: string;
+  algorithm: string;
+}
+
+export interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}
+
+export interface ApiResponse {
+  success: boolean;
+  data: FileItem[];
+  count?: number;
+  pagination?: PaginationInfo;
+  message?: string;
+  error?: string;
 }
 
 /* File Upload */
-export const uploadFile = async (file: File, userId: string, encryptionMetadata?: EncryptionMetadata, signal?: AbortSignal): Promise<UploadResponse> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('user_id', userId);
+export const uploadFile = async (
+  file: File, 
+  userId: string, 
+  encryptionMetadata?: EncryptionMetadata, 
+  signal?: AbortSignal
+): Promise<UploadResponse> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('user_id', userId);
 
-    // Add encryption metadata if provided
-    if (encryptionMetadata) {
-        formData.append('encryption_metadata', JSON.stringify(encryptionMetadata));
-    }
+  if (encryptionMetadata) {
+    formData.append('encryption_metadata', JSON.stringify(encryptionMetadata));
+  }
 
-    const response = await fetch(`${API_BASE_URL}/upload`, {
-        method: 'POST',
-        body: formData,
-        signal,
-    });
+  const response = await fetch(`${API_BASE_URL}/upload`, {
+    method: 'POST',
+    body: formData,
+    signal,
+  });
 
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Upload failed');
-    }
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Upload failed');
+  }
 
-    return response.json();
+  return response.json();
 };
 
-/* Get User Files */
+/* Get User Files - ENHANCED with pagination support */
 export const getMyFiles = async (
-    userId: string,
-    search?: string,
-    sortBy?: string,
-    filter?: string,
-): Promise<{ files: FileItem[]; total: number }> => {
+  userId: string,
+  search?: string,
+  sortBy?: string,
+  filter?: string,
+  page?: number,
+  limit?: number
+): Promise<{ files: FileItem[]; total: number; pagination?: PaginationInfo }> => {
+  const params = new URLSearchParams();
+  params.append('user_id', userId);
+  if (search) params.append('search', search);
+  if (sortBy) params.append('sort_by', sortBy);
+  if (filter) params.append('filter', filter);
+  if (page) params.append('page', page.toString());
+  if (limit) params.append('limit', limit.toString());
 
-    const params = new URLSearchParams();
-    params.append('user_id', userId);
-    if (search) params.append('search', search);
-    if (sortBy) params.append('sort_by', sortBy);
-    if (filter) params.append('filter', filter);
+  const response = await fetch(`${API_BASE_URL}/my-files?${params.toString()}`);
 
-    const response = await fetch(`${API_BASE_URL}/my-files?${params.toString()}`);
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Failed to fetch files' }));
+    throw new Error(error.error || 'Failed to fetch files');
+  }
 
-    if (!response.ok) {
-        throw new Error('Failed to fetch files');
-    }
-
-    return response.json();
+  const data = await response.json();
+  
+  // Handle different response formats
+  if (data.success && data.data) {
+    // New format with pagination
+    return {
+      files: data.data,
+      total: data.pagination?.total || data.count || data.data.length,
+      pagination: data.pagination
+    };
+  } else if (data.files) {
+    // Old format
+    return {
+      files: data.files,
+      total: data.total || data.files.length
+    };
+  } else {
+    // Fallback
+    return {
+      files: data,
+      total: data.length
+    };
+  }
 };
 
 /* Download File */
 export const downloadFile = async (fileId: string): Promise<Blob> => {
-    const response = await fetch(`${API_BASE_URL}/download/${fileId}`);
+  const response = await fetch(`${API_BASE_URL}/download/${fileId}`);
 
-    if (!response.ok) {
-        throw new Error('Download failed');
-    }
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Download failed' }));
+    throw new Error(error.error || 'Download failed');
+  }
 
-    const data = await response.json();
+  const data = await response.json();
 
-    // Convert hex string to byte
-    const bytes = new Uint8Array(
-        data.data.match(/.{1,2}/g)!.map((byte: string) => parseInt(byte, 16))
-    );
+  // Convert hex string to byte
+  const bytes = new Uint8Array(
+    data.data.match(/.{1,2}/g)!.map((byte: string) => parseInt(byte, 16))
+  );
 
-    return new Blob([bytes]);
+  return new Blob([bytes]);
 };
 
-/* Delete File */
-export const deleteFile = async (fileId: string, userId: string): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/delete/${fileId}?user_id=${userId}`, {
-        method: 'DELETE',
-    });
+/* Delete File - Enhanced with better response */
+export const deleteFile = async (
+  fileId: string, 
+  userId: string
+): Promise<{ success: boolean; message: string }> => {
+  const response = await fetch(`${API_BASE_URL}/delete/${fileId}?user_id=${userId}`, {
+    method: 'DELETE',
+  });
 
-    if (!response.ok) {
-        throw new Error('Delete failed');
-    }
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Delete failed' }));
+    throw new Error(error.error || 'Delete failed');
+  }
+
+  return response.json();
 };
 
 /* Share File */
-export const shareFile = async (fileId: string, sharedWith: string): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/share`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ file_id: fileId, shared_with: sharedWith }),
-    });
+export const shareFile = async (
+  fileId: string, 
+  sharedWith: string
+): Promise<{ success: boolean; message: string }> => {
+  const response = await fetch(`${API_BASE_URL}/share`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ file_id: fileId, shared_with: sharedWith }),
+  });
 
-    if (!response.ok) {
-        throw new Error('Share failed');
-    }
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Share failed' }));
+    throw new Error(error.error || 'Share failed');
+  }
+
+  return response.json();
 };
 
-/* Decrypt File - User Stories DR#17 & PT#14 */
+/* Decrypt File */
 export interface DecryptFileParams {
-    fileId: string;
-    userId: string;
+  fileId: string;
+  userId: string;
 }
 
 export interface DecryptionError {
-    error: string;
-    message: string;
-    details?: string;
+  error: string;
+  message: string;
+  details?: string;
 }
 
-export const decryptFile = async ({ fileId, userId }: DecryptFileParams): Promise<Blob> => {
-    const response = await fetch(`http://localhost:5000/api/files/decrypt/${fileId}?user_id=${userId}`);
+export const decryptFile = async ({ 
+  fileId, 
+  userId 
+}: DecryptFileParams): Promise<Blob> => {
+  const response = await fetch(
+    `${API_BASE_URL}/decrypt/${fileId}?user_id=${userId}`
+  );
 
-    if (!response.ok) {
-        // Handle decryption failure (422) or other errors
-        if (response.status === 422) {
-            const errorData: DecryptionError = await response.json();
-            const error = new Error(errorData.message || 'Decryption failed');
-            (error as any).isDecryptionError = true;
-            (error as any).details = errorData.details;
-            throw error;
-        }
-
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || 'Failed to decrypt file');
+  if (!response.ok) {
+    if (response.status === 422) {
+      const errorData: DecryptionError = await response.json();
+      const error = new Error(errorData.message || 'Decryption failed');
+      (error as any).isDecryptionError = true;
+      (error as any).details = errorData.details;
+      throw error;
     }
 
-    return response.blob();
+    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(errorData.error || 'Failed to decrypt file');
+  }
+
+  return response.blob();
 };
 
 /* Confirm Upload */
 export const confirmUpload = async (fileId: string): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/confirm/${fileId}`, {
-        method: 'POST',
-    });
+  const response = await fetch(`${API_BASE_URL}/confirm/${fileId}`, {
+    method: 'POST',
+  });
 
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to confirm upload');
-    }
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to confirm upload');
+  }
 };
 
+/* Get Recent Activity (from FileStorageService) */
+export const getRecentActivity = async (
+  userId: string, 
+  limit: number = 10
+): Promise<{ activities: any[] }> => {
+  const response = await fetch(
+    `${API_BASE_URL}/recent?user_id=${userId}&limit=${limit}`
+  );
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch recent activity');
+  }
+
+  return response.json();
+};
+
+/* Health Check */
+export const healthCheck = async (): Promise<{ status: string; timestamp: string }> => {
+  const response = await fetch(`${API_BASE_URL}/health`);
+
+  if (!response.ok) {
+    throw new Error('Health check failed');
+  }
+
+  return response.json();
+};

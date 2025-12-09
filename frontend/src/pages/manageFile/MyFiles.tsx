@@ -16,6 +16,8 @@ import {
 import { getMyFiles, deleteFile, type FileItem } from '../../services/Files';
 import { useFileDecryption } from '../../hooks/useFileDecryption';
 
+
+
 const MyFiles: React.FC = () => {
   const location = useLocation();
   const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
@@ -41,13 +43,13 @@ const MyFiles: React.FC = () => {
   // Fetch files from backend
   useEffect(() => {
     fetchFiles();
-  }, [currentPage, sortBy, sortDoctor]);
+  }, [currentPage, sortBy, sortDoctor, searchQuery]);
 
   const fetchFiles = async () => {
     try {
       setLoading(true);
       if (userId) {
-        const response = await getMyFiles(userId, searchQuery, sortBy, sortDoctor);
+        const response = await getMyFiles(userId, searchQuery, sortBy, sortDoctor, currentPage, filesPerPage);
         setFiles(response.files);
         
         // TODO: You need to update the service to return pagination data
