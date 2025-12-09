@@ -1,11 +1,16 @@
 # Backend API for File Management Encryption (may remove?) JY VER
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from werkzeug.utils import secure_filename
 import os
 import uuid
 from supabase import create_client
 from datetime import datetime, timedelta
+import io
+import base64
+from app.models.storage import key_pair_store
+from app.crypto.encryption import EncryptionManager
+from config import Config
 
 # Configuration
 SUPABASE_URL = os.getenv('SUPABASE_URL')
@@ -22,8 +27,6 @@ supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 # Blueprint for file routes
 files_bp = Blueprint('files', __name__, url_prefix='/api/files')
-
-# Test user (REMOVED)
 
 # ===== Upload File (status: 'pending') =====
 @files_bp.route('/upload', methods=['POST'])
@@ -298,13 +301,101 @@ def cleanup_pending_uploads():
     
 # ========== Encryption & Decryption ========== 
 # PLACEHOLDER FOR NOW
-def encrypt_file(file_data, user_key):
-    return {
-        'encrypted_data': file_data,
-        'iv': 'mock-iv',
-        'auth_tag': 'mock-tag',
-        'key_identifier': 'mock-key-id'
-    }
+# ===== Decrypt File (Server-Side) =====
+@files_bp.route('/decrypt/<file_id>', methods=['GET'])
+def decrypt_file_route(file_id):
+    """
+    Decrypts a file on the server and returns the plaintext content.
+    User Story: DR#17 & PT#14
+    """
+    try:
+        user_id = request.args.get('user_id')
+        if not user_id:
+             return jsonify({'error': 'User ID is required'}), 400
 
-def decrypt_file(encrypted_data, key, iv, auth_tag):
-    return encrypted_data
+        # 1. Fetch File Metadata
+        response = supabase.table('encrypted_files').select('*').eq('id', file_id).execute()
+        if not response.data:
+            return jsonify({'error': 'Failed to download encrypted file from storage'}), 500
+        file_record = response.data[0]
+
+        # 2. Get Encryption Keys (Candidates)
+        # Find active and inactive keys for this user to ensure we can decrypt older files
+        all_keys = key_pair_store.list_by_user(user_id)
+        candidates = all_keys
+        
+        if not candidates:
+             return jsonify({'error': 'No encryption keys found for user'}), 422
+
+        # 4. Download Encrypted Content
+        storage_path = file_record['storage_path']
+        try:
+            enc_file_bytes = supabase.storage.from_(STORAGE_BUCKET).download(storage_path)
+        except Exception as e:
+            return jsonify({'error': 'Failed to download encrypted file from storage'}), 500
+        meta = file_record.get('encryption_metadata') or {}
+        iv_b64 = meta.get('iv')
+        auth_tag_b64 = meta.get('authTag') 
+        
+        if not iv_b64 or not auth_tag_b64:
+             return jsonify({'error': 'Missing encryption metadata (IV or AuthTag)'}), 422
+
+        try:
+            # The file from WebCrypto ALREADY includes the Auth Tag at the end.
+            # Python's AESGCM.decrypt also expects (Ciphertext + Tag).
+            # So we do NOT need to append the tag again.
+            full_ciphertext_b64 = base64.b64encode(enc_file_bytes).decode('utf-8')
+        except Exception as e:
+             return jsonify({'error': 'Failed to process encryption metadata'}), 422
+
+        # Try to decrypt with ALL candidate keys
+        last_error = None
+        print(f"Attempting to decrypt file {file_id} (Uploaded: {file_record.get('uploaded_at')})")
+        print(f"Found {len(candidates)} candidate keys for user {user_id}")
+        
+        for key_pair in candidates:
+            try:
+                print(f"Trying KeyID: {key_pair.key_id} (Created: {key_pair.created_at})")
+                
+                # 3. Decrypt the DEK (using Master Key)
+                try:
+                    dek_b64 = EncryptionManager.decrypt_dek(key_pair.encryption_key, Config.MASTER_KEY)
+                    dek_bytes = EncryptionManager.base64_to_key(dek_b64)
+                except Exception as e:
+                    print(f"Skipping key {key_pair.key_id}: DEK unlock failed ({e})")
+                    continue
+
+                # 4. Download Encrypted Content (only need to do this once, but stream is consumed?)
+                # We should download once outside loop or re-download?
+                # Actually, supabase.storage.download returns bytes, so we can reuse `enc_file_bytes`
+                # Let's move download OUTSIDE the loop.
+                pass 
+
+                # 6. Decrypt
+                decrypted_bytes = EncryptionManager.decrypt_file(full_ciphertext_b64, iv_b64, dek_bytes)
+                
+                # 7. Return File (Success!)
+                return send_file(
+                    io.BytesIO(decrypted_bytes),
+                    mimetype=file_record.get('mime_type', 'application/octet-stream'),
+                    as_attachment=True,
+                    download_name=file_record['original_filename']
+                )
+                
+            except Exception as e:
+                # This key failed, try next
+                print(f"Key {key_pair.key_id} failed to decrypt file: {e}")
+                last_error = str(e)
+                continue
+        
+        # If we get here, no key worked
+        print(f"All keys failed for user {user_id}. Last error: {last_error}")
+        return jsonify({
+            'error': 'Decryption failed', 
+            'message': 'Could not decrypt file with any of your active keys.',
+            'details': last_error
+        }), 422
+
+    except Exception as e:
+        import traceback
+        return jsonify({'error': str(e), 'details': traceback.format_exc()}), 500
