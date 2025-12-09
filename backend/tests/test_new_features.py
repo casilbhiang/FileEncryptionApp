@@ -15,23 +15,47 @@ def client():
 
 @pytest.fixture
 def mock_key_pair():
-    # Create a mock key pair
-    key_id = "key_test_123"
-    key = EncryptionManager.generate_key()
-    key_b64 = EncryptionManager.key_to_base64(key)
+    # Create a mock key pair with UNIQUE ID for each test run
+    app = create_app()
+    app.config['TESTING'] = True
     
-    from config import Config
-    encrypted_key = EncryptionManager.encrypt_dek(key_b64, Config.MASTER_KEY)
+    import uuid
+    # Use UUID to avoid "duplicate key" errors in real DB
+    unique_suffix = str(uuid.uuid4())[:8]
+    key_id = f"key_test_{unique_suffix}"
+    
+    kp = None
+    
+    with app.app_context():
+        key = EncryptionManager.generate_key()
+        key_b64 = EncryptionManager.key_to_base64(key)
+        
+        from config import Config
+        encrypted_key = EncryptionManager.encrypt_dek(key_b64, Config.MASTER_KEY)
 
-    kp = KeyPair(
-        key_id=key_id,
-        doctor_id="DR001",
-        patient_id="PT001",
-        encryption_key=encrypted_key,
-        status="Active"
-    )
-    key_pair_store.create(kp)
-    return kp
+        kp = KeyPair(
+            key_id=key_id,
+            doctor_id=f"DR_{unique_suffix}",
+            patient_id=f"PT_{unique_suffix}",
+            encryption_key=encrypted_key,
+            status="Active"
+        )
+        try:
+            key_pair_store.create(kp)
+        except Exception as e:
+            # If create fails, we might still want to proceed or fail the fixture
+            print(f"Fixture setup failed: {e}")
+            raise e
+
+    yield kp
+    
+    # Cleanup after test
+    with app.app_context():
+        try:
+            if kp:
+                key_pair_store.delete(kp.key_id)
+        except Exception as e:
+            print(f"Cleanup failed for {kp.key_id}: {e}")
 
 @patch('app.api.keys.audit_logger')
 def test_scan_qr_code_success(mock_audit, client, mock_key_pair):
