@@ -5,7 +5,7 @@ import Sidebar from '../../components/layout/Sidebar';
 import { QrCode, Camera, AlertTriangle, CheckCircle, User, Key } from 'lucide-react';
 import QRScanner from '../../components/QRScanner';
 import { verifyScannedQR, getUserConnections } from '../../services/keyService';
-import { hasEncryptionKey } from '../../services/Encryption';
+import { hasEncryptionKey, clearEncryptionKey } from '../../services/Encryption';
 
 const DConnectToPatientPage: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
@@ -62,6 +62,22 @@ const DConnectToPatientPage: React.FC = () => {
     loadConnections();
   }, [doctorId]);
 
+  const handleDisconnect = () => {
+    if (!doctorId) return;
+
+    try {
+      // 1. Clear Local Key ONLY (Preserve Backend Pairing)
+      clearEncryptionKey(doctorId);
+
+      // 2. Update UI to "Session Closed" state
+      setKeyMissing(true);
+
+      console.log('Local session disconnected');
+    } catch (err) {
+      console.error('Failed to disconnect:', err);
+    }
+  };
+
   const handleScanQRCode = () => {
     setShowScanner(true);
     setError(null);
@@ -74,9 +90,14 @@ const DConnectToPatientPage: React.FC = () => {
       // Parse QR data to extract key
       const qrData = JSON.parse(decodedText);
 
-      // Validate QR ownership
-      if (qrData.doctor_id && qrData.doctor_id !== doctorId) {
-        throw new Error(`This QR code is for Doctor '${qrData.doctor_id}', but you are logged in as '${doctorId}'. Please scan the correct code.`);
+      // Validate QR ownership (Case-insensitive)
+      if (qrData.doctor_id && doctorId) {
+        const qrDoctor = String(qrData.doctor_id).trim().toLowerCase();
+        const currentDoctor = String(doctorId).trim().toLowerCase();
+
+        if (qrDoctor !== currentDoctor) {
+          throw new Error(`Error Does not match.`);
+        }
       }
 
       if (qrData.key && doctorId) {
@@ -106,8 +127,6 @@ const DConnectToPatientPage: React.FC = () => {
   };
 
   const handleScanFailure = (err: any) => {
-    // Only log if it's a real error, not just "no QR code found"
-    if (err?.message?.includes('No MultiFormat Readers')) return;
     console.warn('Scan error:', err);
   };
 
@@ -129,7 +148,7 @@ const DConnectToPatientPage: React.FC = () => {
         </div>
 
         {/* Connection Status Alert */}
-        <div className={`border-2 rounded-lg p-4 mb-6 max-w-2xl 
+        <div className={`border-2 rounded-lg p-4 mb-6 max-w-2xl
             ${isFullyConnected ? 'bg-green-50 border-green-300' :
             isGhostConnection ? 'bg-orange-50 border-orange-300' :
               'bg-yellow-50 border-yellow-300'}`}>
@@ -236,10 +255,19 @@ const DConnectToPatientPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Connected Patient Info */}
+        {/* Connected Patient Info & Disconnect */}
         {isConnected && connectionDetails && (
           <div className="bg-white rounded-lg p-6 mt-6 max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-xl font-bold mb-4">Connected Patient</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Connected Patient</h2>
+              <button
+                onClick={handleDisconnect}
+                className="text-red-600 hover:text-red-800 text-sm font-semibold underline px-2 py-1"
+              >
+                Disconnect
+              </button>
+            </div>
+
             <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
