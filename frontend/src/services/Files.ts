@@ -1,23 +1,34 @@
-// services/Files.ts - ENHANCED VERSION
+// services/Files.ts - MERGED VERSION
 
 const API_BASE_URL = 'http://localhost:5000/api/files';
 
+// Interfaces from Code #1
+export interface FileShare {
+  shared_with: string;
+  shared_at: string;
+  access_level: string;
+}
+
+// Enhanced FileItem interface combining both versions
 export interface FileItem {
   id: string;
   name: string;
-  size: number;
+  size: number; // Make required like Code #2
   uploaded_at: string;
-  shared_by: string;
-  is_shared: boolean;
-  // Make sure ALL these are in your interface:
   file_extension?: string;
+  owner_id: string; // Required from Code #1
+  is_owned?: boolean;
+  is_shared?: boolean;
+  shared_by?: string;
   shared_at?: string;
   last_accessed_at?: string;
-  file_size?: number; // For backward compatibility
-  // These are optional, add if you want them:
-  owner_id?: string;
-  owner_name?: string;
+  shares?: FileShare[]; // From Code #1 - for detailed sharing info
+  shared_count?: number;
+  owner_name?: string; // From Code #2
   owner_role?: string;
+  
+  // Legacy support
+  file_size?: number;
 }
 
 export interface UploadResponse {
@@ -77,7 +88,7 @@ export const uploadFile = async (
   return response.json();
 };
 
-/* Get User Files - ENHANCED with pagination support */
+/* Get User Files - ENHANCED with pagination support (for MyFiles tab) */
 export const getMyFiles = async (
   userId: string,
   search?: string,
@@ -126,6 +137,15 @@ export const getMyFiles = async (
   }
 };
 
+/* Format file size for display - From Code #1 */
+export const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
 /* Download File */
 export const downloadFile = async (fileId: string): Promise<Blob> => {
   const response = await fetch(`${API_BASE_URL}/download/${fileId}`);
@@ -162,7 +182,7 @@ export const deleteFile = async (
   return response.json();
 };
 
-/* Share File */
+/* Share File - From Code #2 (missing in Code #1) */
 export const shareFile = async (
   fileId: string, 
   sharedWith: string

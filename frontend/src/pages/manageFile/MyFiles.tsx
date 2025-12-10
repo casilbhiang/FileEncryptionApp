@@ -16,8 +16,6 @@ import {
 import { getMyFiles, deleteFile, type FileItem } from '../../services/Files';
 import { useFileDecryption } from '../../hooks/useFileDecryption';
 
-
-
 const MyFiles: React.FC = () => {
   const location = useLocation();
   const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
@@ -26,7 +24,7 @@ const MyFiles: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('uploaded_at');
-  const [sortDoctor, setSortDoctor] = useState('all');
+  const [filterType, setFilterType] = useState('all'); // Changed from sortDoctor
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -43,19 +41,30 @@ const MyFiles: React.FC = () => {
   // Fetch files from backend
   useEffect(() => {
     fetchFiles();
-  }, [currentPage, sortBy, sortDoctor, searchQuery]);
+  }, [currentPage, sortBy, filterType, searchQuery]);
 
   const fetchFiles = async () => {
     try {
       setLoading(true);
       if (userId) {
-        const response = await getMyFiles(userId, searchQuery, sortBy, sortDoctor, currentPage, filesPerPage);
+        const response = await getMyFiles(
+          userId, 
+          searchQuery, 
+          sortBy, 
+          filterType, 
+          currentPage, 
+          filesPerPage
+        );
         setFiles(response.files);
+        setTotalFiles(response.total);
         
-        // TODO: You need to update the service to return pagination data
-        // For now, we'll calculate it from the files array
-        setTotalFiles(response.files.length);
-        setTotalPages(Math.ceil(response.files.length / filesPerPage));
+        // Calculate total pages from response
+        if (response.pagination) {
+          setTotalPages(response.pagination.pages);
+        } else {
+          // Fallback calculation
+          setTotalPages(Math.ceil(response.total / filesPerPage));
+        }
       }
     } catch (error) {
       console.error('Failed to fetch files:', error);
@@ -112,7 +121,7 @@ const MyFiles: React.FC = () => {
     }
   };
 
-  // --- ADDED FUNCTIONS FROM OLD VERSION ---
+  // Keep all your existing helper functions (formatFileSize, formatDetailedTimestamp, etc.)
   const formatFileSize = (bytes: number | undefined): string => {
     if (!bytes) return '0 B';
     if (bytes < 1024) return bytes + ' B';
@@ -130,12 +139,15 @@ const MyFiles: React.FC = () => {
       const dateString = date.toLocaleDateString('en-US', { 
         year: 'numeric',
         month: 'short', 
-        day: 'numeric'
+        day: 'numeric',
+        timeZone: 'UTC'
       });
       
       const timeString = date.toLocaleTimeString('en-US', { 
         hour: '2-digit', 
         minute: '2-digit',
+        second: '2-digit',
+        timeZone: 'UTC',
         hour12: true 
       });
       
@@ -179,17 +191,10 @@ const MyFiles: React.FC = () => {
 
   const handleClearFilters = () => {
     setSearchQuery('');
-    setSortDoctor('all');
+    setFilterType('all');
     setSortBy('uploaded_at');
     setCurrentPage(1);
     fetchFiles();
-  };
-
-  // Paginate files for display
-  const getPaginatedFiles = () => {
-    const startIndex = (currentPage - 1) * filesPerPage;
-    const endIndex = startIndex + filesPerPage;
-    return files.slice(startIndex, endIndex);
   };
 
   return (
@@ -243,9 +248,9 @@ const MyFiles: React.FC = () => {
               <option value="-size">Largest</option>
             </select>
             <select
-              value={sortDoctor}
+              value={filterType}
               onChange={(e) => {
-                setSortDoctor(e.target.value);
+                setFilterType(e.target.value);
                 setCurrentPage(1);
               }}
               className="px-4 py-2 border rounded-lg bg-white"
@@ -254,6 +259,7 @@ const MyFiles: React.FC = () => {
               <option value="all">All Files</option>
               <option value="shared">Shared by me</option>
               <option value="received">Received</option>
+              <option value="my_uploads">My Uploads</option>
             </select>
           </div>
 
@@ -264,12 +270,13 @@ const MyFiles: React.FC = () => {
 
         {loading ? (
           <div className="bg-white rounded-lg p-8 text-center">
-            <p className="text-gray-500">Loading...</p>
+            <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-2" />
+            <p className="text-gray-500">Loading files...</p>
           </div>
         ) : files.length > 0 ? (
           <div>
             <div className="space-y-3">
-              {getPaginatedFiles().map((file) => (
+              {files.map((file) => (
                 <div key={file.id} className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
                   {/* File Header */}
                   <div className="flex flex-col sm:flex-row justify-between gap-3 mb-4">
@@ -283,7 +290,7 @@ const MyFiles: React.FC = () => {
                         )}
                       </div>
                       <p className="text-sm text-gray-600">
-                        {formatFileSize(file.size || file.file_size)} • by {file.shared_by || 'You'}
+                        {formatFileSize(file.size || file.file_size)} • by {file.shared_by || file.owner_name || 'You'}
                         {file.file_extension && ` • ${file.file_extension}`}
                       </p>
                     </div>
@@ -311,7 +318,7 @@ const MyFiles: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Timestamps Section - DETAILED FORMAT */}
+                  {/* Timestamps Section */}
                   <div className="border-t pt-3">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                       {/* Uploaded */}
@@ -329,7 +336,7 @@ const MyFiles: React.FC = () => {
                       <div className="flex items-start gap-2 p-2 bg-gray-50 rounded">
                         <Share2 className="w-4 h-4 text-gray-400 mt-0.5" />
                         <div>
-                          <div className="text-gray-500 font-medium mb-1">Shared</div>
+                          <div className="text-gray-500 font-medium mb-1">Shared At</div>
                           <div className="text-gray-700 font-mono text-xs">
                             {file.shared_at ? formatDetailedTimestamp(file.shared_at) : 'Not shared'}
                           </div>
@@ -416,7 +423,7 @@ const MyFiles: React.FC = () => {
         ) : (
           <div className="bg-white rounded-lg p-8 text-center">
             <p className="text-gray-500">No files found</p>
-            {(searchQuery || sortDoctor !== 'all') && (
+            {(searchQuery || filterType !== 'all') && (
               <button onClick={handleClearFilters} className="mt-2 text-blue-600 underline">
                 Clear filters
               </button>

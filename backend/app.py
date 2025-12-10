@@ -3,7 +3,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 import os
 from app.api.files import files_bp
-from app.api.fileStorage import fileStorage_bp
+from app.api.shares import shares_bp
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,7 +24,7 @@ CORS(app, resources={
 app.register_blueprint(files_bp)
 
 # Connect to dashboard routes
-app.register_blueprint(fileStorage_bp)
+app.register_blueprint(shares_bp)
 
 
 # Test route
