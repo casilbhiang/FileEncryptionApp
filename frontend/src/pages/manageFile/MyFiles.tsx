@@ -24,7 +24,7 @@ const MyFiles: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('uploaded_at');
-  const [filterType, setFilterType] = useState('all'); // Changed from sortDoctor
+  const [filterType, setFilterType] = useState('all');
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -37,6 +37,97 @@ const MyFiles: React.FC = () => {
 
   const { handleDecrypt, isDecrypting } = useFileDecryption();
   const [decryptingFileId, setDecryptingFileId] = useState<string | null>(null);
+
+  // ===== SIMPLIFIED GETSHARETYPE FUNCTION =====
+  const getShareType = (file: FileItem): 'shared-by-me' | 'shared-with-me' | 'owned' | 'unknown' => {
+    if (!userId) return 'unknown';
+    
+    // File is owned by current user
+    if (file.is_owned === true) {
+      // If it's shared, you shared it
+      if (file.is_shared === true || (file.shared_count && file.shared_count > 0)) {
+        return 'shared-by-me';
+      }
+      // Owned but not shared
+      return 'owned';
+    }
+    
+    // File is NOT owned by you but has shared_by field
+    if (file.shared_by && file.shared_by !== userId) {
+      return 'shared-with-me';
+    }
+    
+    // File is NOT owned by you and has is_shared = true
+    if (file.is_shared === true && !file.is_owned) {
+      return 'shared-with-me';
+    }
+    
+    // Default fallback
+    return 'unknown';
+  };
+
+  // ===== SHARE BADGE HELPER =====
+  const getShareBadge = (file: FileItem) => {
+    const shareType = getShareType(file);
+    
+    if (shareType === 'shared-by-me') {
+      return (
+        <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+          Shared by me
+        </span>
+      );
+    }
+    
+    if (shareType === 'shared-with-me') {
+      return (
+        <span className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
+          Shared with me
+        </span>
+      );
+    }
+    
+    if (shareType === 'owned') {
+      return (
+        <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+          Your file
+        </span>
+      );
+    }
+    
+    // Default fallback for shared files
+    if (file.is_shared) {
+      return (
+        <span className="px-2 py-0.5 bg-cyan-100 text-cyan-800 rounded-full text-xs font-medium">
+          Shared
+        </span>
+      );
+    }
+    
+    return null;
+  };
+
+  // ===== GET OWNER/SHARER INFO =====
+  const getFileSourceInfo = (file: FileItem) => {
+    const shareType = getShareType(file);
+    
+    if (shareType === 'shared-with-me' && file.shared_by_name) {
+      return `Shared by: ${file.shared_by_name}`;
+    }
+    
+    if (file.owner_name && file.owner_id !== userId) {
+      return `Owner: ${file.owner_name}`;
+    }
+    
+    if (shareType === 'shared-by-me' && file.shared_count && file.shared_count > 0) {
+      return `Shared with ${file.shared_count} ${file.shared_count === 1 ? 'person' : 'people'}`;
+    }
+    
+    if (shareType === 'owned') {
+      return 'Your file';
+    }
+    
+    return '';
+  };
 
   // Fetch files from backend
   useEffect(() => {
@@ -281,17 +372,14 @@ const MyFiles: React.FC = () => {
                   {/* File Header */}
                   <div className="flex flex-col sm:flex-row justify-between gap-3 mb-4">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
                         <h3 className="font-semibold text-lg">{file.name}</h3>
-                        {file.is_shared && (
-                          <span className="px-2 py-0.5 bg-cyan-100 text-cyan-800 rounded-full text-xs font-medium">
-                            Shared
-                          </span>
-                        )}
+                        {getShareBadge(file)}
                       </div>
                       <p className="text-sm text-gray-600">
-                        {formatFileSize(file.size || file.file_size)} • by {file.shared_by || file.owner_name || 'You'}
+                        {formatFileSize(file.size || file.file_size)}
                         {file.file_extension && ` • ${file.file_extension}`}
+                        {getFileSourceInfo(file) && ` • ${getFileSourceInfo(file)}`}
                       </p>
                     </div>
                     

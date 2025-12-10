@@ -654,18 +654,10 @@ const ShareFiles: React.FC = () => {
           </p>
         </div>
 
-        {/* Troubleshooting Section */}
-        <div className="mt-8 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Troubleshooting</h3>
-          <ul className="text-xs text-gray-600 space-y-1">
-            <li>• Check if backend is running: <code className="bg-gray-100 px-1">http://localhost:5000</code></li>
-            <li>• Check API endpoint: <code className="bg-gray-100 px-1">http://localhost:5000/api/shares/available-users?user_id={currentUser?.id}</code></li>
-            <li>• Make sure you have uploaded files to share</li>
-            <li>• Ensure other users are registered in the system</li>
-          </ul>
+
+    
         </div>
       </div>
-    </div>
   );
 };
 

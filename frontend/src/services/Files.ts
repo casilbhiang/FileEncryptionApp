@@ -20,6 +20,7 @@ export interface FileItem {
   is_owned?: boolean;
   is_shared?: boolean;
   shared_by?: string;
+  shared_by_name?: string;
   shared_at?: string;
   last_accessed_at?: string;
   shares?: FileShare[]; // From Code #1 - for detailed sharing info
