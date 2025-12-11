@@ -23,7 +23,8 @@ const MyFiles: React.FC = () => {
   const [userId] = useState<string | null>(() => localStorage.getItem('user_id'));
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('uploaded_at');
+  const [sortField, setSortField] = useState('uploaded_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [filterType, setFilterType] = useState('all');
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,7 +133,7 @@ const MyFiles: React.FC = () => {
   // Fetch files from backend
   useEffect(() => {
     fetchFiles();
-  }, [currentPage, sortBy, filterType, searchQuery]);
+  }, [currentPage, sortField, sortOrder, filterType, searchQuery]);
 
   const fetchFiles = async () => {
     try {
@@ -141,7 +142,8 @@ const MyFiles: React.FC = () => {
         const response = await getMyFiles(
           userId, 
           searchQuery, 
-          sortBy, 
+          sortField,
+          sortOrder, 
           filterType, 
           currentPage, 
           filesPerPage
@@ -163,6 +165,49 @@ const MyFiles: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSortChange = (value: string) => {
+    let field: string;
+    let order: 'asc' | 'desc';
+    
+    if (value.startsWith('-')) {
+      // Remove the '-' prefix
+      field = value.substring(1);
+      
+      // Determine order based on field type
+      if (field === 'uploaded_at') {
+        order = 'asc';  // -uploaded_at = Oldest (asc)
+      } else {
+        order = 'desc'; // -name = Z-A (desc), -size = Largest (desc)
+      }
+    } else {
+      // No prefix
+      field = value;
+      
+      // Determine order based on field type
+      if (field === 'uploaded_at') {
+        order = 'desc'; // uploaded_at = Newest (desc)
+      } else {
+        order = 'asc';  // name = A-Z (asc), size = Smallest (asc)
+      }
+    }
+    
+    setSortField(field);
+    setSortOrder(order);
+    setCurrentPage(1);
+  };
+
+// Helper function to get current select value
+const getCurrentSortValue = () => {
+    // Map field + order combinations to option values
+    if (sortField === 'uploaded_at' && sortOrder === 'desc') return 'uploaded_at';
+    if (sortField === 'uploaded_at' && sortOrder === 'asc') return '-uploaded_at';
+    if (sortField === 'name' && sortOrder === 'asc') return 'name';
+    if (sortField === 'name' && sortOrder === 'desc') return '-name';
+    if (sortField === 'size' && sortOrder === 'asc') return 'size';
+    if (sortField === 'size' && sortOrder === 'desc') return '-size';
+    return 'uploaded_at'; // default
   };
 
   const handleSearch = () => {
@@ -231,14 +276,14 @@ const MyFiles: React.FC = () => {
         year: 'numeric',
         month: 'short', 
         day: 'numeric',
-        timeZone: 'UTC'
+        timeZone: 'Asia/Singapore'
       });
       
       const timeString = date.toLocaleTimeString('en-US', { 
         hour: '2-digit', 
         minute: '2-digit',
         second: '2-digit',
-        timeZone: 'UTC',
+        timeZone: 'Asia/Singapore',
         hour12: true 
       });
       
@@ -283,7 +328,8 @@ const MyFiles: React.FC = () => {
   const handleClearFilters = () => {
     setSearchQuery('');
     setFilterType('all');
-    setSortBy('uploaded_at');
+    setSortField('uploaded_at');
+    setSortOrder('desc');
     setCurrentPage(1);
     fetchFiles();
   };
@@ -324,19 +370,17 @@ const MyFiles: React.FC = () => {
               {loading ? 'Searching...' : 'Search'}
             </button>
             <select
-              value={sortBy}
-              onChange={(e) => {
-                setSortBy(e.target.value);
-                setCurrentPage(1);
-              }}
+              value={getCurrentSortValue()}
+              onChange={(e) => handleSortChange(e.target.value)}
               className="px-4 py-2 border rounded-lg bg-white"
               disabled={loading}
             >
-              <option value="uploaded_at">Newest first</option>
+              <option value="uploaded_at">Newest</option>
+              <option value="-uploaded_at">Oldest</option>
               <option value="name">A to Z</option>
               <option value="-name">Z to A</option>
-              <option value="size">Smallest</option>
-              <option value="-size">Largest</option>
+              <option value="size">Smallest File Size</option>
+              <option value="-size">Largest File Size</option>
             </select>
             <select
               value={filterType}
@@ -513,7 +557,7 @@ const MyFiles: React.FC = () => {
             <p className="text-gray-500">No files found</p>
             {(searchQuery || filterType !== 'all') && (
               <button onClick={handleClearFilters} className="mt-2 text-blue-600 underline">
-                Clear filters
+                Clear search and filters
               </button>
             )}
           </div>

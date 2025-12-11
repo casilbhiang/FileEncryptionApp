@@ -48,6 +48,7 @@ const PHomePage: React.FC = () => {
         userId, 
         '', // No search query
         'uploaded_at', // Sort by newest first
+        'desc',
         'all', // Show all files
         1, // Page 1
         10 // Limit to 10 most recent

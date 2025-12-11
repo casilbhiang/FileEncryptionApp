@@ -48,7 +48,8 @@ const DHomePage: React.FC = () => {
         userId, 
         '', // No search query
         'uploaded_at', // Sort by newest first
-        'all', // Show all files
+        'desc', // Show all files
+        'all',
         1, // Page 1
         10 // Limit to 10 most recent
       );

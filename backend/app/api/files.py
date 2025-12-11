@@ -154,27 +154,26 @@ def confirm_upload(file_id):
 # ===== Enhanced List Files with Search, Filter, and Sort for MyFiles page (NAT) =====
 @files_bp.route('/my-files', methods=['GET'])
 def get_my_files():
-    """
-    Get files owned by the user AND files shared with the user
-    """
+    """Get files owned by the user AND files shared with the user"""
     try:
         user_id = request.args.get('user_id')
         if not user_id:
             return jsonify({'error': 'User ID is required'}), 400
         
         # Get query parameters
-        search_query = request.args.get('search', '').strip()
+        search_query = request.args.get('search', '').strip().lower()
         sort_by = request.args.get('sort', 'uploaded_at')
         sort_order = request.args.get('order', 'desc')
-        filter_type = request.args.get('filter', 'all')  # 'all', 'owned', 'shared', 'received'
+        filter_type = request.args.get('filter', 'all')
         page = int(request.args.get('page', 1))
         limit = min(int(request.args.get('limit', 20)), 100)
-        
-        # Calculate pagination
         start_idx = (page - 1) * limit
         
-        # Helper: Get user name
+        # Helper: Get user name (cached to avoid repeated queries)
+        user_name_cache = {}
         def get_user_name(uid):
+            if uid in user_name_cache:
+                return user_name_cache[uid]
             try:
                 result = supabase.table('users')\
                     .select('full_name, name')\
@@ -182,299 +181,152 @@ def get_my_files():
                     .execute()
                 if result.data:
                     user_data = result.data[0]
-                    return user_data.get('full_name') or user_data.get('name') or uid
-                return uid
+                    name = user_data.get('full_name') or user_data.get('name') or uid
+                else:
+                    name = uid
             except:
-                return uid
+                name = uid
+            user_name_cache[uid] = name
+            return name
         
-        # Get owned files
-        owned_files_query = supabase.table('encrypted_files')\
-            .select('*')\
-            .eq('owner_id', user_id)\
-            .eq('is_deleted', False)\
-            .eq('upload_status', 'completed')
-        
-        # Get shared files (files shared WITH this user)
-        shared_files_query = supabase.table('file_shares')\
-            .select('*, encrypted_files(*)')\
-            .eq('shared_with', user_id)\
-            .eq('share_status', 'active')
-        
-        # Get shares for files owned by user (to get shared_at timestamps)
-        user_shares_query = supabase.table('file_shares')\
-            .select('file_id, shared_at')\
-            .eq('shared_by', user_id)\
-            .eq('share_status', 'active')\
-            .order('shared_at', desc=True)
-        
-        # Execute user shares query once
-        user_shares_result = user_shares_query.execute()
-        user_shares_map = {}
-        for share in user_shares_result.data:
-            file_id = share['file_id']
-            # Keep the most recent share timestamp for each file
-            if file_id not in user_shares_map:
-                user_shares_map[file_id] = share['shared_at']
-        
-        # Apply filters
-        if filter_type == 'owned' or filter_type == 'my_uploads':
-            # Only show files owned by user
-            if search_query:
-                owned_files_query = owned_files_query.ilike('original_filename', f'%{search_query}%')
+        # Helper: Build file object with share info
+        def build_file_obj(f, is_owned=True, share_data=None):
+            file_obj = {
+                'id': f['id'],
+                'name': f['original_filename'],
+                'size': f['file_size'],
+                'uploaded_at': f['uploaded_at'],
+                'file_extension': f['file_extension'],
+                'is_owned': is_owned,
+                'owner_id': f['owner_id'],
+                'owner_name': get_user_name(f['owner_id']),
+                'last_accessed_at': f.get('last_accessed_at')
+            }
             
-            # Get owned files with pagination
-            owned_files_result = owned_files_query\
-                .range(start_idx, start_idx + limit - 1)\
-                .execute()
+            if is_owned:
+                # For owned files, check if shared with others
+                shares_check = supabase.table('file_shares')\
+                    .select('id, shared_at', count='exact')\
+                    .eq('file_id', f['id'])\
+                    .eq('share_status', 'active')\
+                    .execute()
+                
+                shared_count = shares_check.count if hasattr(shares_check, 'count') else 0
+                shared_at = max([s['shared_at'] for s in shares_check.data if s.get('shared_at')], default=None)
+                
+                file_obj.update({
+                    'is_shared': shared_count > 0,
+                    'shared_count': shared_count,
+                    'shared_by': None,
+                    'shared_at': shared_at
+                })
+            else:
+                # For received files
+                file_obj.update({
+                    'is_shared': True,
+                    'shared_count': 1,
+                    'shared_by': share_data['shared_by'],
+                    'shared_by_name': get_user_name(share_data['shared_by']),
+                    'shared_at': share_data.get('shared_at'),
+                    'share_id': share_data['id'],
+                    'access_level': share_data['access_level']
+                })
             
-            total_count_query = supabase.table('encrypted_files')\
-                .select('id', count='exact')\
+            return file_obj
+        
+        # Fetch data based on filter
+        files = []
+        
+        if filter_type in ['owned', 'my_uploads', 'shared']:
+            # Get owned files
+            owned_query = supabase.table('encrypted_files')\
+                .select('*')\
                 .eq('owner_id', user_id)\
                 .eq('is_deleted', False)\
                 .eq('upload_status', 'completed')
             
-            if search_query:
-                total_count_query = total_count_query.ilike('original_filename', f'%{search_query}%')
+            owned_result = owned_query.execute()
             
-            total_result = total_count_query.execute()
-            total_files = total_result.count if hasattr(total_result, 'count') else len(owned_files_result.data)
-            
-            files = []
-            for f in owned_files_result.data:
-                # Check if this file is shared with others and get share details
-                shares_check = supabase.table('file_shares')\
-                    .select('id, shared_at, shared_with', count='exact')\
-                    .eq('file_id', f['id'])\
-                    .eq('share_status', 'active')\
-                    .execute()
+            for f in owned_result.data:
+                file_obj = build_file_obj(f, is_owned=True)
                 
-                shared_count = shares_check.count if hasattr(shares_check, 'count') else 0
-                shared_at = None
+                # Apply filter logic
+                if filter_type == 'shared' and not file_obj['is_shared']:
+                    continue
                 
-                # Get the most recent share timestamp for this file
-                if f['id'] in user_shares_map:
-                    shared_at = user_shares_map[f['id']]
-                elif shares_check.data:
-                    # Find the most recent share timestamp
-                    share_times = [s['shared_at'] for s in shares_check.data if s.get('shared_at')]
-                    if share_times:
-                        shared_at = max(share_times)
-                
-                files.append({
-                    'id': f['id'],
-                    'name': f['original_filename'],
-                    'size': f['file_size'],
-                    'uploaded_at': f['uploaded_at'],
-                    'file_extension': f['file_extension'],
-                    'is_owned': True,
-                    'owner_id': f['owner_id'],
-                    'owner_name': get_user_name(f['owner_id']),
-                    'is_shared': shared_count > 0,
-                    'shared_count': shared_count,
-                    'shared_by': None,  # This is owned by user
-                    'shared_at': shared_at,  # When user shared this file
-                    'last_accessed_at': f.get('last_accessed_at')  # Include if available
-                })
-                
-        elif filter_type == 'received':
-            # Only show files shared WITH the user
-            if search_query:
-                # We'll filter after getting results
-                pass
-            
-            # Get shared files with pagination
-            shared_files_result = shared_files_query\
-                .range(start_idx, start_idx + limit - 1)\
-                .execute()
-            
-            total_count_query = supabase.table('file_shares')\
-                .select('id', count='exact')\
+                files.append(file_obj)
+        
+        if filter_type in ['received', 'all']:
+            # Get shared files
+            shared_query = supabase.table('file_shares')\
+                .select('*, encrypted_files(*)')\
                 .eq('shared_with', user_id)\
                 .eq('share_status', 'active')
             
-            total_result = total_count_query.execute()
-            total_files = total_result.count if hasattr(total_result, 'count') else len(shared_files_result.data)
+            shared_result = shared_query.execute()
             
-            files = []
-            for share in shared_files_result.data:
+            for share in shared_result.data:
                 file_data = share.get('encrypted_files')
                 if file_data and not file_data.get('is_deleted') and file_data.get('upload_status') == 'completed':
-                    # Apply search filter
-                    if search_query and search_query.lower() not in file_data['original_filename'].lower():
-                        continue
-                    
-                    # Get the share timestamp from the share record
-                    shared_at = share.get('shared_at')
-                    
-                    files.append({
-                        'id': file_data['id'],
-                        'name': file_data['original_filename'],
-                        'size': file_data['file_size'],
-                        'uploaded_at': file_data['uploaded_at'],
-                        'file_extension': file_data['file_extension'],
-                        'is_owned': False,
-                        'owner_id': file_data['owner_id'],
-                        'owner_name': get_user_name(file_data['owner_id']),
-                        'is_shared': True,
-                        'shared_count': 1,
-                        'shared_by': share['shared_by'],
-                        'shared_by_name': get_user_name(share['shared_by']),
-                        'shared_at': shared_at,  # When it was shared with user
-                        'share_id': share['id'],
-                        'access_level': share['access_level'],
-                        'last_accessed_at': file_data.get('last_accessed_at')
-                    })
-            
-            # Apply search filter by filtering array
-            if search_query:
-                files = [f for f in files if search_query.lower() in f['name'].lower()]
-                total_files = len(files)  # Recalculate total after filtering
-            
-        elif filter_type == 'shared':
-            # Show files owned by user that have been shared
-            owned_files_result = owned_files_query.execute()
-            
-            files = []
-            for f in owned_files_result.data:
-                # Check if this file is shared with others
-                shares_check = supabase.table('file_shares')\
-                    .select('id, shared_at, shared_with', count='exact')\
-                    .eq('file_id', f['id'])\
-                    .eq('share_status', 'active')\
-                    .execute()
-                
-                shared_count = shares_check.count if hasattr(shares_check, 'count') else 0
-                
-                if shared_count > 0:
-                    # Apply search filter
-                    if search_query and search_query.lower() not in f['original_filename'].lower():
-                        continue
-                    
-                    # Get the most recent share timestamp for this file
-                    shared_at = None
-                    if f['id'] in user_shares_map:
-                        shared_at = user_shares_map[f['id']]
-                    elif shares_check.data:
-                        share_times = [s['shared_at'] for s in shares_check.data if s.get('shared_at')]
-                        if share_times:
-                            shared_at = max(share_times)
-                    
-                    files.append({
-                        'id': f['id'],
-                        'name': f['original_filename'],
-                        'size': f['file_size'],
-                        'uploaded_at': f['uploaded_at'],
-                        'file_extension': f['file_extension'],
-                        'is_owned': True,
-                        'owner_id': f['owner_id'],
-                        'owner_name': get_user_name(f['owner_id']),
-                        'is_shared': True,
-                        'shared_count': shared_count,
-                        'shared_by': None,
-                        'shared_at': shared_at,  # When user shared this file
-                        'last_accessed_at': f.get('last_accessed_at')
-                    })
-            
-            # Apply search filter
-            if search_query:
-                files = [f for f in files if search_query.lower() in f['name'].lower()]
-            
-            total_files = len(files)
-            # Apply pagination after filtering
-            files = files[start_idx:start_idx + limit]
-            
-        else:  # 'all' - show both owned and received files
-            # Get owned files
-            owned_files_result = owned_files_query.execute()
-            owned_files = []
-            for f in owned_files_result.data:
-                shares_check = supabase.table('file_shares')\
-                    .select('id, shared_at, shared_with', count='exact')\
-                    .eq('file_id', f['id'])\
-                    .eq('share_status', 'active')\
-                    .execute()
-                
-                shared_count = shares_check.count if hasattr(shares_check, 'count') else 0
-                shared_at = None
-                
-                # Get the most recent share timestamp for this file
-                if f['id'] in user_shares_map:
-                    shared_at = user_shares_map[f['id']]
-                elif shares_check.data:
-                    share_times = [s['shared_at'] for s in shares_check.data if s.get('shared_at')]
-                    if share_times:
-                        shared_at = max(share_times)
-                
-                owned_files.append({
-                    'id': f['id'],
-                    'name': f['original_filename'],
-                    'size': f['file_size'],
-                    'uploaded_at': f['uploaded_at'],
-                    'file_extension': f['file_extension'],
-                    'is_owned': True,
-                    'owner_id': f['owner_id'],
-                    'owner_name': get_user_name(f['owner_id']),
-                    'is_shared': shared_count > 0,
-                    'shared_count': shared_count,
-                    'shared_by': None,
-                    'shared_at': shared_at,  # When user shared this file
-                    'last_accessed_at': f.get('last_accessed_at')
-                })
-            
-            # Get shared files
-            shared_files_result = shared_files_query.execute()
-            shared_files = []
-            for share in shared_files_result.data:
-                file_data = share.get('encrypted_files')
-                if file_data and not file_data.get('is_deleted') and file_data.get('upload_status') == 'completed':
-                    shared_at = share.get('shared_at')
-                    
-                    shared_files.append({
-                        'id': file_data['id'],
-                        'name': file_data['original_filename'],
-                        'size': file_data['file_size'],
-                        'uploaded_at': file_data['uploaded_at'],
-                        'file_extension': file_data['file_extension'],
-                        'is_owned': False,
-                        'owner_id': file_data['owner_id'],
-                        'owner_name': get_user_name(file_data['owner_id']),
-                        'is_shared': True,
-                        'shared_count': 1,
-                        'shared_by': share['shared_by'],
-                        'shared_by_name': get_user_name(share['shared_by']),
-                        'shared_at': shared_at,  # When it was shared with user
-                        'share_id': share['id'],
-                        'access_level': share['access_level'],
-                        'last_accessed_at': file_data.get('last_accessed_at')
-                    })
-            
-            # Combine both lists
-            all_files = owned_files + shared_files
-            
-            # Apply search filter
-            if search_query:
-                all_files = [f for f in all_files if search_query.lower() in f['name'].lower()]
-            
-            # Apply sorting
-            if sort_by == 'name':
-                all_files.sort(key=lambda x: x['name'].lower(), reverse=(sort_order == 'desc'))
-            elif sort_by == 'size':
-                all_files.sort(key=lambda x: x['size'], reverse=(sort_order == 'desc'))
-            else:  # 'uploaded_at' or default
-                all_files.sort(key=lambda x: x['uploaded_at'], reverse=(sort_order == 'desc'))
-            
-            total_files = len(all_files)
-            # Apply pagination
-            files = all_files[start_idx:start_idx + limit]
+                    files.append(build_file_obj(file_data, is_owned=False, share_data=share))
         
-        # Apply final sorting if not already sorted (for 'all' filter)
-        if filter_type != 'all':
-            if sort_by == 'name':
-                files.sort(key=lambda x: x['name'].lower(), reverse=(sort_order == 'desc'))
-            elif sort_by == 'size':
-                files.sort(key=lambda x: x['size'], reverse=(sort_order == 'desc'))
-            else:  # 'uploaded_at' or default
-                files.sort(key=lambda x: x['uploaded_at'], reverse=(sort_order == 'desc'))
+        if filter_type == 'all':
+            # Get owned files as well
+            owned_query = supabase.table('encrypted_files')\
+                .select('*')\
+                .eq('owner_id', user_id)\
+                .eq('is_deleted', False)\
+                .eq('upload_status', 'completed')
+            
+            owned_result = owned_query.execute()
+            files.extend([build_file_obj(f, is_owned=True) for f in owned_result.data])
+        
+        # Apply search filter
+        if search_query:
+            files = [f for f in files if search_query in f['name'].lower()]
+        
+        # Apply sorting with proper handling of None/null values
+        print(f"DEBUG: Sorting by '{sort_by}' in '{sort_order}' order")
+        print(f"DEBUG: Total files before sort: {len(files)}")
+        
+        if sort_by == 'name':
+            files.sort(key=lambda x: (x['name'] or '').lower(), reverse=(sort_order == 'desc'))
+        elif sort_by == 'size':
+            # Put None/null sizes at the end regardless of sort order
+            files.sort(key=lambda x: (x['size'] is not None, x['size'] or 0), reverse=(sort_order == 'desc'))
+        else:  # 'uploaded_at' or default
+            # Sort by most recent activity (upload or share, whichever is newer)
+            def get_sort_timestamp(file):
+                timestamps = []
+                
+                # Always include uploaded_at
+                if file.get('uploaded_at'):
+                    timestamps.append(file['uploaded_at'])
+                
+                # Include shared_at if it exists
+                if file.get('shared_at'):
+                    timestamps.append(file['shared_at'])
+                
+                # Return the most recent timestamp, or empty string if none
+                return max(timestamps) if timestamps else ''
+            
+            files.sort(key=get_sort_timestamp, reverse=(sort_order == 'desc'))
+            
+            # Debug: Show what timestamps are being used
+            if files:
+                print(f"DEBUG: First 3 files after sort:")
+                for i, f in enumerate(files[:3]):
+                    sort_ts = get_sort_timestamp(f)
+                    print(f"  {i+1}. {f['name']}")
+                    print(f"     - uploaded_at: {f.get('uploaded_at')}")
+                    print(f"     - shared_at: {f.get('shared_at')}")
+                    print(f"     - sort_timestamp (most recent): {sort_ts}")
+        
+        # Calculate totals before pagination
+        total_files = len(files)
+        
+        # Apply pagination
+        files = files[start_idx:start_idx + limit]
         
         return jsonify({
             'files': files,
@@ -500,7 +352,6 @@ def get_my_files():
         print(f"Full traceback:\n{error_details}")
         return jsonify({'error': f'{str(e)}', 'details': error_details}), 500
     
-
 # Helper function to get user name
 def get_user_name(user_id):
     """
