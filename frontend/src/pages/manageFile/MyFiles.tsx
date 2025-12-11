@@ -28,7 +28,7 @@ const MyFiles: React.FC = () => {
   const [filterType, setFilterType] = useState('all');
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>('');
+  const [error] = useState<string>('');
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
