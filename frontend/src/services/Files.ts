@@ -93,7 +93,8 @@ export const uploadFile = async (
 export const getMyFiles = async (
   userId: string,
   search?: string,
-  sortBy?: string,
+  sortField?: string,
+  sortOrder?: 'asc' | 'desc',
   filter?: string,
   page?: number,
   limit?: number
@@ -101,7 +102,8 @@ export const getMyFiles = async (
   const params = new URLSearchParams();
   params.append('user_id', userId);
   if (search) params.append('search', search);
-  if (sortBy) params.append('sort_by', sortBy);
+  if (sortField) params.append('sort', sortField);
+  if(sortOrder) params.append('order', sortOrder);
   if (filter) params.append('filter', filter);
   if (page) params.append('page', page.toString());
   if (limit) params.append('limit', limit.toString());
