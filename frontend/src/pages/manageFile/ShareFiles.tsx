@@ -115,7 +115,8 @@ const ShareFiles: React.FC = () => {
         currentUser.id,
         '', // search
         'uploaded_at', // sort
-        'my_uploads', // filter to only show user's own files
+        'desc', // order
+        'all',
         1, // page
         100 // limit
       );
