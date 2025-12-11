@@ -3,7 +3,7 @@
 from flask import Blueprint, request, jsonify
 from supabase import create_client
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Configuration
 SUPABASE_URL = os.getenv('SUPABASE_URL')
@@ -90,7 +90,7 @@ def share_file():
             'shared_with': shared_with,
             'access_level': access_level,
             'share_status': 'active',
-            'shared_at': datetime.now().isoformat()
+            'shared_at': datetime.now(timezone.utc).isoformat()
         }
         
         result = supabase.table('file_shares').insert(share_record).execute()
@@ -263,7 +263,7 @@ def revoke_share(share_id):
         result = supabase.table('file_shares')\
             .update({
                 'share_status': 'revoked',
-                'revoked_at': datetime.now().isoformat()
+                'revoked_at': datetime.now(timezone.utc).isoformat()
             })\
             .eq('id', share_id)\
             .execute()
