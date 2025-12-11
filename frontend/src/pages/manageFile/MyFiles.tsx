@@ -160,8 +160,8 @@ const MyFiles: React.FC = () => {
         }
       }
     } catch (error) {
-      console.error('Failed to fetch files:', error);
-      setError('Cannot connect to server.');
+      console.error('Failed to fetch files');
+      
     } finally {
       setLoading(false);
     }
