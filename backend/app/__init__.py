@@ -14,11 +14,17 @@ def create_app(config_name='development'):
     from app.api.keys import keys_bp
     from app.api.files import files_bp
     from app.api.audit import audit_bp
+    from app.api.shares import shares_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(keys_bp, url_prefix='/api/keys')
     app.register_blueprint(files_bp, url_prefix='/api/files')
     app.register_blueprint(audit_bp, url_prefix='/api/audit')
+    app.register_blueprint(shares_bp, url_prefix='/api/shares')
+    
+    @app.route('/')
+    def home():
+        return {'message': 'Backend is running!'}, 200
     
     @app.route('/health')
     def health():

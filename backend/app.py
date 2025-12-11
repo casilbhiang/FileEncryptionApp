@@ -1,6 +1,12 @@
 from flask import Flask
 from flask_cors import CORS
+from dotenv import load_dotenv
+import os
 from app.api.files import files_bp
+from app.api.shares import shares_bp
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Create Flask app
 app = Flask(__name__)
@@ -10,12 +16,16 @@ CORS(app, resources={
     r"/*": {
         "origins": ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
+        "allow_headers": ["Content-Type", "Authorization", "X-User-ID"]
     }
 })
 
 # Connect to file routes
 app.register_blueprint(files_bp)
+
+# Connect to dashboard routes
+app.register_blueprint(shares_bp)
+
 
 # Test route
 @app.route('/')
