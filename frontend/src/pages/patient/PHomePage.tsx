@@ -30,9 +30,9 @@ const PHomePage: React.FC = () => {
       setError('');
       
       // Get user ID from localStorage
-      const userId = localStorage.getItem('user_id');
+      const userUuid = localStorage.getItem('user_uuid');
       
-      if (!userId) {
+      if (!userUuid) {
         setError('Please log in to view your files.');
         setLoading(false);
         return;
@@ -45,7 +45,7 @@ const PHomePage: React.FC = () => {
       // Call the same endpoint as MyFiles page with recent files filter
       // Using page=1, limit=10 for recent files
       const response = await getMyFiles(
-        userId, 
+        userUuid, 
         '', // No search query
         'uploaded_at', // Sort by newest first
         'desc',

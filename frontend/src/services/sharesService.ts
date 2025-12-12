@@ -5,6 +5,7 @@ const SHARES_API = 'http://localhost:5000/api/shares'; // Add this constant
 export interface ShareFileParams {
   file_id: string;
   shared_by: string;
+  shared_by_uuid: string;
   shared_with: string;
   access_level?: 'read';
   message?: string;
