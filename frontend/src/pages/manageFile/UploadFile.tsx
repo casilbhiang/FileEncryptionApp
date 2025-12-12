@@ -30,11 +30,15 @@ const UploadFilePage: React.FC = () => {
 
   // Get active user ID from storage
   const [userId, setUserId] = useState<string | null>(null);
+  const [userUuid, setUserUuid] = useState<string | null>(null);
 
   useEffect(() => {
     const storedUserId = localStorage.getItem('user_id');
-    if (storedUserId) {
+    const storedUserUuid = localStorage.getItem('user_uuid');
+
+    if (storedUserId && storedUserUuid) {
       setUserId(storedUserId);
+      setUserUuid(storedUserUuid);
       loadEncryptionKey(storedUserId);
     } else {
       console.error('No User ID found in localStorage');
@@ -97,7 +101,7 @@ const UploadFilePage: React.FC = () => {
 
   const handleFiles = async (files: File[]) => {
     // Check if encryption key is available
-    if (!encryptionKey || !keyAvailable || !userId) {
+    if (!encryptionKey || !keyAvailable || !userId || !userUuid) {
       alert('No encryption key found or user not logged in!\n\nPlease scan the QR code provided by the System Administrator to set up encryption before uploading files.');
       return;
     }
@@ -161,6 +165,7 @@ const UploadFilePage: React.FC = () => {
         const response = await uploadFile(
           encryptedFile,
           userId,
+          userUuid,
           {
             iv: encryptionResult.iv,
             authTag: encryptionResult.authTag,

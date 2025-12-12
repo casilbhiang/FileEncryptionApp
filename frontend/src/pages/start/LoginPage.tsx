@@ -61,37 +61,6 @@ const LoginPage: React.FC = () => {
       const API_URL = import.meta.env.VITE_API_URL;
 
       if (API_URL) {
-        // ============================================
-        // TODO FOR BACKEND DEVELOPER - IMPLEMENT LOGIN
-        // ============================================
-        // 
-        // Endpoint: POST /api/auth/login
-        //
-        // 1. REQUEST BODY (what frontend sends):
-        //    {
-        //      "role": "patient" | "doctor" | "admin",
-        //      "userId": "user_id_string",
-        //      "password": "password_string"
-        //    }
-        //
-        // 2. RESPONSE (what to return on success):
-        //    {
-        //      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-        //      "user": {
-        //        "id": "user_id",
-        //        "email": "user@example.com",
-        //        "role": "patient",
-        //        "is_first_login": true  // 🔑 IMPORTANT: Add this field
-        //      }
-        //    }
-        //
-        // 3. BACKEND LOGIC:
-        //    - Check user.is_first_login in database
-        //    - Return it in the response
-        //    - Frontend will use this to decide: reset password or verify code
-        //
-        // ============================================
-
         const response = await fetch(`${API_URL}/api/auth/login`, {
           method: 'POST',
           headers: {
@@ -119,11 +88,20 @@ const LoginPage: React.FC = () => {
 
         if (data.user) {
           localStorage.setItem('user_role', data.user.role);
-          localStorage.setItem('user_id', data.user.user_id); // Fixed: Save readable ID (DOC004) not UUID
+          localStorage.setItem('user_id', data.user.user_id);
+          localStorage.setItem('user_uuid', data.user.id); 
           localStorage.setItem('user_email', data.user.email || `${formData.userId}@clinic.com`);
 
           // 🔑 Store first login status from backend
           localStorage.setItem('is_first_login', data.user.is_first_login ? 'true' : 'false');
+
+           localStorage.setItem('user', JSON.stringify({
+                id: data.user.user_id,    // Text ID
+                uuid: data.user.id,        // UUID
+                role: data.user.role,
+                email: data.user.email,
+                name: data.user.full_name
+              }));
         }
 
         setSuccess('Login successful! Redirecting...');

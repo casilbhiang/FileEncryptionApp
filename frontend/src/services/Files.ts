@@ -13,19 +13,21 @@ export interface FileShare {
 export interface FileItem {
   id: string;
   name: string;
-  size: number; // Make required like Code #2
+  size: number; 
   uploaded_at: string;
   file_extension?: string;
-  owner_id: string; // Required from Code #1
+  owner_id: string; 
+  owner_uuid?: string;
   is_owned?: boolean;
   is_shared?: boolean;
   shared_by?: string;
+  shared_by_uuid?: string;
   shared_by_name?: string;
   shared_at?: string;
   last_accessed_at?: string;
-  shares?: FileShare[]; // From Code #1 - for detailed sharing info
+  shares?: FileShare[]; 
   shared_count?: number;
-  owner_name?: string; // From Code #2
+  owner_name?: string; 
   owner_role?: string;
   
   // Legacy support
@@ -60,16 +62,35 @@ export interface ApiResponse {
   error?: string;
 }
 
+export interface ShareFileParams {
+  file_id: string;
+  shared_by: string;
+  shared_by_uuid: string;
+  shared_with: string;
+  access_level: 'read' | 'write';
+  message?: string;
+}
+
+export interface ShareResponse {
+  message: string;
+  share_id: string;
+  file_name: string;
+  shared_with: string;
+  access_level: string;
+}
+
 /* File Upload */
 export const uploadFile = async (
   file: File, 
   userId: string, 
+  userUuid: string,
   encryptionMetadata?: EncryptionMetadata, 
   signal?: AbortSignal
 ): Promise<UploadResponse> => {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('user_id', userId);
+  formData.append('user_uuid', userUuid);
 
   if (encryptionMetadata) {
     formData.append('encryption_metadata', JSON.stringify(encryptionMetadata));
@@ -100,7 +121,7 @@ export const getMyFiles = async (
   limit?: number
 ): Promise<{ files: FileItem[]; total: number; pagination?: PaginationInfo }> => {
   const params = new URLSearchParams();
-  params.append('user_id', userId);
+  params.append('user_uuid', userId);
   if (search) params.append('search', search);
   if (sortField) params.append('sort', sortField);
   if(sortOrder) params.append('order', sortOrder);
@@ -171,9 +192,9 @@ export const downloadFile = async (fileId: string): Promise<Blob> => {
 /* Delete File - Enhanced with better response */
 export const deleteFile = async (
   fileId: string, 
-  userId: string
+  userUuid: string
 ): Promise<{ success: boolean; message: string }> => {
-  const response = await fetch(`${API_BASE_URL}/delete/${fileId}?user_id=${userId}`, {
+  const response = await fetch(`${API_BASE_URL}/delete/${fileId}?user_uuid=${userUuid}`, {
     method: 'DELETE',
   });
 
@@ -187,23 +208,43 @@ export const deleteFile = async (
 
 /* Share File - From Code #2 (missing in Code #1) */
 export const shareFile = async (
-  fileId: string, 
-  sharedWith: string
-): Promise<{ success: boolean; message: string }> => {
-  const response = await fetch(`${API_BASE_URL}/share`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ file_id: fileId, shared_with: sharedWith }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Share failed' }));
-    throw new Error(error.error || 'Share failed');
+  params: ShareFileParams
+): Promise<{ success: boolean; data?: ShareResponse; error?: string }> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/shares/share`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        file_id: params.file_id,
+        shared_by: params.shared_by,
+        shared_by_uuid: params.shared_by_uuid,
+        shared_with: params.shared_with,
+        access_level: params.access_level,
+        message: params.message
+      }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Share failed' }));
+      return {
+        success: false,
+        error: error.error || 'Share failed'
+      };
+    }
+    
+    const data = await response.json();
+    return {
+      success: true,
+      data: data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Share failed'
+    };
   }
-
-  return response.json();
 };
 
 /* Decrypt File */
@@ -223,7 +264,7 @@ export const decryptFile = async ({
   userId 
 }: DecryptFileParams): Promise<Blob> => {
   const response = await fetch(
-    `${API_BASE_URL}/decrypt/${fileId}?user_id=${userId}`
+    `${API_BASE_URL}/decrypt/${fileId}?user_uuid=${userId}`
   );
 
   if (!response.ok) {
@@ -260,7 +301,7 @@ export const getRecentActivity = async (
   limit: number = 10
 ): Promise<{ activities: any[] }> => {
   const response = await fetch(
-    `${API_BASE_URL}/recent?user_id=${userId}&limit=${limit}`
+    `${API_BASE_URL}/recent?user_uuid=${userId}&limit=${limit}`
   );
 
   if (!response.ok) {

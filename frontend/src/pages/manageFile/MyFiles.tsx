@@ -21,6 +21,13 @@ const MyFiles: React.FC = () => {
   const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
   // Get userId from localStorage
   const [userId] = useState<string | null>(() => localStorage.getItem('user_id'));
+  const [userUuid] = useState<string | null>(() => localStorage.getItem('user_uuid'));
+
+  console.log('=== MyFiles Component Debug ===');
+  console.log('userId state:', userId);
+  console.log('userUuid state:', userUuid);
+  console.log('localStorage user_uuid:', localStorage.getItem('user_uuid'));
+  console.log('================================');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState('uploaded_at');
@@ -138,9 +145,9 @@ const MyFiles: React.FC = () => {
   const fetchFiles = async () => {
     try {
       setLoading(true);
-      if (userId) {
+      if (userUuid) {
         const response = await getMyFiles(
-          userId, 
+          userUuid, 
           searchQuery, 
           sortField,
           sortOrder, 
@@ -219,9 +226,9 @@ const getCurrentSortValue = () => {
     try {
       setDecryptingFileId(file.id);
 
-      if (userId) {
+      if (userUuid) {
         // Use the hook to decrypt (handles notifications automatically)
-        const blob = await handleDecrypt({ fileId: file.id, userId }, file.name);
+        const blob = await handleDecrypt({ fileId: file.id, userId: userUuid }, file.name);
 
         if (blob) {
           // Create download link if decryption succeeded
@@ -245,8 +252,8 @@ const getCurrentSortValue = () => {
   const handleDelete = async (file: FileItem) => {
     if (window.confirm(`Delete ${file.name}?`)) {
       try {
-        if (userId) {
-          await deleteFile(file.id, userId);
+        if (userUuid) {
+          await deleteFile(file.id, userUuid);
           // Refresh file list
           fetchFiles();
         }

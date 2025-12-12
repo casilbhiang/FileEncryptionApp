@@ -9,7 +9,6 @@ const ACreateUserPage: React.FC = () => {
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
-    phoneNumber: '',
     userId: '',
     password: '',
   });
@@ -29,18 +28,6 @@ const ACreateUserPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-
-  const handleGenerate = () => {
-    // Generate random user ID and password
-    const randomUserId = `#U-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
-    const randomPassword = Math.random().toString(36).substring(2, 10);
-
-    setFormData(prev => ({
-      ...prev,
-      userId: randomUserId,
-      password: randomPassword
-    }));
-  };
 
   const handleCreateUser = async () => {
     setError('');
@@ -212,21 +199,7 @@ const ACreateUserPage: React.FC = () => {
               />
             </div>
 
-            {/* Phone Number */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
-                Phone Number
-              </label>
-              <input
-                type="tel"
-                placeholder="+65 xxxx xxxx"
-                value={formData.phoneNumber}
-                onChange={(e) => setFormData(prev => ({ ...prev, phoneNumber: e.target.value }))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
           </div>
-
           {/* Generate UserID & Password Section */}
           <div className="bg-gray-50 rounded-lg p-6 mb-6">
             <h3 className="font-bold text-gray-900 mb-4">Generate UserID & Password</h3>
@@ -254,12 +227,6 @@ const ACreateUserPage: React.FC = () => {
                 />
               </div>
             </div>
-            <button
-              onClick={handleGenerate}
-              className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
-            >
-              Generate
-            </button>
           </div>
 
           {/* Health Profile Section (Only for Patient) */}

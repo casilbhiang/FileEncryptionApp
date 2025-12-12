@@ -21,6 +21,14 @@ interface User {
   role?: string;
 }
 
+interface CurrentUser {
+  id: string;
+  uuid: string; 
+  role: string;
+  email: string;
+  name: string;
+}
+
 const ShareFiles: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -29,29 +37,39 @@ const ShareFiles: React.FC = () => {
   const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
   
   // Get current user from localStorage
-  const getCurrentUser = () => {
+  const getCurrentUser = (): CurrentUser | null => {
     try {
       // Try to get from 'user' object
       const userData = localStorage.getItem('user');
       if (userData) {
         const user = JSON.parse(userData);
-        return {
-          id: user.id || user.userId,
-          role: user.role || user.userRole,
-          email: user.email || user.userEmail,
-          name: user.name || user.username || user.email || `User ${user.id}`
-        };
+        const id = user.id || user.userId;
+        const uuid = user.uuid || user.userUuid;
+        
+        // Only return if we have both id AND uuid
+        if (id && uuid) {
+          return {
+            id: id,
+            uuid: uuid,
+            role: user.role || user.userRole,
+            email: user.email || user.userEmail,
+            name: user.name || user.username || user.email || `User ${id}`
+          };
+        }
       }
       
       // Fallback to separate keys
       const userId = localStorage.getItem('user_id');
+      const userUuid = localStorage.getItem('user_uuid');
       const userRoleFromStorage = localStorage.getItem('user_role');
       const userEmail = localStorage.getItem('user_email');
       
-      if (userId) {
+      // Only return if we have BOTH userId and userUuid
+      if (userId && userUuid) {
         return {
           id: userId,
-          role: userRoleFromStorage || userRole,
+          uuid: userUuid,
+          role: userRoleFromStorage || 'patient',
           email: userEmail || `${userId}@clinic.com`,
           name: `User ${userId}`
         };
@@ -64,7 +82,7 @@ const ShareFiles: React.FC = () => {
     return null;
   };
   
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [selectedRecipient, setSelectedRecipient] = useState('');
   const [message, setMessage] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
@@ -103,7 +121,7 @@ const ShareFiles: React.FC = () => {
   }, [currentUser]);
 
   const fetchUserFiles = async () => {
-    if (!currentUser?.id) return;
+    if (!currentUser?.uuid) return;
     
     setLoading(prev => ({ ...prev, files: true }));
     setErrors(prev => ({ ...prev, files: '' }));
@@ -112,7 +130,7 @@ const ShareFiles: React.FC = () => {
       console.log('Fetching files for user:', currentUser.id);
       
       const result = await getMyFiles(
-        currentUser.id,
+        currentUser.uuid,
         '', // search
         'uploaded_at', // sort
         'desc', // order
@@ -154,7 +172,7 @@ const ShareFiles: React.FC = () => {
   };
 
   const fetchAvailableUsers = async () => {
-    if (!currentUser?.id) return;
+    if (!currentUser?.uuid) return;
     
     setLoading(prev => ({ ...prev, users: true }));
     setErrors(prev => ({ ...prev, users: '' }));
@@ -226,11 +244,12 @@ const ShareFiles: React.FC = () => {
   };
 
   const handleShare = async () => {
-    if (!currentUser?.id) {
-      console.error('No user ID found');
+    // More explicit check
+    if (!currentUser || !currentUser.id || !currentUser.uuid) {
+      console.error('No user ID or UUID found');
       setShareResult({
         success: false,
-        message: 'No user ID found. Please log in again.'
+        message: 'No user information found. Please log in again.'
       });
       return;
     }
@@ -244,19 +263,19 @@ const ShareFiles: React.FC = () => {
     setShareResult(null);
     
     try {
-      // Create share parameters
+      // TypeScript now knows currentUser is not null and has both id and uuid
       const shareParams: ShareFileParams = {
-        file_id: selectedFiles[0], // For now, share first file only
+        file_id: selectedFiles[0],
         shared_by: currentUser.id,
+        shared_by_uuid: currentUser.uuid!,
         shared_with: selectedRecipient,
         access_level: 'read',
         message: message.trim() || undefined
       };
-      
-      console.log('Sharing file with params:', shareParams);
-      
-      // Call shareFile from your service
-      const result = await shareFile(shareParams);
+    
+    console.log('Sharing file with params:', shareParams);
+    
+    const result = await shareFile(shareParams);
       
       console.log('Share result:', result);
       
@@ -444,21 +463,6 @@ const ShareFiles: React.FC = () => {
               </div>
             )}
           </div>
-
-          {/* Message (Optional) */}
-          <div className="mb-6">
-            <label className="block text-sm font-semibold text-gray-900 mb-2">
-              Message (Optional)
-            </label>
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Add a message for the recipient..."
-              rows={3}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white resize-none"
-            />
-          </div>
-
           {/* Choose Files */}
           <div className="mb-8">
             <label className="block text-sm font-semibold text-gray-900 mb-2">
