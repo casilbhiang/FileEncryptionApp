@@ -40,6 +40,7 @@ def share_file():
         
         file_id = data['file_id']
         shared_by = data['shared_by']
+        shared_by_uuid = data['shared_by_uuid']
         shared_with = data['shared_with']
         access_level = data.get('access_level', 'read')
         message = data.get('message', '')
@@ -50,7 +51,7 @@ def share_file():
         
         # Verify file exists and user owns it
         file_check = supabase.table('encrypted_files')\
-            .select('id, owner_id, original_filename')\
+            .select('id, userid, owner_id, original_filename')\
             .eq('id', file_id)\
             .eq('is_deleted', False)\
             .eq('upload_status', 'completed')\
@@ -62,7 +63,7 @@ def share_file():
         file_data = file_check.data[0]
         
         # Check if user owns the file
-        if file_data['owner_id'] != shared_by:
+        if file_data['userid'] != shared_by_uuid:
             return jsonify({'error': 'You do not own this file'}), 403
         
         # Check if trying to share with yourself
@@ -131,7 +132,7 @@ def get_file_shares(file_id):
         
         # Verify user owns the file
         file_check = supabase.table('encrypted_files')\
-            .select('owner_id')\
+            .select('user_id, owner_id')\
             .eq('id', file_id)\
             .eq('is_deleted', False)\
             .execute()
@@ -139,7 +140,7 @@ def get_file_shares(file_id):
         if not file_check.data:
             return jsonify({'error': 'File not found'}), 404
         
-        if file_check.data[0]['owner_id'] != user_id:
+        if file_check.data[0]['user_id'] != user_uuid:
             return jsonify({'error': 'Not authorized. You do not own this file'}), 403
         
         # Get all active shares for this file
@@ -349,6 +350,7 @@ def get_shared_with_me():
                     'access_level': share['access_level'],
                     'is_owned': False,
                     'owner_id': file_data['owner_id'],
+                    'owner_uuid': file_data['userid'],
                     'share_id': share['id']
                 })
         

@@ -244,7 +244,6 @@ const ShareFiles: React.FC = () => {
   };
 
   const handleShare = async () => {
-    // More explicit check
     if (!currentUser || !currentUser.id || !currentUser.uuid) {
       console.error('No user ID or UUID found');
       setShareResult({
@@ -254,7 +253,6 @@ const ShareFiles: React.FC = () => {
       return;
     }
     
-    // Validate form
     if (!validateForm()) {
       return;
     }
@@ -263,19 +261,35 @@ const ShareFiles: React.FC = () => {
     setShareResult(null);
     
     try {
-      // TypeScript now knows currentUser is not null and has both id and uuid
+      // Find the recipient's UUID
+      const recipientUser = availableUsers.find(u => u.id === selectedRecipient);
+      
+      if (!recipientUser) {
+        setShareResult({
+          success: false,
+          message: 'Selected recipient not found'
+        });
+        setLoading(prev => ({ ...prev, sharing: false }));
+        return;
+      }
+      
+      // Need to get recipient UUID - update User interface first
       const shareParams: ShareFileParams = {
         file_id: selectedFiles[0],
         shared_by: currentUser.id,
         shared_by_uuid: currentUser.uuid!,
-        shared_with: selectedRecipient,
+        shared_with: recipientUser.id,  // This might need to be UUID
         access_level: 'read',
         message: message.trim() || undefined
       };
+
+      console.log('Selected recipient ID:', selectedRecipient);
+      console.log('Available users:', availableUsers);
+      console.log('Selected recipient details:', availableUsers.find(u => u.id === selectedRecipient));
     
-    console.log('Sharing file with params:', shareParams);
+      console.log('Sharing file with params:', shareParams);
     
-    const result = await shareFile(shareParams);
+      const result = await shareFile(shareParams);
       
       console.log('Share result:', result);
       

@@ -37,6 +37,7 @@ def upload_file():
         
         file = request.files['file']
         user_id = request.form.get('user_id')
+        user_uuid = request.form.get('user_uuid')
         encryption_metadata_str = request.form.get('encryption_metadata')
 
         if not user_id:
@@ -88,6 +89,7 @@ def upload_file():
         
         # Save metadata to database with 'pending' status
         file_record = {
+            'userid': user_uuid,
             'owner_id': user_id,
             'original_filename': original_filename,
             'encrypted_filename': encrypted_filename,
@@ -156,9 +158,24 @@ def confirm_upload(file_id):
 def get_my_files():
     """Get files owned by the user AND files shared with the user"""
     try:
-        user_id = request.args.get('user_id')
-        if not user_id:
-            return jsonify({'error': 'User ID is required'}), 400
+        user_uuid = request.args.get('user_uuid')
+        if not user_uuid:
+            return jsonify({'error': 'User UUID is required'}), 400
+        
+        # Get user's text ID from UUID
+        user_text_id_query = supabase.table('users')\
+            .select('user_id')\
+            .eq('id', user_uuid)\
+            .execute()
+        
+        if not user_text_id_query.data:
+            return jsonify({'error': 'User not found'}), 404
+        
+        user_text_id = user_text_id_query.data[0]['user_id']
+        
+        print(f"=== GET MY FILES DEBUG ===")
+        print(f"User UUID: {user_uuid}")
+        print(f"User Text ID: {user_text_id}")
         
         # Get query parameters
         search_query = request.args.get('search', '').strip().lower()
@@ -169,7 +186,7 @@ def get_my_files():
         limit = min(int(request.args.get('limit', 20)), 100)
         start_idx = (page - 1) * limit
         
-        # Helper: Get user name (cached to avoid repeated queries)
+        # Helper: Get user name (cached)
         user_name_cache = {}
         def get_user_name(uid):
             if uid in user_name_cache:
@@ -189,144 +206,134 @@ def get_my_files():
             user_name_cache[uid] = name
             return name
         
-        # Helper: Build file object with share info
-        def build_file_obj(f, is_owned=True, share_data=None):
+        # Fetch owned files
+        owned_files = []
+        if filter_type in ['owned', 'my_uploads', 'shared', 'all']:
+            owned_query = supabase.table('encrypted_files')\
+                .select('*')\
+                .eq('userid', user_uuid)\
+                .eq('is_deleted', False)\
+                .eq('upload_status', 'completed')\
+                .execute()
+            owned_files = owned_query.data
+        
+        # Fetch shares for owned files (BATCH QUERY - only once!)
+        file_shares_map = {}
+        if owned_files:
+            file_ids = [f['id'] for f in owned_files]
+            shares_batch = supabase.table('file_shares')\
+                .select('file_id, shared_at')\
+                .in_('file_id', file_ids)\
+                .eq('share_status', 'active')\
+                .execute()
+            
+            # Build a map of file_id -> share info
+            for share in shares_batch.data:
+                fid = share['file_id']
+                if fid not in file_shares_map:
+                    file_shares_map[fid] = []
+                file_shares_map[fid].append(share)
+        
+        # Fetch shared files (files shared WITH this user)
+        shared_files = []
+        if filter_type in ['received', 'all']:
+            shared_query = supabase.table('file_shares')\
+                .select('*, encrypted_files(*)')\
+                .eq('shared_with', user_text_id)\
+                .eq('share_status', 'active')\
+                .execute()
+            
+            for share in shared_query.data:
+                file_data = share.get('encrypted_files')
+                if file_data and not file_data.get('is_deleted') and file_data.get('upload_status') == 'completed':
+                    shared_files.append({
+                        'file_data': file_data,
+                        'share_data': share
+                    })
+        
+        # Build file objects
+        files = []
+        
+        # Add owned files
+        for f in owned_files:
+            shares_for_file = file_shares_map.get(f['id'], [])
+            shared_count = len(shares_for_file)
+            shared_at = max([s['shared_at'] for s in shares_for_file if s.get('shared_at')], default=None)
+            
             file_obj = {
                 'id': f['id'],
                 'name': f['original_filename'],
                 'size': f['file_size'],
                 'uploaded_at': f['uploaded_at'],
                 'file_extension': f['file_extension'],
-                'is_owned': is_owned,
+                'is_owned': True,
                 'owner_id': f['owner_id'],
+                'owner_uuid': f['userid'],
                 'owner_name': get_user_name(f['owner_id']),
-                'last_accessed_at': f.get('last_accessed_at')
+                'last_accessed_at': f.get('last_accessed_at'),
+                'is_shared': shared_count > 0,
+                'shared_count': shared_count,
+                'shared_by': None,
+                'shared_at': shared_at
             }
             
-            if is_owned:
-                # For owned files, check if shared with others
-                shares_check = supabase.table('file_shares')\
-                    .select('id, shared_at', count='exact')\
-                    .eq('file_id', f['id'])\
-                    .eq('share_status', 'active')\
-                    .execute()
-                
-                shared_count = shares_check.count if hasattr(shares_check, 'count') else 0
-                shared_at = max([s['shared_at'] for s in shares_check.data if s.get('shared_at')], default=None)
-                
-                file_obj.update({
-                    'is_shared': shared_count > 0,
-                    'shared_count': shared_count,
-                    'shared_by': None,
-                    'shared_at': shared_at
-                })
-            else:
-                # For received files
-                file_obj.update({
-                    'is_shared': True,
-                    'shared_count': 1,
-                    'shared_by': share_data['shared_by'],
-                    'shared_by_name': get_user_name(share_data['shared_by']),
-                    'shared_at': share_data.get('shared_at'),
-                    'share_id': share_data['id'],
-                    'access_level': share_data['access_level']
-                })
+            # Apply filter
+            if filter_type == 'shared' and not file_obj['is_shared']:
+                continue
             
-            return file_obj
+            files.append(file_obj)
         
-        # Fetch data based on filter
-        files = []
-        
-        if filter_type in ['owned', 'my_uploads', 'shared']:
-            # Get owned files
-            owned_query = supabase.table('encrypted_files')\
-                .select('*')\
-                .eq('owner_id', user_id)\
-                .eq('is_deleted', False)\
-                .eq('upload_status', 'completed')
+        # Add shared files (received)
+        for item in shared_files:
+            f = item['file_data']
+            share = item['share_data']
             
-            owned_result = owned_query.execute()
-            
-            for f in owned_result.data:
-                file_obj = build_file_obj(f, is_owned=True)
-                
-                # Apply filter logic
-                if filter_type == 'shared' and not file_obj['is_shared']:
-                    continue
-                
-                files.append(file_obj)
-        
-        if filter_type in ['received', 'all']:
-            # Get shared files
-            shared_query = supabase.table('file_shares')\
-                .select('*, encrypted_files(*)')\
-                .eq('shared_with', user_id)\
-                .eq('share_status', 'active')
-            
-            shared_result = shared_query.execute()
-            
-            for share in shared_result.data:
-                file_data = share.get('encrypted_files')
-                if file_data and not file_data.get('is_deleted') and file_data.get('upload_status') == 'completed':
-                    files.append(build_file_obj(file_data, is_owned=False, share_data=share))
-        
-        if filter_type == 'all':
-            # Get owned files as well
-            owned_query = supabase.table('encrypted_files')\
-                .select('*')\
-                .eq('owner_id', user_id)\
-                .eq('is_deleted', False)\
-                .eq('upload_status', 'completed')
-            
-            owned_result = owned_query.execute()
-            files.extend([build_file_obj(f, is_owned=True) for f in owned_result.data])
+            files.append({
+                'id': f['id'],
+                'name': f['original_filename'],
+                'size': f['file_size'],
+                'uploaded_at': f['uploaded_at'],
+                'file_extension': f['file_extension'],
+                'is_owned': False,
+                'owner_id': f['owner_id'],
+                'owner_uuid': f['userid'],
+                'owner_name': get_user_name(f['owner_id']),
+                'last_accessed_at': f.get('last_accessed_at'),
+                'is_shared': True,
+                'shared_count': 1,
+                'shared_by': share['shared_by'],
+                'shared_by_name': get_user_name(share['shared_by']),
+                'shared_at': share.get('shared_at'),
+                'share_id': share['id'],
+                'access_level': share['access_level']
+            })
         
         # Apply search filter
         if search_query:
             files = [f for f in files if search_query in f['name'].lower()]
         
-        # Apply sorting with proper handling of None/null values
-        print(f"DEBUG: Sorting by '{sort_by}' in '{sort_order}' order")
-        print(f"DEBUG: Total files before sort: {len(files)}")
-        
+        # Apply sorting
         if sort_by == 'name':
             files.sort(key=lambda x: (x['name'] or '').lower(), reverse=(sort_order == 'desc'))
         elif sort_by == 'size':
-            # Put None/null sizes at the end regardless of sort order
             files.sort(key=lambda x: (x['size'] is not None, x['size'] or 0), reverse=(sort_order == 'desc'))
-        else:  # 'uploaded_at' or default
-            # Sort by most recent activity (upload or share, whichever is newer)
+        else:
             def get_sort_timestamp(file):
                 timestamps = []
-                
-                # Always include uploaded_at
                 if file.get('uploaded_at'):
                     timestamps.append(file['uploaded_at'])
-                
-                # Include shared_at if it exists
                 if file.get('shared_at'):
                     timestamps.append(file['shared_at'])
-                
-                # Return the most recent timestamp, or empty string if none
                 return max(timestamps) if timestamps else ''
-            
             files.sort(key=get_sort_timestamp, reverse=(sort_order == 'desc'))
-            
-            # Debug: Show what timestamps are being used
-            if files:
-                print(f"DEBUG: First 3 files after sort:")
-                for i, f in enumerate(files[:3]):
-                    sort_ts = get_sort_timestamp(f)
-                    print(f"  {i+1}. {f['name']}")
-                    print(f"     - uploaded_at: {f.get('uploaded_at')}")
-                    print(f"     - shared_at: {f.get('shared_at')}")
-                    print(f"     - sort_timestamp (most recent): {sort_ts}")
         
         # Calculate totals before pagination
         total_files = len(files)
         
         # Apply pagination
         files = files[start_idx:start_idx + limit]
+        
+        print(f"Returning {len(files)} files (total: {total_files})")
         
         return jsonify({
             'files': files,
@@ -406,7 +413,7 @@ def download_file(file_id):
 def delete_file(file_id):
     try:
         print(f"DELETE request received for file_id: {file_id}")
-        user_id = request.args.get('user_id')
+        user_id = request.args.get('user_uuid')
         
         if not user_id:
              return jsonify({'error': 'User ID is required'}), 400
@@ -414,7 +421,7 @@ def delete_file(file_id):
         result = supabase.table('encrypted_files')\
             .update({'is_deleted': True})\
             .eq('id', file_id)\
-            .eq('owner_id', user_id)\
+            .eq('userid', user_id)\
             .execute()
         
         if result.data:
@@ -495,93 +502,116 @@ def decrypt_file_route(file_id):
     User Story: DR#17 & PT#14
     """
     try:
-        user_id = request.args.get('user_id')
-        if not user_id:
-             return jsonify({'error': 'User ID is required'}), 400
-
+        user_uuid = request.args.get('user_uuid')
+        if not user_uuid:
+             return jsonify({'error': 'User UUID is required'}), 400
+             
         # 1. Fetch File Metadata
         response = supabase.table('encrypted_files').select('*').eq('id', file_id).execute()
         if not response.data:
-            return jsonify({'error': 'Failed to download encrypted file from storage'}), 500
+            return jsonify({'error': 'File not found'}), 404
+            
         file_record = response.data[0]
-
-        # 2. Get Encryption Keys (Candidates)
-        # Find active and inactive keys for this user to ensure we can decrypt older files
-        all_keys = key_pair_store.list_by_user(user_id)
+        
+        # Get the text user ID from the file record
+        user_text_id = file_record.get('owner_id')  # "PAT003"
+        
+        print(f"DEBUG: Looking for keys for {user_text_id} (UUID was {user_uuid})")
+        
+        # 2. Get Encryption Keys - Use TEXT ID instead of UUID
+        all_keys = key_pair_store.list_by_user(user_text_id)
         candidates = all_keys
         
         if not candidates:
+             print(f"ERROR: No keys found for user {user_text_id}")
              return jsonify({'error': 'No encryption keys found for user'}), 422
-
-        # 4. Download Encrypted Content
+        
+        print(f"Found {len(candidates)} keys for user {user_text_id}")
+        
+        # 3. Download Encrypted Content
         storage_path = file_record['storage_path']
         try:
             enc_file_bytes = supabase.storage.from_(STORAGE_BUCKET).download(storage_path)
+            print(f"Downloaded encrypted file from storage ({len(enc_file_bytes)} bytes)")
         except Exception as e:
+            print(f"Failed to download from storage: {e}")
             return jsonify({'error': 'Failed to download encrypted file from storage'}), 500
+        
+        # 4. Get encryption metadata
         meta = file_record.get('encryption_metadata') or {}
         iv_b64 = meta.get('iv')
         auth_tag_b64 = meta.get('authTag') 
         
         if not iv_b64 or not auth_tag_b64:
+             print(f"Missing encryption metadata - IV: {bool(iv_b64)}, AuthTag: {bool(auth_tag_b64)}")
              return jsonify({'error': 'Missing encryption metadata (IV or AuthTag)'}), 422
-
+        
+        print(f"Encryption metadata found")
+        
         try:
             # The file from WebCrypto ALREADY includes the Auth Tag at the end.
             # Python's AESGCM.decrypt also expects (Ciphertext + Tag).
             # So we do NOT need to append the tag again.
             full_ciphertext_b64 = base64.b64encode(enc_file_bytes).decode('utf-8')
         except Exception as e:
+             print(f"✗ Failed to encode ciphertext: {e}")
              return jsonify({'error': 'Failed to process encryption metadata'}), 422
-
+        
         # Try to decrypt with ALL candidate keys
         last_error = None
         print(f"Attempting to decrypt file {file_id} (Uploaded: {file_record.get('uploaded_at')})")
-        print(f"Found {len(candidates)} candidate keys for user {user_id}")
         
         for key_pair in candidates:
             try:
                 print(f"Trying KeyID: {key_pair.key_id} (Created: {key_pair.created_at})")
                 
-                # 3. Decrypt the DEK (using Master Key)
+                # Decrypt the DEK (using Master Key)
                 try:
                     dek_b64 = EncryptionManager.decrypt_dek(key_pair.encryption_key, Config.MASTER_KEY)
                     dek_bytes = EncryptionManager.base64_to_key(dek_b64)
+                    print(f"DEK decrypted successfully for key {key_pair.key_id}")
                 except Exception as e:
                     print(f"Skipping key {key_pair.key_id}: DEK unlock failed ({e})")
+                    last_error = str(e)
                     continue
-
-                # 4. Download Encrypted Content (only need to do this once, but stream is consumed?)
-                # We should download once outside loop or re-download?
-                # Actually, supabase.storage.download returns bytes, so we can reuse `enc_file_bytes`
-                # Let's move download OUTSIDE the loop.
-                pass 
-
-                # 6. Decrypt
-                decrypted_bytes = EncryptionManager.decrypt_file(full_ciphertext_b64, iv_b64, dek_bytes)
                 
-                # 7. Return File (Success!)
-                return send_file(
-                    io.BytesIO(decrypted_bytes),
-                    mimetype=file_record.get('mime_type', 'application/octet-stream'),
-                    as_attachment=True,
-                    download_name=file_record['original_filename']
-                )
-                
+                # Decrypt the file
+                try:
+                    decrypted_bytes = EncryptionManager.decrypt_file(full_ciphertext_b64, iv_b64, dek_bytes)
+                    print(f"File decrypted successfully with key {key_pair.key_id}")
+                    
+                    # Return File (Success!)
+                    return send_file(
+                        io.BytesIO(decrypted_bytes),
+                        mimetype=file_record.get('mime_type', 'application/octet-stream'),
+                        as_attachment=True,
+                        download_name=file_record['original_filename']
+                    )
+                except Exception as decrypt_error:
+                    print(f"✗ Key {key_pair.key_id} failed to decrypt file: {decrypt_error}")
+                    last_error = str(decrypt_error)
+                    continue
+                    
             except Exception as e:
                 # This key failed, try next
-                print(f"Key {key_pair.key_id} failed to decrypt file: {e}")
+                print(f"✗ Unexpected error with key {key_pair.key_id}: {e}")
                 last_error = str(e)
                 continue
         
         # If we get here, no key worked
-        print(f"All keys failed for user {user_id}. Last error: {last_error}")
+        print(f"All keys failed for user {user_text_id}. Last error: {last_error}")
         return jsonify({
             'error': 'Decryption failed', 
             'message': 'Could not decrypt file with any of your active keys.',
             'details': last_error
         }), 422
-
+        
     except Exception as e:
         import traceback
-        return jsonify({'error': str(e), 'details': traceback.format_exc()}), 500
+        error_trace = traceback.format_exc()
+        print(f"Fatal error in decrypt_file_route: {e}")
+        print(error_trace)
+        return jsonify({
+            'error': str(e), 
+            'details': error_trace
+        }), 500
