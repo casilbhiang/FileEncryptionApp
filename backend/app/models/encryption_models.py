@@ -64,6 +64,7 @@ class EncryptedFile:
         file_id: str,
         filename: str,
         owner_id: str,
+        owner_uuid: str,
         key_pair_id: str,
         ciphertext: str,
         nonce: str,
@@ -75,6 +76,7 @@ class EncryptedFile:
         self.file_id = file_id
         self.filename = filename
         self.owner_id = owner_id
+        self.owner_uuid = owner_uuid
         self.key_pair_id = key_pair_id
         self.ciphertext = ciphertext  # Base64 encoded
         self.nonce = nonce  # Base64 encoded
@@ -89,6 +91,7 @@ class EncryptedFile:
             'file_id': self.file_id,
             'filename': self.filename,
             'owner_id': self.owner_id,
+            'owner_uuid': self.owner_uuid,
             'key_pair_id': self.key_pair_id,
             'file_size': self.file_size,
             'mime_type': self.mime_type,
