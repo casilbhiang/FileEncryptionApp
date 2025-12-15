@@ -31,15 +31,28 @@ def generate_user_id(role: str, supabase) -> str:
         'doctor': 'DOC',
         'patient': 'PAT'
     }
-
     prefix = role_prefixes.get(role.lower(), 'USR')
-
-    # Get the count of existing users with this role
+    
+    # Get all existing user IDs with this prefix
     response = supabase.table('users').select('user_id').ilike('user_id', f'{prefix}%').execute()
-    count = len(response.data) + 1
-
-    # Generate user ID with zero-padded number
-    return f"{prefix}{str(count).zfill(3)}"
+    
+    # Find the highest number used
+    max_number = 0
+    if response.data:
+        for user in response.data:
+            user_id = user.get('user_id', '')
+            # Extract the number part (e.g., "003" from "DOC003")
+            number_part = user_id.replace(prefix, '')
+            try:
+                number = int(number_part)
+                if number > max_number:
+                    max_number = number
+            except ValueError:
+                continue
+    
+    # Generate new ID with next number
+    next_number = max_number + 1
+    return f"{prefix}{str(next_number).zfill(3)}"
 
 def generate_temporary_password() -> str:
     """Generate a secure temporary password"""
