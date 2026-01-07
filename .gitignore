@@ -29,7 +29,7 @@ pnpm-lock.yaml
 .env.test
 
 # IDEs and Editors
-.vscode/
+
 .idea/
 *.swp
 *.swo
@@ -38,3 +38,4 @@ pnpm-lock.yaml
 .DS_Store
 Thumbs.db
 desktop.ini
+backend/key_pairs.json
