@@ -15,12 +15,14 @@ def create_app(config_name='development'):
     from app.api.files import files_bp
     from app.api.audit import audit_bp
     from app.api.shares import shares_bp
+    from app.api.biometric import biometric_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(keys_bp, url_prefix='/api/keys')
     app.register_blueprint(files_bp, url_prefix='/api/files')
     app.register_blueprint(audit_bp, url_prefix='/api/audit')
     app.register_blueprint(shares_bp, url_prefix='/api/shares')
+    app.register_blueprint(biometric_bp, url_prefix='/api/auth/biometric')
     
     @app.route('/')
     def home():
@@ -39,7 +41,9 @@ def create_app(config_name='development'):
                 'auth': '/api/auth',
                 'keys': '/api/keys',
                 'files': '/api/files',
-                'audit': '/api/audit'
+                'audit': '/api/audit',
+                'shares': '/api/shares',
+                'biometric': '/api/auth/biometric'
             }
         }, 200
     
