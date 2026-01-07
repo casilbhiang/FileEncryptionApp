@@ -84,6 +84,16 @@ export interface ShareResponse {
   access_level: string;
 }
 
+export interface DecryptFileParams {
+    fileId: string;
+    encryptedData: ArrayBuffer;
+    encryptionMetadata: {
+        iv: string;
+        authTag: string;
+        [key: string]: any;
+    };
+}
+
 /* File Upload */
 export const uploadFile = async (
   file: File, 
