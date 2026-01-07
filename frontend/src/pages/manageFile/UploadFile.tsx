@@ -1,5 +1,4 @@
 'use client';
-
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
@@ -21,45 +20,53 @@ interface UploadedFile {
 const UploadFilePage: React.FC = () => {
   const location = useLocation();
   const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
-
+  
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [encryptionKey, setEncryptionKey] = useState<CryptoKey | null>(null);
   const [isLoadingKey, setIsLoadingKey] = useState(true);
   const [keyAvailable, setKeyAvailable] = useState(false);
-
-  // Get active user ID from storage
+  
   const [userId, setUserId] = useState<string | null>(null);
   const [userUuid, setUserUuid] = useState<string | null>(null);
-
+  
+  // Alert modal state
+  const [alertModal, setAlertModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'info' | 'warning' | 'error' | 'success';
+  }>({ isOpen: false, title: '', message: '', type: 'info' });
+  
+  const showAlert = (title: string, message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info') => {
+    setAlertModal({ isOpen: true, title, message, type });
+  };
+  
   useEffect(() => {
     const storedUserId = localStorage.getItem('user_id');
     const storedUserUuid = localStorage.getItem('user_uuid');
-
+    
     if (storedUserId && storedUserUuid) {
       setUserId(storedUserId);
       setUserUuid(storedUserUuid);
       loadEncryptionKey(storedUserId);
     } else {
-      console.error('No User ID found in localStorage');
-      // Ideally redirect to login
       setKeyAvailable(false);
       setIsLoadingKey(false);
     }
   }, []);
-
+  
   const loadEncryptionKey = async (activeUserId: string) => {
     try {
       setIsLoadingKey(true);
-
-      // Check if key exists
+      
       const hasKey = hasEncryptionKey(activeUserId);
       setKeyAvailable(hasKey);
-
+      
       if (hasKey) {
         console.log('Encryption key found in storage, retrieving...');
         const key = await getStoredEncryptionKey(activeUserId);
-
+        
         if (key) {
           setEncryptionKey(key);
           console.log('Encryption key loaded successfully');
@@ -77,41 +84,45 @@ const UploadFilePage: React.FC = () => {
       setIsLoadingKey(false);
     }
   };
-
+  
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
-
+  
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files) {
       await handleFiles(Array.from(files));
     }
+    // Reset input so same file can be selected again
+    event.target.value = '';
   };
-
+  
   const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setIsDragging(false);
-
     const files = Array.from(event.dataTransfer.files);
     await handleFiles(files);
   };
-
+  
   const handleFiles = async (files: File[]) => {
     // Check if encryption key is available
-    if (!encryptionKey || !keyAvailable || !userId || !userUuid) {
-      alert('No encryption key found or user not logged in!\n\nPlease scan the QR code provided by the System Administrator to set up encryption before uploading files.');
+    if (!encryptionKey || !keyAvailable) {
+      showAlert(
+        'Encryption Key Not Found',
+        'No encryption key found.\n\nPlease scan the QR code provided by the System Administrator to set up encryption before uploading files.',
+        'warning'
+      );
       return;
     }
-
+    
     for (const file of files) {
       const tempId = Date.now() + Math.random();
       const abortController = new AbortController();
       let uploadedFileId: string | null = null;
-
-      // Add file to list with encrypting status
+      
       const newFile: UploadedFile = {
         id: tempId,
         name: file.name,
@@ -120,31 +131,31 @@ const UploadFilePage: React.FC = () => {
         progress: 0,
         abortController,
       };
-
+      
       setUploadedFiles((prev) => [...prev, newFile]);
-
+      
       try {
         // STEP 1: Encrypt File (Client-side)
         console.log('Encrypting file:', file.name);
         const encryptionResult = await encryptFile(file, encryptionKey);
-
+        
         // Check if cancelled during encryption
         if (abortController.signal.aborted) {
           console.log('Cancelled during encryption');
           setUploadedFiles((prev) => prev.filter((f) => f.id !== tempId));
           return;
         }
-
+        
         // Update status to uploading
         setUploadedFiles((prev) =>
           prev.map((f) =>
             f.id === tempId ? { ...f, status: 'uploading' as const } : f
           )
         );
-
+        
         // STEP 2: Upload Encrypted Blob
         console.log('Uploading encrypted file to server...');
-
+        
         // Simulate progress
         const progressInterval = setInterval(() => {
           setUploadedFiles((prev) =>
@@ -155,17 +166,17 @@ const UploadFilePage: React.FC = () => {
             )
           );
         }, 200);
-
+        
         // Create encrypted file blob with original filename
         const encryptedFile = new File([encryptionResult.encryptedBlob], file.name, {
           type: 'application/octet-stream',
         });
-
+        
         // Upload with encryption metadata
         const response = await uploadFile(
           encryptedFile,
-          userId,
-          userUuid,
+          userId!,
+          userUuid!,
           {
             iv: encryptionResult.iv,
             authTag: encryptionResult.authTag,
@@ -173,22 +184,22 @@ const UploadFilePage: React.FC = () => {
           },
           abortController.signal
         );
-
+        
         uploadedFileId = response.file_id;
         clearInterval(progressInterval);
-
+        
         // Check if cancelled after upload completes
         if (abortController.signal.aborted) {
           console.log('Upload cancelled, cleaning up:', uploadedFileId);
           try {
-            if (userId) await deleteFile(uploadedFileId, userId);
+            if (userUuid) await deleteFile(uploadedFileId, userUuid);
           } catch (error) {
             console.error('Failed to remove cancelled file:', error);
           }
           setUploadedFiles((prev) => prev.filter((f) => f.id !== tempId));
           return;
         }
-
+        
         // STEP 3: Confirm Upload
         try {
           await fetch(`http://localhost:5000/api/files/confirm/${uploadedFileId}`, {
@@ -198,7 +209,7 @@ const UploadFilePage: React.FC = () => {
         } catch (error) {
           console.error('Failed to confirm upload:', error);
         }
-
+        
         // Update to completed
         setUploadedFiles((prev) =>
           prev.map((f) =>
@@ -221,7 +232,7 @@ const UploadFilePage: React.FC = () => {
           console.log('Upload cancelled by user');
           if (uploadedFileId) {
             try {
-              if (userId) await deleteFile(uploadedFileId, userId);
+              if (userUuid) await deleteFile(uploadedFileId, userUuid);
             } catch (deleteError) {
               console.error('Failed to delete cancelled file:', deleteError);
             }
@@ -229,7 +240,7 @@ const UploadFilePage: React.FC = () => {
           setUploadedFiles((prev) => prev.filter((f) => f.id !== tempId));
           return;
         }
-
+        
         // Handle encryption/upload errors
         console.error('Upload error:', error);
         setUploadedFiles((prev) =>
@@ -244,18 +255,24 @@ const UploadFilePage: React.FC = () => {
               : f
           )
         );
+        
+        // Show error modal
+        showAlert(
+          'Upload Failed',
+          `Failed to upload ${file.name}:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+          'error'
+        );
       }
     }
   };
-
-
+  
   const handleCancelUpload = async (file: UploadedFile) => {
     if ((file.status === 'uploading' || file.status === 'encrypting') && file.abortController) {
       console.log(`Cancelling upload: ${file.name}`);
-
+      
       // Abort the fetch request
       file.abortController.abort();
-
+      
       // Update UI to show cancelled
       setUploadedFiles(prev =>
         prev.map(f =>
@@ -264,27 +281,39 @@ const UploadFilePage: React.FC = () => {
             : f
         )
       );
+      
+      // Show cancellation message
+      showAlert(
+        'Upload Cancelled',
+        `Upload of "${file.name}" has been cancelled.`,
+        'info'
+      );
     }
   };
-
+  
   const handleRemoveFile = async (id: number | string) => {
     const file = uploadedFiles.find(f => f.id === id);
-
-    // If it's a completed file with a backend ID, delete from backend
-    if (file && file.backendFileId && userId) {
+    
+    if (file && file.backendFileId && userUuid) {
       try {
         console.log('Deleting file from backend:', file.backendFileId);
-        await deleteFile(file.backendFileId, userId);
+        await deleteFile(file.backendFileId, userUuid);
         console.log('File removed from backend:', file.backendFileId);
       } catch (error) {
         console.error('Failed to remove file from backend:', error);
+        showAlert(
+          'Delete Failed',
+          `Failed to remove ${file.name} from server.`,
+          'error'
+        );
+        return; // Don't remove from UI if backend deletion failed
       }
     }
-
+    
     // Remove from UI
     setUploadedFiles(files => files.filter(file => file.id !== id));
   };
-
+  
   if (isLoadingKey) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -295,46 +324,59 @@ const UploadFilePage: React.FC = () => {
       </div>
     );
   }
-
+  
   return (
     <div className="min-h-screen bg-gray-100 flex">
       <Sidebar userRole={userRole} currentPage="upload" />
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
         <div className="mb-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-2xl lg:text-3xl font-bold mb-2">UPLOAD FILES</h1>
-              <p className="text-gray-600">Your Data Is Securely Encrypted And Accessible Only To You.</p>
-            </div>
-            <button className="p-3 bg-white rounded-full shadow-lg hover:shadow-xl transition">
-              <Upload className="w-6 h-6 text-gray-700" />
-            </button>
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-bold mb-2">UPLOAD FILES</h1>
+            <p className="text-gray-600">Your Data Is Securely Encrypted And Accessible Only To You.</p>
+              
+              {/* Warning banner when key is not available */}
+              {!keyAvailable && (
+                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Encryption key not available.</strong> Please scan the QR code from System Administrator before uploading.
+                  </p>
+                </div>
+              )}
           </div>
         </div>
-
+        
         {/* Upload Area */}
         <div className="bg-white rounded-lg p-8 mb-6">
           <div
-            className={`border-2 border-dashed rounded-lg p-12 text-center transition ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
-              }`}
-            onDrop={handleDrop}
+            className={`border-2 border-dashed rounded-lg p-12 text-center transition ${
+              isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+            } ${!keyAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
+            onDrop={keyAvailable ? handleDrop : undefined}
             onDragOver={(e) => {
               e.preventDefault();
-              setIsDragging(true);
+              if (keyAvailable) setIsDragging(true);
             }}
             onDragLeave={() => setIsDragging(false)}
           >
             <div className="flex flex-col items-center">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                <Upload className="w-8 h-8 text-gray-400" />
+                {keyAvailable ? (
+                  <Upload className="w-8 h-8 text-gray-400" />
+                ) : (
+                  <Lock className="w-8 h-8 text-gray-400" />
+                )}
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Choose a file or drag & drop it here
+                {keyAvailable ? 'Choose a file or drag & drop it here' : 'Encryption key required'}
               </h3>
               <p className="text-sm text-gray-500 mb-6">
-                PDF, PNG, JPEG, and JPG formats, up to 50MB
+                {keyAvailable 
+                  ? 'PDF, PNG, JPEG, and JPG formats, up to 50MB'
+                  : 'Please set up encryption before uploading files'}
               </p>
-              <label className="px-6 py-2 border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition cursor-pointer">
+              <label className={`px-6 py-2 border-2 border-gray-300 rounded-lg font-medium transition ${
+                keyAvailable ? 'hover:bg-gray-50 cursor-pointer' : 'opacity-50 cursor-not-allowed'
+              }`}>
                 Browse File
                 <input
                   type="file"
@@ -342,12 +384,13 @@ const UploadFilePage: React.FC = () => {
                   onChange={handleFileSelect}
                   multiple
                   accept=".pdf,.png,.jpg,.jpeg"
+                  disabled={!keyAvailable}
                 />
               </label>
             </div>
           </div>
         </div>
-
+        
         {/* Uploaded Files List */}
         {uploadedFiles.length > 0 && (
           <div className="space-y-3">
@@ -363,6 +406,12 @@ const UploadFilePage: React.FC = () => {
                   <h3 className="font-semibold text-gray-900 mb-1 truncate">{file.name}</h3>
                   <div className="flex items-center gap-2">
                     <p className="text-sm text-gray-500">{file.size}</p>
+                    {file.status === 'encrypting' && (
+                      <div className="flex items-center gap-2">
+                        <Lock className="w-4 h-4 text-purple-600 animate-pulse" />
+                        <span className="text-xs text-purple-600 font-medium">Encrypting...</span>
+                      </div>
+                    )}
                     {file.status === 'uploading' && (
                       <div className="flex items-center gap-2 flex-1">
                         <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden max-w-xs">
@@ -396,13 +445,14 @@ const UploadFilePage: React.FC = () => {
                 </div>
                 <button
                   onClick={() =>
-                    file.status === 'uploading'
+                    file.status === 'uploading' || file.status === 'encrypting'
                       ? handleCancelUpload(file)
-                      : handleRemoveFile(file.id)}
+                      : handleRemoveFile(file.id)
+                  }
                   className="p-2 hover:bg-gray-100 rounded-lg transition flex-shrink-0"
-                  title={file.status === 'uploading' ? 'Cancel upload' : 'Remove file'}
+                  title={file.status === 'uploading' || file.status === 'encrypting' ? 'Cancel upload' : 'Remove file'}
                 >
-                  {file.status === 'uploading' ? (
+                  {file.status === 'uploading' || file.status === 'encrypting' ? (
                     <X className="w-5 h-5 text-gray-600" />
                   ) : (
                     <Trash2 className="w-5 h-5 text-gray-600" />
@@ -413,6 +463,38 @@ const UploadFilePage: React.FC = () => {
           </div>
         )}
       </div>
+      
+      {/* Alert Modal - Inline (No Emojis) */}
+      {alertModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div 
+            className="absolute inset-0 bg-black bg-opacity-50"
+            onClick={() => setAlertModal({ ...alertModal, isOpen: false })}
+          />
+          
+          <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6 z-10">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-gray-900">{alertModal.title}</h3>
+              <button
+                onClick={() => setAlertModal({ ...alertModal, isOpen: false })}
+                className="p-1 hover:bg-gray-100 rounded-lg transition"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-gray-700 text-center whitespace-pre-line">{alertModal.message}</p>
+            </div>
+            <button
+              onClick={() => setAlertModal({ ...alertModal, isOpen: false })}
+              className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

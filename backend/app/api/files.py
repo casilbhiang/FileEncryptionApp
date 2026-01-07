@@ -491,127 +491,70 @@ def cleanup_pending_uploads():
         print(f"Cleanup error: {e}")
         print(f"Full traceback:\n{error_details}")
         return jsonify({'error': f'{str(e)}', 'details': error_details}), 500
-    
-# ========== Encryption & Decryption ========== 
-# PLACEHOLDER FOR NOW
-# ===== Decrypt File (Server-Side) =====
-@files_bp.route('/decrypt/<file_id>', methods=['GET'])
-def decrypt_file_route(file_id):
+
+# ===== Get File Metadata (for decryption) =====
+@files_bp.route('/metadata/<file_id>', methods=['GET'])
+def get_file_metadata(file_id):
     """
-    Decrypts a file on the server and returns the plaintext content.
-    User Story: DR#17 & PT#14
+    Get file metadata including encryption_metadata (IV, authTag, etc.)
+    Required for client-side decryption
     """
     try:
         user_uuid = request.args.get('user_uuid')
         if not user_uuid:
-             return jsonify({'error': 'User UUID is required'}), 400
-             
-        # 1. Fetch File Metadata
-        response = supabase.table('encrypted_files').select('*').eq('id', file_id).execute()
+            return jsonify({'error': 'User UUID is required'}), 400
+        
+        print(f"Fetching metadata for file_id: {file_id}, user: {user_uuid}")
+        
+        # Check if user owns the file OR has access via sharing
+        # First check ownership
+        response = supabase.table('encrypted_files')\
+            .select('id, original_filename, encryption_metadata, userid')\
+            .eq('id', file_id)\
+            .eq('is_deleted', False)\
+            .eq('upload_status', 'completed')\
+            .execute()
+        
         if not response.data:
             return jsonify({'error': 'File not found'}), 404
+        
+        file_data = response.data[0]
+        
+        # Verify user has access (either owner or shared with them)
+        if file_data['userid'] != user_uuid:
+            # Check if file is shared with this user
+            # Get user's text ID
+            user_query = supabase.table('users')\
+                .select('user_id')\
+                .eq('id', user_uuid)\
+                .execute()
             
-        file_record = response.data[0]
+            if not user_query.data:
+                return jsonify({'error': 'User not found'}), 404
+            
+            user_text_id = user_query.data[0]['user_id']
+            
+            # Check file_shares
+            share_query = supabase.table('file_shares')\
+                .select('id')\
+                .eq('file_id', file_id)\
+                .eq('shared_with', user_text_id)\
+                .eq('share_status', 'active')\
+                .execute()
+            
+            if not share_query.data:
+                return jsonify({'error': 'Access denied'}), 403
         
-        # Get the text user ID from the file record
-        user_text_id = file_record.get('owner_id')  # "PAT003"
+        print(f"Metadata retrieved successfully for file: {file_id}")
         
-        print(f"DEBUG: Looking for keys for {user_text_id} (UUID was {user_uuid})")
-        
-        # 2. Get Encryption Keys - Use TEXT ID instead of UUID
-        all_keys = key_pair_store.list_by_user(user_text_id)
-        candidates = all_keys
-        
-        if not candidates:
-             print(f"ERROR: No keys found for user {user_text_id}")
-             return jsonify({'error': 'No encryption keys found for user'}), 422
-        
-        print(f"Found {len(candidates)} keys for user {user_text_id}")
-        
-        # 3. Download Encrypted Content
-        storage_path = file_record['storage_path']
-        try:
-            enc_file_bytes = supabase.storage.from_(STORAGE_BUCKET).download(storage_path)
-            print(f"Downloaded encrypted file from storage ({len(enc_file_bytes)} bytes)")
-        except Exception as e:
-            print(f"Failed to download from storage: {e}")
-            return jsonify({'error': 'Failed to download encrypted file from storage'}), 500
-        
-        # 4. Get encryption metadata
-        meta = file_record.get('encryption_metadata') or {}
-        iv_b64 = meta.get('iv')
-        auth_tag_b64 = meta.get('authTag') 
-        
-        if not iv_b64 or not auth_tag_b64:
-             print(f"Missing encryption metadata - IV: {bool(iv_b64)}, AuthTag: {bool(auth_tag_b64)}")
-             return jsonify({'error': 'Missing encryption metadata (IV or AuthTag)'}), 422
-        
-        print(f"Encryption metadata found")
-        
-        try:
-            # The file from WebCrypto ALREADY includes the Auth Tag at the end.
-            # Python's AESGCM.decrypt also expects (Ciphertext + Tag).
-            # So we do NOT need to append the tag again.
-            full_ciphertext_b64 = base64.b64encode(enc_file_bytes).decode('utf-8')
-        except Exception as e:
-             print(f"✗ Failed to encode ciphertext: {e}")
-             return jsonify({'error': 'Failed to process encryption metadata'}), 422
-        
-        # Try to decrypt with ALL candidate keys
-        last_error = None
-        print(f"Attempting to decrypt file {file_id} (Uploaded: {file_record.get('uploaded_at')})")
-        
-        for key_pair in candidates:
-            try:
-                print(f"Trying KeyID: {key_pair.key_id} (Created: {key_pair.created_at})")
-                
-                # Decrypt the DEK (using Master Key)
-                try:
-                    dek_b64 = EncryptionManager.decrypt_dek(key_pair.encryption_key, Config.MASTER_KEY)
-                    dek_bytes = EncryptionManager.base64_to_key(dek_b64)
-                    print(f"DEK decrypted successfully for key {key_pair.key_id}")
-                except Exception as e:
-                    print(f"Skipping key {key_pair.key_id}: DEK unlock failed ({e})")
-                    last_error = str(e)
-                    continue
-                
-                # Decrypt the file
-                try:
-                    decrypted_bytes = EncryptionManager.decrypt_file(full_ciphertext_b64, iv_b64, dek_bytes)
-                    print(f"File decrypted successfully with key {key_pair.key_id}")
-                    
-                    # Return File (Success!)
-                    return send_file(
-                        io.BytesIO(decrypted_bytes),
-                        mimetype=file_record.get('mime_type', 'application/octet-stream'),
-                        as_attachment=True,
-                        download_name=file_record['original_filename']
-                    )
-                except Exception as decrypt_error:
-                    print(f"✗ Key {key_pair.key_id} failed to decrypt file: {decrypt_error}")
-                    last_error = str(decrypt_error)
-                    continue
-                    
-            except Exception as e:
-                # This key failed, try next
-                print(f"✗ Unexpected error with key {key_pair.key_id}: {e}")
-                last_error = str(e)
-                continue
-        
-        # If we get here, no key worked
-        print(f"All keys failed for user {user_text_id}. Last error: {last_error}")
         return jsonify({
-            'error': 'Decryption failed', 
-            'message': 'Could not decrypt file with any of your active keys.',
-            'details': last_error
-        }), 422
+            'original_filename': file_data['original_filename'],
+            'encryption_metadata': file_data['encryption_metadata']
+        }), 200
         
     except Exception as e:
         import traceback
-        error_trace = traceback.format_exc()
-        print(f"Fatal error in decrypt_file_route: {e}")
-        print(error_trace)
-        return jsonify({
-            'error': str(e), 
-            'details': error_trace
-        }), 500
+        error_details = traceback.format_exc()
+        print(f"Metadata error: {e}")
+        print(f"Full traceback:\n{error_details}")
+        return jsonify({'error': str(e), 'details': error_details}), 500

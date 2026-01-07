@@ -1,9 +1,10 @@
 'use client';
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Lock, User, ChevronDown } from 'lucide-react';
 import simncryptLogo from '../../images/simncrypt.jpg';
+import BiometricModal from '../../components/BiometricModal';
+import BiometricService from '../../services/Biometric';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -12,11 +13,15 @@ const LoginPage: React.FC = () => {
     userId: '',
     password: '',
   });
-
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  
+  // Biometric states
+  const [showBiometricModal, setShowBiometricModal] = useState(false);
+  const [biometricMode, setBiometricMode] = useState<'register' | 'authenticate'>('authenticate');
+  const [pendingNavigation, setPendingNavigation] = useState<any>(null);
 
   const roles = [
     { value: 'patient', label: 'Patient' },
@@ -33,151 +38,128 @@ const LoginPage: React.FC = () => {
     setError('');
   };
 
+  const handleBiometricSuccess = () => {
+    // Biometric authentication successful, proceed with navigation
+    if (pendingNavigation) {
+      setSuccess('Authentication successful! Redirecting...');
+      setTimeout(() => {
+        navigate(pendingNavigation.path, pendingNavigation.options);
+      }, 1000);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     setSuccess('');
     setIsLoading(true);
 
-    if (!formData.role) {
-      setError('Please select a role');
-      setIsLoading(false);
-      return;
-    }
-
-    if (!formData.userId.trim()) {
-      setError('Please enter your User ID');
-      setIsLoading(false);
-      return;
-    }
-
-    if (!formData.password) {
-      setError('Please enter your password');
-      setIsLoading(false);
-      return;
-    }
-
     try {
+      if (!formData.role) throw new Error('Please select a role');
+      if (!formData.userId.trim()) throw new Error('Please enter your User ID');
+      if (!formData.password) throw new Error('Please enter your password');
+
       const API_URL = import.meta.env.VITE_API_URL;
+      if (!API_URL) throw new Error('API URL not configured');
 
-      if (API_URL) {
-        const response = await fetch(`${API_URL}/api/auth/login`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            role: formData.role,
-            userId: formData.userId,
-            password: formData.password,
-          }),
-        });
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
 
-        const data = await response.json();
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Login failed');
 
-        if (!response.ok) {
-          setError(data.message || 'Login failed. Please try again.');
-          setIsLoading(false);
-          return;
-        }
+      /* ================= STORE AUTH ================= */
+      localStorage.setItem('auth_token', data.token);
 
-        // Store data
-        if (data.token) {
-          localStorage.setItem('auth_token', data.token);
-        }
+      const email = data.user?.email || `${formData.userId}@clinic.com`;
 
-        if (data.user) {
-          localStorage.setItem('user_role', data.user.role);
-          localStorage.setItem('user_id', data.user.user_id);
-          localStorage.setItem('user_uuid', data.user.id); 
-          localStorage.setItem('user_email', data.user.email || `${formData.userId}@clinic.com`);
+      localStorage.setItem('user_role', data.user.role);
+      localStorage.setItem('user_id', data.user.user_id);
+      localStorage.setItem('user_uuid', data.user.id);
+      localStorage.setItem('user_email', email);
+      localStorage.setItem('is_first_login', data.user.is_first_login ? 'true' : 'false');
 
-          // 🔑 Store first login status from backend
-          localStorage.setItem('is_first_login', data.user.is_first_login ? 'true' : 'false');
+      localStorage.setItem('user', JSON.stringify({
+        id: data.user.user_id,
+        uuid: data.user.id,
+        role: data.user.role,
+        email,
+        name: data.user.full_name
+      }));
 
-           localStorage.setItem('user', JSON.stringify({
-                id: data.user.user_id,    // Text ID
-                uuid: data.user.id,        // UUID
-                role: data.user.role,
-                email: data.user.email,
-                name: data.user.full_name
-              }));
-        }
+      /* ================= ADMIN BIOMETRIC ================= */
+      if (formData.role === 'admin') {
+        await handleAdminBiometric(email);
+        return;
+      }
 
+      /* ================= NORMAL USERS ================= */
+      setSuccess('Login successful! Redirecting...');
+      setTimeout(() => {
+        navigate('/verify', { state: { email, role: formData.role } });
+      }, 1000);
+
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
+  /**
+   * Handle biometric authentication for admin users
+   */
+  const handleAdminBiometric = async (email: string) => {
+    try {
+      // Check if biometrics are available
+      const isAvailable = await BiometricService.isBiometricAvailable();
+      
+      if (!isAvailable) {
+        // Device doesn't support biometrics, proceed without it
+        console.log('Biometrics not available on this device');
         setSuccess('Login successful! Redirecting...');
         setTimeout(() => {
           navigate('/verify', {
-            state: {
-              email: data.user?.email || `${formData.userId}@clinic.com`,
-              role: formData.role
-            }
+            state: { email, role: 'admin' }
           });
         }, 1000);
-      } else {
-        // ============================================
-        // DEMO MODE - FOR TESTING WITHOUT BACKEND
-        // ============================================
-        console.log('🎮 Demo mode: No backend detected');
-
-        const userEmail = `${formData.userId}@clinic.com`;
-
-        localStorage.setItem('user_role', formData.role);
-        localStorage.setItem('user_id', formData.userId);
-        localStorage.setItem('user_email', userEmail);
-
-        // 🔑 DEMO LOGIC: Determine if first-time login
-        // Option 1: Check if password is "temp123" (temporary password)
-        // Option 2: Check if user ID starts with "NEW" (new user)
-
-        const isTemporaryPassword = formData.password === 'temp123';
-        const isNewUser = formData.userId.toUpperCase().startsWith('NEW');
-
-        const isFirstLogin = isTemporaryPassword || isNewUser;
-
-        // Store the flag
-        localStorage.setItem('is_first_login', isFirstLogin ? 'true' : 'false');
-
-        console.log('📝 User ID:', formData.userId);
-        console.log('🔑 Password:', formData.password);
-        console.log('🆕 Is First Login:', isFirstLogin);
-        console.log('');
-        console.log('💡 DEMO TESTING INSTRUCTIONS:');
-        console.log('   First-time user → Use password "temp123" OR User ID starting with "NEW"');
-        console.log('   Existing user  → Use any other password and User ID');
-
-        setSuccess('Login successful! Redirecting...');
-        setTimeout(() => {
-          navigate('/verify', {
-            state: {
-              email: userEmail,
-              role: formData.role
-            }
-          });
-        }, 500);
+        return;
       }
-    } catch (err) {
-      console.error('Login error:', err);
 
-      // Demo mode fallback
-      console.log('Error occurred, using demo mode navigation...');
+      // Check if user has registered biometric
+      const hasRegistered = await BiometricService.hasRegisteredBiometric(formData.userId);
 
-      const userEmail = `${formData.userId}@clinic.com`;
-      localStorage.setItem('user_role', formData.role);
-      localStorage.setItem('user_id', formData.userId);
-      localStorage.setItem('user_email', userEmail);
-      localStorage.setItem('is_first_login', 'false'); // Default to existing user
+      // Store pending navigation
+      setPendingNavigation({
+        path: '/verify',
+        options: {
+          state: { email, role: 'admin' }
+        }
+      });
 
+      if (hasRegistered) {
+        // User has biometric, prompt for authentication
+        setBiometricMode('authenticate');
+        setShowBiometricModal(true);
+      } else {
+        // User doesn't have biometric, prompt for registration
+        setBiometricMode('register');
+        setShowBiometricModal(true);
+      }
+
+    } catch (error) {
+      console.error('Biometric check error:', error);
+      // On error, allow user to proceed
       setSuccess('Login successful! Redirecting...');
       setTimeout(() => {
         navigate('/verify', {
-          state: {
-            email: userEmail,
-            role: formData.role
-          }
+          state: { email, role: 'admin' }
         });
-      }, 500);
-    } finally {
-      setIsLoading(false);
+      }, 1000);
     }
   };
 
@@ -316,7 +298,7 @@ const LoginPage: React.FC = () => {
               <div className="text-center">
                 <p className="text-blue-100 text-sm">
                   Need Help?{' '}
-                  <a href="email:fyp2502@gmail.com  " className="text-white hover:text-blue-100 underline font-semibold transition">
+                  <a href="mailto:fyp2502@gmail.com" className="text-white hover:text-blue-100 underline font-semibold transition">
                     Contact Clinic Admin At fyp2502@gmail.com
                   </a>
                 </p>
@@ -336,6 +318,25 @@ const LoginPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Biometric Modal */}
+      <BiometricModal
+        isOpen={showBiometricModal}
+        onClose={() => {
+          setShowBiometricModal(false);
+          // If user closes modal, allow them to proceed
+          if (biometricMode === 'register' && pendingNavigation) {
+            setSuccess('Login successful! Redirecting...');
+            setTimeout(() => {
+              navigate(pendingNavigation.path, pendingNavigation.options);
+            }, 1000);
+          }
+        }}
+        onSuccess={handleBiometricSuccess}
+        userId={formData.userId}
+        userName={formData.userId}
+        mode={biometricMode}
+      />
     </div>
   );
 };
