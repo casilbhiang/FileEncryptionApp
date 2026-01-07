@@ -1,12 +1,3 @@
-interface BiometricCredential {
-    id: string;
-    user_id: string;
-    credential_id: string;
-    public_key: string;
-    device_name: string;
-    created_at: string;
-}
-
 class BiometricService {
     private apiUrl: string;
 
@@ -119,7 +110,7 @@ class BiometricService {
             }
 
             // Get challenge and credential IDs from backend
-            const challengeResponse = await fetch(`${this.apiUrl}/api/auth/biometric/challenge`, {
+            const challengeResponse =await fetch(`${this.apiUrl}/api/auth/biometric/challenge`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_id: userId, type: 'authentication' })

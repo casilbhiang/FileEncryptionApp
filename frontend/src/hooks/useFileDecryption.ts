@@ -1,21 +1,41 @@
 import { useState } from 'react';
-import { decryptFile, type DecryptFileParams } from '../services/Files';
+import { decryptFile } from '../services/Encryption';
 import { useNotifications } from '../contexts/NotificationContext';
 
 /**
  * Hook for handling file decryption with automatic error notifications
  * Implements User Stories DR#17 & PT#14
  */
+
+interface DecryptionParams {
+  encryptedBlob: Blob;
+  iv: string;
+  key: CryptoKey;
+}
+
+interface DecryptFileParams {
+  encryptedBlob: Blob;
+  iv: string;
+  key: CryptoKey;
+  userId: string; 
+}
+
 export const useFileDecryption = () => {
     const [isDecrypting, setIsDecrypting] = useState(false);
     const { addNotification } = useNotifications();
 
     const handleDecrypt = async (params: DecryptFileParams, filename?: string): Promise<Blob | null> => {
         setIsDecrypting(true);
-
+        
         try {
-            const decryptedBlob = await decryptFile(params);
-
+            const decryptParams: DecryptionParams = {
+                encryptedBlob: params.encryptedBlob,
+                iv: params.iv,
+                key: params.key
+            };
+            
+            const decryptedBlob = await decryptFile(decryptParams);
+            
             // Success notification
             addNotification({
                 user_id: params.userId,
@@ -23,7 +43,7 @@ export const useFileDecryption = () => {
                 message: filename ? `${filename} has been decrypted and is ready to download.` : 'File decrypted successfully.',
                 type: 'system'
             });
-
+            
             return decryptedBlob;
         } catch (error: any) {
             // Check if it's a decryption error (422 from backend)
@@ -44,7 +64,7 @@ export const useFileDecryption = () => {
                     type: 'error'
                 });
             }
-
+            
             console.error('Decryption error:', error);
             return null;
         } finally {
