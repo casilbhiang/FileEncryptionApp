@@ -1,5 +1,4 @@
 'use client';
-
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
@@ -11,24 +10,22 @@ import {
   Share2, 
   Eye, 
   ChevronLeft, 
-  ChevronRight 
+  ChevronRight,
+  Lock,
+  Unlock,
+  X
 } from 'lucide-react';
-import { getMyFiles, deleteFile, type FileItem } from '../../services/Files';
-import { useFileDecryption } from '../../hooks/useFileDecryption';
+import { getMyFiles, deleteFile, downloadFile, downloadAndDecryptFile, type FileItem } from '../../services/Files';
+import { getStoredEncryptionKey } from '../../services/Encryption';
 
 const MyFiles: React.FC = () => {
   const location = useLocation();
   const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
+  
   // Get userId from localStorage
   const [userId] = useState<string | null>(() => localStorage.getItem('user_id'));
   const [userUuid] = useState<string | null>(() => localStorage.getItem('user_uuid'));
-
-  console.log('=== MyFiles Component Debug ===');
-  console.log('userId state:', userId);
-  console.log('userUuid state:', userUuid);
-  console.log('localStorage user_uuid:', localStorage.getItem('user_uuid'));
-  console.log('================================');
-
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState('uploaded_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -42,39 +39,49 @@ const MyFiles: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalFiles, setTotalFiles] = useState(0);
   const filesPerPage = 5;
-
-  const { handleDecrypt, isDecrypting } = useFileDecryption();
-  const [decryptingFileId, setDecryptingFileId] = useState<string | null>(null);
-
-  // ===== SIMPLIFIED GETSHARETYPE FUNCTION =====
+  
+  // Download state
+  const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
+  
+  // Modal states
+  const [downloadOptionsModal, setDownloadOptionsModal] = useState<{
+    isOpen: boolean;
+    file: FileItem | null;
+  }>({ isOpen: false, file: null });
+  
+  const [alertModal, setAlertModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'info' | 'warning' | 'error' | 'success';
+  }>({ isOpen: false, title: '', message: '', type: 'info' });
+  
+  // Helper function to show alerts
+  const showAlert = (title: string, message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info') => {
+    setAlertModal({ isOpen: true, title, message, type });
+  };
+  
   const getShareType = (file: FileItem): 'shared-by-me' | 'shared-with-me' | 'owned' | 'unknown' => {
     if (!userId) return 'unknown';
     
-    // File is owned by current user
     if (file.is_owned === true) {
-      // If it's shared, you shared it
       if (file.is_shared === true || (file.shared_count && file.shared_count > 0)) {
         return 'shared-by-me';
       }
-      // Owned but not shared
       return 'owned';
     }
     
-    // File is NOT owned by you but has shared_by field
     if (file.shared_by && file.shared_by !== userId) {
       return 'shared-with-me';
     }
     
-    // File is NOT owned by you and has is_shared = true
     if (file.is_shared === true && !file.is_owned) {
       return 'shared-with-me';
     }
     
-    // Default fallback
     return 'unknown';
   };
-
-  // ===== SHARE BADGE HELPER =====
+  
   const getShareBadge = (file: FileItem) => {
     const shareType = getShareType(file);
     
@@ -102,7 +109,6 @@ const MyFiles: React.FC = () => {
       );
     }
     
-    // Default fallback for shared files
     if (file.is_shared) {
       return (
         <span className="px-2 py-0.5 bg-cyan-100 text-cyan-800 rounded-full text-xs font-medium">
@@ -113,8 +119,7 @@ const MyFiles: React.FC = () => {
     
     return null;
   };
-
-  // ===== GET OWNER/SHARER INFO =====
+  
   const getFileSourceInfo = (file: FileItem) => {
     const shareType = getShareType(file);
     
@@ -136,12 +141,11 @@ const MyFiles: React.FC = () => {
     
     return '';
   };
-
-  // Fetch files from backend
+  
   useEffect(() => {
     fetchFiles();
   }, [currentPage, sortField, sortOrder, filterType, searchQuery]);
-
+  
   const fetchFiles = async () => {
     try {
       setLoading(true);
@@ -158,11 +162,9 @@ const MyFiles: React.FC = () => {
         setFiles(response.files);
         setTotalFiles(response.total);
         
-        // Calculate total pages from response
         if (response.pagination) {
           setTotalPages(response.pagination.pages);
         } else {
-          // Fallback calculation
           setTotalPages(Math.ceil(response.total / filesPerPage));
         }
       }
@@ -173,112 +175,165 @@ const MyFiles: React.FC = () => {
       setLoading(false);
     }
   };
-
+  
   const handleSortChange = (value: string) => {
     let field: string;
     let order: 'asc' | 'desc';
     
     if (value.startsWith('-')) {
-      // Remove the '-' prefix
       field = value.substring(1);
-      
-      // Determine order based on field type
-      if (field === 'uploaded_at') {
-        order = 'asc';  // -uploaded_at = Oldest (asc)
-      } else {
-        order = 'desc'; // -name = Z-A (desc), -size = Largest (desc)
-      }
+      order = field === 'uploaded_at' ? 'asc' : 'desc';
     } else {
-      // No prefix
       field = value;
-      
-      // Determine order based on field type
-      if (field === 'uploaded_at') {
-        order = 'desc'; // uploaded_at = Newest (desc)
-      } else {
-        order = 'asc';  // name = A-Z (asc), size = Smallest (asc)
-      }
+      order = field === 'uploaded_at' ? 'desc' : 'asc';
     }
     
     setSortField(field);
     setSortOrder(order);
     setCurrentPage(1);
   };
-
-// Helper function to get current select value
-const getCurrentSortValue = () => {
-    // Map field + order combinations to option values
+  
+  const getCurrentSortValue = () => {
     if (sortField === 'uploaded_at' && sortOrder === 'desc') return 'uploaded_at';
     if (sortField === 'uploaded_at' && sortOrder === 'asc') return '-uploaded_at';
     if (sortField === 'name' && sortOrder === 'asc') return 'name';
     if (sortField === 'name' && sortOrder === 'desc') return '-name';
     if (sortField === 'size' && sortOrder === 'asc') return 'size';
     if (sortField === 'size' && sortOrder === 'desc') return '-size';
-    return 'uploaded_at'; // default
+    return 'uploaded_at';
   };
-
+  
   const handleSearch = () => {
     setCurrentPage(1);
     fetchFiles();
   };
-
-  const handleDownload = async (file: FileItem) => {
+  
+  const handleDownloadClick = (file: FileItem) => {
+    setDownloadOptionsModal({ isOpen: true, file });
+  };
+  
+  const handleDownloadEncrypted = async (file: FileItem) => {
     try {
-      setDecryptingFileId(file.id);
-
-      if (userUuid) {
-        // Use the hook to decrypt (handles notifications automatically)
-        const blob = await handleDecrypt({ fileId: file.id, userId: userUuid }, file.name);
-
-        if (blob) {
-          // Create download link if decryption succeeded
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = file.name;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-        }
-      }
+      setDownloadingFileId(file.id);
+      setDownloadOptionsModal({ isOpen: false, file: null });
+      
+      const encryptedBlob = await downloadFile(file.id);
+      
+      const url = window.URL.createObjectURL(encryptedBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${file.name}.enc`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
     } catch (error) {
-      console.error('Download process failed:', error);
+      console.error('Download failed:', error);
+      showAlert(
+        'Download Failed',
+        error instanceof Error ? error.message : 'Failed to download file.',
+        'error'
+      );
     } finally {
-      setDecryptingFileId(null);
+      setDownloadingFileId(null);
     }
   };
-
+  
+  const handleDownloadDecrypted = async (file: FileItem) => {
+    if (!userId || !userUuid) {
+      showAlert(
+        'Authentication Error',
+        'User information not found. Please log in again.',
+        'error'
+      );
+      return;
+    }
+    
+    try {
+      setDownloadingFileId(file.id);
+      setDownloadOptionsModal({ isOpen: false, file: null });
+      
+      const key = await getStoredEncryptionKey(userId);
+      
+      if (!key) {
+        showAlert(
+          'Encryption Key Not Found',
+          'Your encryption key is not available.\n\nPlease scan the QR code provided by the System Administrator to restore access to your encrypted files.',
+          'warning'
+        );
+        return;
+      }
+      
+      const { blob, filename } = await downloadAndDecryptFile({
+        fileId: file.id,
+        userUuid: userUuid,
+        decryptionKey: key
+      });
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+    } catch (error) {
+      console.error('Download failed:', error);
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Decryption failed')) {
+          showAlert(
+            'Decryption Failed',
+            'Failed to decrypt the file. Your encryption key may be incorrect or the file may be corrupted.',
+            'error'
+          );
+        } else if (error.message.includes('metadata not found')) {
+          showAlert(
+            'Encryption Error',
+            'This file was not properly encrypted or the encryption information is missing.',
+            'error'
+          );
+        } else {
+          showAlert('Download Failed', error.message, 'error');
+        }
+      } else {
+        showAlert('Download Failed', 'An unexpected error occurred during download.', 'error');
+      }
+    } finally {
+      setDownloadingFileId(null);
+    }
+  };
+  
   const handleDelete = async (file: FileItem) => {
     if (window.confirm(`Delete ${file.name}?`)) {
       try {
         if (userUuid) {
           await deleteFile(file.id, userUuid);
-          // Refresh file list
           fetchFiles();
         }
       } catch (error) {
         console.error('Delete failed:', error);
-        alert('Failed to delete file');
+        showAlert('Delete Failed', 'Failed to delete file.', 'error');
       }
     }
   };
-
-  // Keep all your existing helper functions (formatFileSize, formatDetailedTimestamp, etc.)
+  
   const formatFileSize = (bytes: number | undefined): string => {
     if (!bytes) return '0 B';
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
-
+  
   const formatDetailedTimestamp = (timestamp: string | undefined): string => {
     if (!timestamp) return 'Never';
     
     try {
       const date = new Date(timestamp);
       
-      // Format: "Jan 15, 2024 at 2:30 PM"
       const dateString = date.toLocaleDateString('en-US', { 
         year: 'numeric',
         month: 'short', 
@@ -296,17 +351,16 @@ const getCurrentSortValue = () => {
       
       return `${dateString} at ${timeString}`;
     } catch (error) {
-      console.error('Error formatting timestamp:', timestamp, error);
       return 'Invalid date';
     }
   };
-
+  
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
     }
   };
-
+  
   const getPageNumbers = () => {
     const pages = [];
     const maxVisiblePages = 5;
@@ -331,7 +385,7 @@ const getCurrentSortValue = () => {
     
     return pages;
   };
-
+  
   const handleClearFilters = () => {
     setSearchQuery('');
     setFilterType('all');
@@ -340,24 +394,22 @@ const getCurrentSortValue = () => {
     setCurrentPage(1);
     fetchFiles();
   };
-
+  
   return (
     <div className="min-h-screen bg-gray-100 flex">
       <Sidebar userRole={userRole} currentPage="my-files" />
-
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
         <div className="mb-6">
           <h1 className="text-2xl lg:text-3xl font-bold mb-2">MY FILES</h1>
           
           {error && (
             <div className="mb-4 p-3 bg-red-50 text-red-600 rounded text-sm">
-              <span>⚠️ {error}</span>
               <button onClick={fetchFiles} className="ml-2 text-blue-600 underline">
                 Try again
               </button>
             </div>
           )}
-
+          
           <div className="flex flex-col sm:flex-row gap-3 mt-4">
             <div className="flex-1">
               <input
@@ -404,12 +456,12 @@ const getCurrentSortValue = () => {
               <option value="my_uploads">My Uploads</option>
             </select>
           </div>
-
+          
           <div className="mt-3 text-sm text-gray-600">
             Showing {((currentPage - 1) * filesPerPage) + 1} - {Math.min(currentPage * filesPerPage, totalFiles)} of {totalFiles} files
           </div>
         </div>
-
+        
         {loading ? (
           <div className="bg-white rounded-lg p-8 text-center">
             <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-2" />
@@ -420,7 +472,6 @@ const getCurrentSortValue = () => {
             <div className="space-y-3">
               {files.map((file) => (
                 <div key={file.id} className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
-                  {/* File Header */}
                   <div className="flex flex-col sm:flex-row justify-between gap-3 mb-4">
                     <div className="flex-1">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
@@ -436,12 +487,12 @@ const getCurrentSortValue = () => {
                     
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => handleDownload(file)}
-                        disabled={isDecrypting && decryptingFileId === file.id}
+                        onClick={() => handleDownloadClick(file)}
+                        disabled={downloadingFileId === file.id}
                         className="p-2 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
-                        title="Download"
+                        title="Download options"
                       >
-                        {isDecrypting && decryptingFileId === file.id ? (
+                        {downloadingFileId === file.id ? (
                           <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
                         ) : (
                           <Download className="w-5 h-5 text-blue-600" />
@@ -456,11 +507,9 @@ const getCurrentSortValue = () => {
                       </button>
                     </div>
                   </div>
-
-                  {/* Timestamps Section */}
+                  
                   <div className="border-t pt-3">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                      {/* Uploaded */}
                       <div className="flex items-start gap-2 p-2 bg-gray-50 rounded">
                         <Upload className="w-4 h-4 text-gray-400 mt-0.5" />
                         <div>
@@ -470,8 +519,6 @@ const getCurrentSortValue = () => {
                           </div>
                         </div>
                       </div>
-
-                      {/* Shared */}
                       <div className="flex items-start gap-2 p-2 bg-gray-50 rounded">
                         <Share2 className="w-4 h-4 text-gray-400 mt-0.5" />
                         <div>
@@ -481,8 +528,6 @@ const getCurrentSortValue = () => {
                           </div>
                         </div>
                       </div>
-
-                      {/* Last Accessed */}
                       <div className="flex items-start gap-2 p-2 bg-gray-50 rounded">
                         <Eye className="w-4 h-4 text-gray-400 mt-0.5" />
                         <div>
@@ -497,8 +542,7 @@ const getCurrentSortValue = () => {
                 </div>
               ))}
             </div>
-
-            {/* Pagination */}
+            
             {totalPages > 1 && (
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t">
                 <div className="text-sm text-gray-600">
@@ -510,7 +554,6 @@ const getCurrentSortValue = () => {
                     onClick={() => goToPage(currentPage - 1)}
                     disabled={currentPage === 1 || loading}
                     className="p-2 rounded-lg border hover:bg-gray-50 disabled:opacity-50"
-                    title="Previous page"
                   >
                     <ChevronLeft className="w-5 h-5" />
                   </button>
@@ -532,7 +575,6 @@ const getCurrentSortValue = () => {
                     onClick={() => goToPage(currentPage + 1)}
                     disabled={currentPage === totalPages || loading}
                     className="p-2 rounded-lg border hover:bg-gray-50 disabled:opacity-50"
-                    title="Next page"
                   >
                     <ChevronRight className="w-5 h-5" />
                   </button>
@@ -551,7 +593,6 @@ const getCurrentSortValue = () => {
                         setCurrentPage(page);
                       }
                     }}
-                    onKeyDown={(e) => e.key === 'Enter' && goToPage(currentPage)}
                     className="w-16 px-2 py-1 border rounded text-center"
                     disabled={loading}
                   />
@@ -570,6 +611,99 @@ const getCurrentSortValue = () => {
           </div>
         )}
       </div>
+      
+      {/* Download Options Modal - Inline */}
+      {downloadOptionsModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div 
+            className="absolute inset-0 bg-black bg-opacity-50"
+            onClick={() => setDownloadOptionsModal({ isOpen: false, file: null })}
+          />
+          
+          <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6 z-10">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-gray-900">Download Options</h3>
+              <button
+                onClick={() => setDownloadOptionsModal({ isOpen: false, file: null })}
+                className="p-1 hover:bg-gray-100 rounded-lg transition"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <p className="text-gray-600 mb-6">
+                Choose how you want to download: <strong>{downloadOptionsModal.file?.name}</strong>
+              </p>
+              
+              <button
+                onClick={() => downloadOptionsModal.file && handleDownloadDecrypted(downloadOptionsModal.file)}
+                className="w-full flex items-center gap-3 p-4 border-2 border-green-500 rounded-lg hover:bg-green-50 transition group"
+              >
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center group-hover:bg-green-200">
+                  <Unlock className="w-6 h-6 text-green-600" />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="font-semibold text-gray-900">Download & Decrypt</div>
+                  <div className="text-sm text-gray-600">Download and decrypt the file for viewing</div>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => downloadOptionsModal.file && handleDownloadEncrypted(downloadOptionsModal.file)}
+                className="w-full flex items-center gap-3 p-4 border-2 border-blue-500 rounded-lg hover:bg-blue-50 transition group"
+              >
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center group-hover:bg-blue-200">
+                  <Lock className="w-6 h-6 text-blue-600" />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="font-semibold text-gray-900">Download Encrypted</div>
+                  <div className="text-sm text-gray-600">Download the encrypted file (.enc)</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Alert Modal - Inline */}
+      {alertModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div 
+            className="absolute inset-0 bg-black bg-opacity-50"
+            onClick={() => setAlertModal({ ...alertModal, isOpen: false })}
+          />
+          
+          <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6 z-10">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-gray-900">{alertModal.title}</h3>
+              <button
+                onClick={() => setAlertModal({ ...alertModal, isOpen: false })}
+                className="p-1 hover:bg-gray-100 rounded-lg transition"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            
+            <div className="mb-6">
+              <div className={`text-4xl mb-4 text-center ${
+                alertModal.type === 'error' ? 'text-red-600' :
+                alertModal.type === 'warning' ? 'text-orange-600' :
+                alertModal.type === 'success' ? 'text-green-600' :
+                'text-blue-600'
+              }`}>
+              </div>
+              <p className="text-gray-700 text-center whitespace-pre-line">{alertModal.message}</p>
+            </div>
+            <button
+              onClick={() => setAlertModal({ ...alertModal, isOpen: false })}
+              className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

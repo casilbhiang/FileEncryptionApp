@@ -29,8 +29,6 @@ export interface FileItem {
   shared_count?: number;
   owner_name?: string; 
   owner_role?: string;
-  
-  // Legacy support
   file_size?: number;
 }
 
@@ -44,6 +42,13 @@ export interface EncryptionMetadata {
   iv: string;
   authTag: string;
   algorithm: string;
+  originalSize?: number;
+  encryptedSize?: number;
+}
+
+export interface FileMetadata {
+  original_filename: string;
+  encryption_metadata: EncryptionMetadata;
 }
 
 export interface PaginationInfo {
@@ -77,6 +82,16 @@ export interface ShareResponse {
   file_name: string;
   shared_with: string;
   access_level: string;
+}
+
+export interface DecryptFileParams {
+    fileId: string;
+    encryptedData: ArrayBuffer;
+    encryptionMetadata: {
+        iv: string;
+        authTag: string;
+        [key: string]: any;
+    };
 }
 
 /* File Upload */
@@ -161,7 +176,7 @@ export const getMyFiles = async (
   }
 };
 
-/* Format file size for display - From Code #1 */
+/* Format file size for display */
 export const formatFileSize = (bytes: number): string => {
   if (bytes === 0) return '0 Bytes';
   const k = 1024;
@@ -170,26 +185,121 @@ export const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
+/* Get File Metadata (including encryption IV) */
+export const getFileMetadata = async (
+  fileId: string, 
+  userUuid: string
+): Promise<FileMetadata> => {
+  const response = await fetch(
+    `${API_BASE_URL}/metadata/${fileId}?user_uuid=${userUuid}`
+  );
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Failed to fetch metadata' }));
+    throw new Error(error.error || 'Failed to fetch metadata');
+  }
+  
+  return response.json();
+};
+
 /* Download File */
 export const downloadFile = async (fileId: string): Promise<Blob> => {
   const response = await fetch(`${API_BASE_URL}/download/${fileId}`);
-
+  
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Download failed' }));
     throw new Error(error.error || 'Download failed');
   }
-
+  
   const data = await response.json();
-
-  // Convert hex string to byte
+  
+  // Convert hex string to bytes
   const bytes = new Uint8Array(
     data.data.match(/.{1,2}/g)!.map((byte: string) => parseInt(byte, 16))
   );
-
+  
   return new Blob([bytes]);
 };
 
-/* Delete File - Enhanced with better response */
+/* Complete Download & Decrypt */
+export interface DownloadAndDecryptParams {
+  fileId: string;
+  userUuid: string;
+  decryptionKey: CryptoKey;
+}
+
+export const downloadAndDecryptFile = async ({
+  fileId,
+  userUuid,
+  decryptionKey
+}: DownloadAndDecryptParams): Promise<{ blob: Blob; filename: string }> => {
+  console.log('=== Starting download and decrypt ===');
+  console.log('File ID:', fileId);
+  
+  try {
+    // Step 1: Get file metadata (including IV)
+    console.log('Fetching metadata...');
+    const metadata = await getFileMetadata(fileId, userUuid);
+    console.log('Metadata retrieved:', {
+      filename: metadata.original_filename,
+      iv: metadata.encryption_metadata.iv
+    });
+    
+    if (!metadata.encryption_metadata || !metadata.encryption_metadata.iv) {
+      throw new Error('Encryption metadata not found. File may not be encrypted.');
+    }
+    
+    // Step 2: Download encrypted file
+    console.log('Downloading encrypted file...');
+    const encryptedBlob = await downloadFile(fileId);
+    console.log('Downloaded, size:', encryptedBlob.size);
+    
+    // Step 3: Decrypt using Web Crypto API
+    console.log('Decrypting file...');
+    const encryptedData = await encryptedBlob.arrayBuffer();
+    
+    // Convert IV from base64
+    const ivString = metadata.encryption_metadata.iv;
+    const ivBinary = atob(ivString);
+    const ivArray = new Uint8Array(ivBinary.length);
+    for (let i = 0; i < ivBinary.length; i++) {
+      ivArray[i] = ivBinary.charCodeAt(i);
+    }
+    
+    console.log('IV length:', ivArray.length);
+    console.log('Encrypted data size:', encryptedData.byteLength);
+    
+    // Decrypt with AES-GCM
+    const decryptedData = await crypto.subtle.decrypt(
+      {
+        name: 'AES-GCM',
+        iv: ivArray
+      },
+      decryptionKey,
+      encryptedData
+    );
+    
+    console.log('Decrypted successfully, size:', decryptedData.byteLength);
+    
+    const decryptedBlob = new Blob([decryptedData]);
+    
+    return {
+      blob: decryptedBlob,
+      filename: metadata.original_filename
+    };
+    
+  } catch (error) {
+    console.error('Download/decrypt error:', error);
+    
+    if (error instanceof Error && error.name === 'OperationError') {
+      throw new Error('Decryption failed: Wrong encryption key or corrupted file');
+    }
+    
+    throw error;
+  }
+};
+
+/* Delete File */
 export const deleteFile = async (
   fileId: string, 
   userUuid: string
@@ -206,7 +316,7 @@ export const deleteFile = async (
   return response.json();
 };
 
-/* Share File - From Code #2 (missing in Code #1) */
+/* Share File */
 export const shareFile = async (
   params: ShareFileParams
 ): Promise<{ success: boolean; data?: ShareResponse; error?: string }> => {
@@ -247,42 +357,6 @@ export const shareFile = async (
   }
 };
 
-/* Decrypt File */
-export interface DecryptFileParams {
-  fileId: string;
-  userId: string;
-}
-
-export interface DecryptionError {
-  error: string;
-  message: string;
-  details?: string;
-}
-
-export const decryptFile = async ({ 
-  fileId, 
-  userId 
-}: DecryptFileParams): Promise<Blob> => {
-  const response = await fetch(
-    `${API_BASE_URL}/decrypt/${fileId}?user_uuid=${userId}`
-  );
-
-  if (!response.ok) {
-    if (response.status === 422) {
-      const errorData: DecryptionError = await response.json();
-      const error = new Error(errorData.message || 'Decryption failed');
-      (error as any).isDecryptionError = true;
-      (error as any).details = errorData.details;
-      throw error;
-    }
-
-    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(errorData.error || 'Failed to decrypt file');
-  }
-
-  return response.blob();
-};
-
 /* Confirm Upload */
 export const confirmUpload = async (fileId: string): Promise<void> => {
   const response = await fetch(`${API_BASE_URL}/confirm/${fileId}`, {
@@ -295,7 +369,7 @@ export const confirmUpload = async (fileId: string): Promise<void> => {
   }
 };
 
-/* Get Recent Activity (from FileStorageService) */
+/* Get Recent Activity */
 export const getRecentActivity = async (
   userId: string, 
   limit: number = 10
