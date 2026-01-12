@@ -9,6 +9,8 @@ const ACreateUserPage: React.FC = () => {
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
+    nric: '',
+    dateOfBirth: '',
     userId: '',
     password: '',
   });
@@ -42,6 +44,14 @@ const ACreateUserPage: React.FC = () => {
       setError('Please enter email address');
       return;
     }
+    if (!formData.nric) {
+      setError('Please enter NRIC');
+      return;
+    }
+    if (!formData.dateOfBirth) {
+      setError('Please enter date of birth');
+      return;
+    }
     if (!selectedRole) {
       setError('Please select a user role');
       return;
@@ -68,6 +78,8 @@ const ACreateUserPage: React.FC = () => {
       const requestBody: any = {
         full_name: formData.fullName,
         email: formData.email,
+        nric: formData.nric,
+        date_of_birth: formData.dateOfBirth,
         role: selectedRole.toLowerCase(),
       };
 
@@ -192,9 +204,36 @@ const ACreateUserPage: React.FC = () => {
               </label>
               <input
                 type="email"
-                placeholder="user@email.com"
+                placeholder="enter email address"
                 value={formData.email}
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            {/* NRIC */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2">
+                NRIC
+              </label>
+              <input
+                type="text"
+                placeholder="enter NRIC"
+                value={formData.nric}
+                onChange={(e) => setFormData(prev => ({ ...prev, nric: e.target.value.toUpperCase() }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            {/* Date of Birth */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2">
+                Date of Birth
+              </label>
+              <input
+                type="date"
+                value={formData.dateOfBirth}
+                onChange={(e) => setFormData(prev => ({ ...prev, dateOfBirth: e.target.value }))}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -240,7 +279,7 @@ const ACreateUserPage: React.FC = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Age</label>
                   <input
                     type="number"
-                    placeholder="38"
+                    placeholder="enter age"
                     value={healthProfile.age}
                     onChange={(e) => setHealthProfile(prev => ({ ...prev, age: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
@@ -250,7 +289,7 @@ const ACreateUserPage: React.FC = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Sex</label>
                   <input
                     type="text"
-                    placeholder="F"
+                    placeholder="enter sex"
                     value={healthProfile.sex}
                     onChange={(e) => setHealthProfile(prev => ({ ...prev, sex: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
@@ -260,7 +299,7 @@ const ACreateUserPage: React.FC = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Blood Type</label>
                   <input
                     type="text"
-                    placeholder="B+"
+                    placeholder="enter blood type"
                     value={healthProfile.bloodType}
                     onChange={(e) => setHealthProfile(prev => ({ ...prev, bloodType: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
@@ -270,7 +309,7 @@ const ACreateUserPage: React.FC = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Height</label>
                   <input
                     type="text"
-                    placeholder="165cm"
+                    placeholder="enter height"
                     value={healthProfile.height}
                     onChange={(e) => setHealthProfile(prev => ({ ...prev, height: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
@@ -280,7 +319,7 @@ const ACreateUserPage: React.FC = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Weight</label>
                   <input
                     type="text"
-                    placeholder="60kg"
+                    placeholder="enter weight"
                     value={healthProfile.weight}
                     onChange={(e) => setHealthProfile(prev => ({ ...prev, weight: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
@@ -294,7 +333,7 @@ const ACreateUserPage: React.FC = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Allergies</label>
                   <input
                     type="text"
-                    placeholder="Pollen, Nuts"
+                    placeholder="enter allergies"
                     value={healthProfile.allergies}
                     onChange={(e) => setHealthProfile(prev => ({ ...prev, allergies: e.target.value }))}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg"
@@ -305,7 +344,7 @@ const ACreateUserPage: React.FC = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Chronic Conditions</label>
                   <input
                     type="text"
-                    placeholder="Diabetes (Type2), Hypertension"
+                    placeholder="enter chronic conditions"
                     value={healthProfile.chronicConditions}
                     onChange={(e) => setHealthProfile(prev => ({ ...prev, chronicConditions: e.target.value }))}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg"
@@ -316,7 +355,7 @@ const ACreateUserPage: React.FC = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Vaccinations</label>
                   <input
                     type="text"
-                    placeholder="Covid-19 (Pfizer) - 2020, Influenza - 2024"
+                    placeholder="enter vaccinations"
                     value={healthProfile.vaccinations}
                     onChange={(e) => setHealthProfile(prev => ({ ...prev, vaccinations: e.target.value }))}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg"
