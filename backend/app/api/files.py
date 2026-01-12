@@ -1,253 +1,86 @@
-"""
-API endpoints for file encryption and decryption (User's AES-GCM)
-AND File Upload to Supabase (Friend's logic)
-"""
+# Backend API for File Management Encryption (may remove?) JY VER
+
 from flask import Blueprint, request, jsonify, send_file
 from werkzeug.utils import secure_filename
 import os
 import uuid
-import io
-from datetime import datetime, timedelta
 from supabase import create_client
-
-# User's imports
+from datetime import datetime, timedelta
+import io
+import base64
+from app.models.storage import key_pair_store
 from app.crypto.encryption import EncryptionManager
-from app.models.encryption_models import EncryptedFile
-from app.models.storage import key_pair_store, encrypted_file_store
+from config import Config
 
 # Configuration
 SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY') # Using Service Role Key for backend
-# Fallback to anon key if service role not found, but service role is better for backend
+SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+STORAGE_BUCKET = 'encrypted-files'
+MAX_FILE_SIZE = 50*1024*1024
+ALLOWED_FILE_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg'}
+
+# Initialize Supabase
 if not SUPABASE_SERVICE_ROLE_KEY:
     SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
 
-STORAGE_BUCKET = 'encrypted-files'
-MAX_FILE_SIZE = 50*1024*1024
-ALLOWED_FILE_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg', '.docx'}
+supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-# Initialize Supabase
-supabase = None
-if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
-    supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-
-# Blueprint
-# Using HEAD's definition (no prefix) so __init__.py controls it.
-files_bp = Blueprint('files', __name__)
-
-# Test user (from Friend's code)
-test_user = {
-    'id': '790f3fdd-7d0a-4ab8-b6a3-d413d3b04853', 
-    'user_id': 'DR001',
-    'full_name': 'Test Name'
-}
-
-# ==========================================
-# USER'S AES-GCM ENDPOINTS
-# ==========================================
-
-@files_bp.route('/encrypt', methods=['POST'])
-def encrypt_file():
-    """Encrypt a file before upload (Local/In-Memory Store)"""
-    try:
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file part'}), 400
-        
-        file = request.files['file']
-        key_pair_id = request.form.get('key_pair_id')
-        owner_id = request.form.get('owner_id')
-        
-        if not file or file.filename == '':
-            return jsonify({'error': 'No selected file'}), 400
-        
-        if not key_pair_id or not owner_id:
-            return jsonify({'error': 'key_pair_id and owner_id are required'}), 400
-        
-        # Get key pair
-        key_pair = key_pair_store.get(key_pair_id)
-        if not key_pair:
-            return jsonify({'error': 'Key pair not found'}), 404
-        
-        if key_pair.status != 'Active':
-            return jsonify({'error': 'Key pair is not active'}), 403
-        
-        # Read file data
-        file_data = file.read()
-        file_size = len(file_data)
-        
-        # Get encryption key
-        key = EncryptionManager.base64_to_key(key_pair.encryption_key)
-        
-        # Encrypt file
-        ciphertext_b64, nonce_b64 = EncryptionManager.encrypt_file(file_data, key)
-        
-        # Generate file ID
-        file_id = f"f-{uuid.uuid4().hex[:16]}"
-        
-        # Create encrypted file record
-        encrypted_file = EncryptedFile(
-            file_id=file_id,
-            filename=file.filename,
-            owner_id=owner_id,
-            key_pair_id=key_pair_id,
-            ciphertext=ciphertext_b64,
-            nonce=nonce_b64,
-            file_size=file_size,
-            mime_type=file.content_type or 'application/octet-stream'
-        )
-        
-        # Store file record
-        encrypted_file_store.create(encrypted_file)
-        
-        return jsonify({
-            'success': True,
-            'file_id': file_id,
-            'filename': encrypted_file.filename,
-            'ciphertext': ciphertext_b64,
-            'nonce': nonce_b64,
-            'file_size': file_size
-        }), 201
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@files_bp.route('/decrypt/<file_id>', methods=['GET'])
-def decrypt_file(file_id):
-    """Decrypt a file and download it (Local/In-Memory Store)"""
-    try:
-        user_id = request.args.get('user_id')
-        if not user_id:
-            return jsonify({'error': 'user_id is required'}), 400
-        
-        # Get file record
-        encrypted_file = encrypted_file_store.get(file_id)
-        if not encrypted_file:
-            return jsonify({'error': 'File not found'}), 404
-        
-        # Get key pair
-        key_pair = key_pair_store.get(encrypted_file.key_pair_id)
-        if not key_pair:
-            return jsonify({'error': 'Encryption key not found'}), 404
-        
-        # Verify authorization
-        if user_id != key_pair.doctor_id and user_id != key_pair.patient_id:
-            return jsonify({'error': 'Unauthorized to decrypt this file'}), 403
-        
-        try:
-            # Get encryption key
-            key = EncryptionManager.base64_to_key(key_pair.encryption_key)
-            
-            # Decrypt file
-            decrypted_data = EncryptionManager.decrypt_file(
-                encrypted_file.ciphertext,
-                encrypted_file.nonce,
-                key
-            )
-            
-            # Return file
-            return send_file(
-                io.BytesIO(decrypted_data),
-                mimetype=encrypted_file.mime_type,
-                as_attachment=True,
-                download_name=encrypted_file.filename
-            )
-            
-        except Exception as e:
-            # User Story #17 & #14: Notify if decryption fails
-            return jsonify({
-                'error': 'Decryption failed',
-                'message': 'The file could not be decrypted. The encryption key may be incorrect or the file may be corrupted.',
-                'details': str(e)
-            }), 422
-            
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@files_bp.route('/list', methods=['GET'])
-def list_files():
-    """List encrypted files (Local/In-Memory Store)"""
-    try:
-        owner_id = request.args.get('owner_id')
-        key_pair_id = request.args.get('key_pair_id')
-        
-        if owner_id:
-            files = encrypted_file_store.list_by_owner(owner_id)
-        elif key_pair_id:
-            files = encrypted_file_store.list_by_key_pair(key_pair_id)
-        else:
-            return jsonify({'error': 'owner_id or key_pair_id is required'}), 400
-        
-        return jsonify({
-            'success': True,
-            'files': [f.to_dict() for f in files],
-            'count': len(files)
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@files_bp.route('/<file_id>', methods=['DELETE'])
-def delete_local_record(file_id):
-    """Delete an encrypted file record (Local/In-Memory Store)"""
-    try:
-        success = encrypted_file_store.delete(file_id)
-        if not success:
-            return jsonify({'error': 'File not found'}), 404
-        
-        return jsonify({
-            'success': True,
-            'message': 'File deleted successfully'
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-# ==========================================
-# FRIEND'S SUPABASE UPLOAD ENDPOINTS
-# ==========================================
+# Blueprint for file routes
+files_bp = Blueprint('files', __name__, url_prefix='/api/files')
 
 # ===== Upload File (status: 'pending') =====
 @files_bp.route('/upload', methods=['POST'])
 def upload_file():
     try:
-        if not supabase:
-             return jsonify({'error': 'Supabase not configured'}), 500
-
         if 'file' not in request.files:
             return jsonify({'error': 'No file provided'}), 400
         
         file = request.files['file']
-        
+        user_id = request.form.get('user_id')
+        user_uuid = request.form.get('user_uuid')
+        encryption_metadata_str = request.form.get('encryption_metadata')
+
+        if not user_id:
+             return jsonify({'error': 'User ID is required'}), 400
+             
+        if not encryption_metadata_str:
+             # If no metadata provided, assuming it might be a normal file or error? 
+             # For this app, we expect encryption.
+             return jsonify({'error': 'Encryption metadata is required'}), 400
+
+        import json
+        encryption_metadata = json.loads(encryption_metadata_str)
+
         if file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
         
-        # Check file extension
-        file_ext = os.path.splitext(file.filename)[1].lower()
+        # Check file extension (sanity check, though encrypted files might have .enc or original ext)
+        # The frontend sends original filename in 'file.name' usually, but let's check.
+        # If client sends "foo.pdf" as blob name, we trust it.
+        original_filename = secure_filename(file.filename)
+        file_ext = os.path.splitext(original_filename)[1].lower()
+        
         if file_ext not in ALLOWED_FILE_EXTENSIONS:
             return jsonify({'error': f'File type not allowed. Allowed types: {ALLOWED_FILE_EXTENSIONS}'}), 400
-        
-        # Check file size
+            
+        # Check file size (Supabase limit is high, but we have a variable)
         file.seek(0, os.SEEK_END)
         file_size = file.tell()
         file.seek(0)
         
         if file_size > MAX_FILE_SIZE:
-            return jsonify({'error': 'File size exceeds the maximum limit of 50MB'}), 400
-        
-        # Read file
+             return jsonify({'error': 'File size exceeds the maximum limit of 50MB'}), 400
+
         file_data = file.read()
-        original_filename = secure_filename(file.filename)
         
         # Create unique encrypted filename
-        encrypted_filename = f"{uuid.uuid4()}{file_ext}.enc"
-        storage_path = f"{test_user['id']}/{encrypted_filename}"
+        # We append .enc to denote it's stored encrypted
+        unique_id = str(uuid.uuid4())
+        encrypted_filename = f"{unique_id}{file_ext}.enc"
+        storage_path = f"{user_id}/{encrypted_filename}"
         
-        # Upload to Supabase Storage
-        print(f"Uploading to: {storage_path}")
+        # Upload to Supabase Storage (It is ALREADY encrypted by client)
+        print(f"Uploading to: {storage_path} for user {user_id}")
         supabase.storage.from_(STORAGE_BUCKET).upload(
             path=storage_path,
             file=file_data,
@@ -256,20 +89,28 @@ def upload_file():
         
         # Save metadata to database with 'pending' status
         file_record = {
-            'owner_id': test_user['id'],
+            'userid': user_uuid,
+            'owner_id': user_id,
             'original_filename': original_filename,
             'encrypted_filename': encrypted_filename,
             'file_size': file_size,
-            'mime_type': file.content_type,
+            'mime_type': file.content_type, # This might be application/octet-stream if set by client
             'file_extension': file_ext,
-            'encryption_metadata': {'iv': 'test', 'auth_tag': 'test', 'algorithm': 'AES-GCM-256'},
+            'encryption_metadata': encryption_metadata,
             'storage_bucket': STORAGE_BUCKET,
             'storage_path': storage_path,
             'upload_status': 'pending' 
         }
         
         result = supabase.table('encrypted_files').insert(file_record).execute()
-        file_id = result.data[0]['id']
+        
+        # Handle potential response format differences
+        if hasattr(result, 'data') and len(result.data) > 0:
+             file_id = result.data[0]['id']
+        else:
+             # Fallback or error
+             print("Insert result:", result)
+             return jsonify({'error': 'Failed to save file record'}), 500
         
         print(f'File uploaded successfully with PENDING status! File ID: {file_id}')
         
@@ -290,9 +131,6 @@ def upload_file():
 @files_bp.route('/confirm/<file_id>', methods=['POST'])
 def confirm_upload(file_id):
     try:
-        if not supabase:
-             return jsonify({'error': 'Supabase not configured'}), 500
-
         print(f"Confirming upload for file_id: {file_id}")
         
         result = supabase.table('encrypted_files')\
@@ -315,33 +153,205 @@ def confirm_upload(file_id):
         print(f"Full traceback:\n{error_details}")
         return jsonify({'error': f'{str(e)}', 'details': error_details}), 500
     
-# ===== List Files =====
+# ===== Enhanced List Files with Search, Filter, and Sort for MyFiles page (NAT) =====
 @files_bp.route('/my-files', methods=['GET'])
 def get_my_files():
+    """Get files owned by the user AND files shared with the user"""
     try:
-        if not supabase:
-             return jsonify({'error': 'Supabase not configured'}), 500
-
-        response = supabase.table('encrypted_files')\
-            .select('*')\
-            .eq('owner_id', test_user['id'])\
-            .eq('is_deleted', False)\
-            .eq('upload_status', 'completed')\
-            .order('uploaded_at', desc=True)\
+        user_uuid = request.args.get('user_uuid')
+        if not user_uuid:
+            return jsonify({'error': 'User UUID is required'}), 400
+        
+        # Get user's text ID from UUID
+        user_text_id_query = supabase.table('users')\
+            .select('user_id')\
+            .eq('id', user_uuid)\
             .execute()
         
+        if not user_text_id_query.data:
+            return jsonify({'error': 'User not found'}), 404
+        
+        user_text_id = user_text_id_query.data[0]['user_id']
+        
+        print(f"=== GET MY FILES DEBUG ===")
+        print(f"User UUID: {user_uuid}")
+        print(f"User Text ID: {user_text_id}")
+        
+        # Get query parameters
+        search_query = request.args.get('search', '').strip().lower()
+        sort_by = request.args.get('sort', 'uploaded_at')
+        sort_order = request.args.get('order', 'desc')
+        filter_type = request.args.get('filter', 'all')
+        page = int(request.args.get('page', 1))
+        limit = min(int(request.args.get('limit', 20)), 100)
+        start_idx = (page - 1) * limit
+        
+        # Helper: Get user name (cached)
+        user_name_cache = {}
+        def get_user_name(uid):
+            if uid in user_name_cache:
+                return user_name_cache[uid]
+            try:
+                result = supabase.table('users')\
+                    .select('full_name, name')\
+                    .eq('user_id', uid)\
+                    .execute()
+                if result.data:
+                    user_data = result.data[0]
+                    name = user_data.get('full_name') or user_data.get('name') or uid
+                else:
+                    name = uid
+            except:
+                name = uid
+            user_name_cache[uid] = name
+            return name
+        
+        # Fetch owned files
+        owned_files = []
+        if filter_type in ['owned', 'my_uploads', 'shared', 'all']:
+            owned_query = supabase.table('encrypted_files')\
+                .select('*')\
+                .eq('userid', user_uuid)\
+                .eq('is_deleted', False)\
+                .eq('upload_status', 'completed')\
+                .execute()
+            owned_files = owned_query.data
+        
+        # Fetch shares for owned files (BATCH QUERY - only once!)
+        file_shares_map = {}
+        if owned_files:
+            file_ids = [f['id'] for f in owned_files]
+            shares_batch = supabase.table('file_shares')\
+                .select('file_id, shared_at')\
+                .in_('file_id', file_ids)\
+                .eq('share_status', 'active')\
+                .execute()
+            
+            # Build a map of file_id -> share info
+            for share in shares_batch.data:
+                fid = share['file_id']
+                if fid not in file_shares_map:
+                    file_shares_map[fid] = []
+                file_shares_map[fid].append(share)
+        
+        # Fetch shared files (files shared WITH this user)
+        shared_files = []
+        if filter_type in ['received', 'all']:
+            shared_query = supabase.table('file_shares')\
+                .select('*, encrypted_files(*)')\
+                .eq('shared_with', user_text_id)\
+                .eq('share_status', 'active')\
+                .execute()
+            
+            for share in shared_query.data:
+                file_data = share.get('encrypted_files')
+                if file_data and not file_data.get('is_deleted') and file_data.get('upload_status') == 'completed':
+                    shared_files.append({
+                        'file_data': file_data,
+                        'share_data': share
+                    })
+        
+        # Build file objects
         files = []
-        for f in response.data:
+        
+        # Add owned files
+        for f in owned_files:
+            shares_for_file = file_shares_map.get(f['id'], [])
+            shared_count = len(shares_for_file)
+            shared_at = max([s['shared_at'] for s in shares_for_file if s.get('shared_at')], default=None)
+            
+            file_obj = {
+                'id': f['id'],
+                'name': f['original_filename'],
+                'size': f['file_size'],
+                'uploaded_at': f['uploaded_at'],
+                'file_extension': f['file_extension'],
+                'is_owned': True,
+                'owner_id': f['owner_id'],
+                'owner_uuid': f['userid'],
+                'owner_name': get_user_name(f['owner_id']),
+                'last_accessed_at': f.get('last_accessed_at'),
+                'is_shared': shared_count > 0,
+                'shared_count': shared_count,
+                'shared_by': None,
+                'shared_at': shared_at
+            }
+            
+            # Apply filter
+            if filter_type == 'shared' and not file_obj['is_shared']:
+                continue
+            
+            files.append(file_obj)
+        
+        # Add shared files (received)
+        for item in shared_files:
+            f = item['file_data']
+            share = item['share_data']
+            
             files.append({
                 'id': f['id'],
                 'name': f['original_filename'],
                 'size': f['file_size'],
                 'uploaded_at': f['uploaded_at'],
-                'shared_by': 'you'
+                'file_extension': f['file_extension'],
+                'is_owned': False,
+                'owner_id': f['owner_id'],
+                'owner_uuid': f['userid'],
+                'owner_name': get_user_name(f['owner_id']),
+                'last_accessed_at': f.get('last_accessed_at'),
+                'is_shared': True,
+                'shared_count': 1,
+                'shared_by': share['shared_by'],
+                'shared_by_name': get_user_name(share['shared_by']),
+                'shared_at': share.get('shared_at'),
+                'share_id': share['id'],
+                'access_level': share['access_level']
             })
         
-        return jsonify({'files': files, 'total': len(files)}), 200
+        # Apply search filter
+        if search_query:
+            files = [f for f in files if search_query in f['name'].lower()]
+        
+        # Apply sorting
+        if sort_by == 'name':
+            files.sort(key=lambda x: (x['name'] or '').lower(), reverse=(sort_order == 'desc'))
+        elif sort_by == 'size':
+            files.sort(key=lambda x: (x['size'] is not None, x['size'] or 0), reverse=(sort_order == 'desc'))
+        else:
+            def get_sort_timestamp(file):
+                timestamps = []
+                if file.get('uploaded_at'):
+                    timestamps.append(file['uploaded_at'])
+                if file.get('shared_at'):
+                    timestamps.append(file['shared_at'])
+                return max(timestamps) if timestamps else ''
+            files.sort(key=get_sort_timestamp, reverse=(sort_order == 'desc'))
+        
+        # Calculate totals before pagination
+        total_files = len(files)
+        
+        # Apply pagination
+        files = files[start_idx:start_idx + limit]
+        
+        print(f"Returning {len(files)} files (total: {total_files})")
+        
+        return jsonify({
+            'files': files,
+            'total': total_files,
+            'page': page,
+            'limit': limit,
+            'total_pages': (total_files + limit - 1) // limit if limit > 0 else 0,
+            'has_more': (page * limit) < total_files,
+            'filters_applied': {
+                'search': search_query,
+                'filter': filter_type,
+                'sort': sort_by,
+                'order': sort_order
+            }
+        }), 200
     
+    except ValueError as e:
+        return jsonify({'error': f'Invalid parameter: {str(e)}'}), 400
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
@@ -349,13 +359,30 @@ def get_my_files():
         print(f"Full traceback:\n{error_details}")
         return jsonify({'error': f'{str(e)}', 'details': error_details}), 500
     
+# Helper function to get user name
+def get_user_name(user_id):
+    """
+    Get user's name from users table
+    """
+    try:
+        result = supabase.table('users')\
+            .select('full_name, name')\
+            .eq('user_id', user_id)\
+            .execute()
+        
+        if result.data:
+            user_data = result.data[0]
+            # Return full_name if exists, otherwise name, otherwise user_id
+            return user_data.get('full_name') or user_data.get('name') or user_id
+        
+        return user_id  # Fallback to user_id if not found
+    except:
+        return user_id  # Fallback to user_id on error
+    
 # ===== Download File =====
 @files_bp.route('/download/<file_id>', methods=['GET'])
 def download_file(file_id):
     try:
-        if not supabase:
-             return jsonify({'error': 'Supabase not configured'}), 500
-
         response = supabase.table('encrypted_files')\
             .select('*')\
             .eq('id', file_id)\
@@ -385,15 +412,16 @@ def download_file(file_id):
 @files_bp.route('/delete/<file_id>', methods=['DELETE'])
 def delete_file(file_id):
     try:
-        if not supabase:
-             return jsonify({'error': 'Supabase not configured'}), 500
-
         print(f"DELETE request received for file_id: {file_id}")
+        user_id = request.args.get('user_uuid')
+        
+        if not user_id:
+             return jsonify({'error': 'User ID is required'}), 400
         
         result = supabase.table('encrypted_files')\
             .update({'is_deleted': True})\
             .eq('id', file_id)\
-            .eq('owner_id', test_user['id'])\
+            .eq('userid', user_id)\
             .execute()
         
         if result.data:
@@ -416,9 +444,6 @@ def cleanup_pending_uploads():
     Does NOT affect completed files.
     """
     try:
-        if not supabase:
-             return jsonify({'error': 'Supabase not configured'}), 500
-
         # Only delete pending uploads older than 3 minutes
         cutoff_time = (datetime.now() - timedelta(minutes=3)).isoformat()
         
@@ -466,3 +491,70 @@ def cleanup_pending_uploads():
         print(f"Cleanup error: {e}")
         print(f"Full traceback:\n{error_details}")
         return jsonify({'error': f'{str(e)}', 'details': error_details}), 500
+
+# ===== Get File Metadata (for decryption) =====
+@files_bp.route('/metadata/<file_id>', methods=['GET'])
+def get_file_metadata(file_id):
+    """
+    Get file metadata including encryption_metadata (IV, authTag, etc.)
+    Required for client-side decryption
+    """
+    try:
+        user_uuid = request.args.get('user_uuid')
+        if not user_uuid:
+            return jsonify({'error': 'User UUID is required'}), 400
+        
+        print(f"Fetching metadata for file_id: {file_id}, user: {user_uuid}")
+        
+        # Check if user owns the file OR has access via sharing
+        # First check ownership
+        response = supabase.table('encrypted_files')\
+            .select('id, original_filename, encryption_metadata, userid')\
+            .eq('id', file_id)\
+            .eq('is_deleted', False)\
+            .eq('upload_status', 'completed')\
+            .execute()
+        
+        if not response.data:
+            return jsonify({'error': 'File not found'}), 404
+        
+        file_data = response.data[0]
+        
+        # Verify user has access (either owner or shared with them)
+        if file_data['userid'] != user_uuid:
+            # Check if file is shared with this user
+            # Get user's text ID
+            user_query = supabase.table('users')\
+                .select('user_id')\
+                .eq('id', user_uuid)\
+                .execute()
+            
+            if not user_query.data:
+                return jsonify({'error': 'User not found'}), 404
+            
+            user_text_id = user_query.data[0]['user_id']
+            
+            # Check file_shares
+            share_query = supabase.table('file_shares')\
+                .select('id')\
+                .eq('file_id', file_id)\
+                .eq('shared_with', user_text_id)\
+                .eq('share_status', 'active')\
+                .execute()
+            
+            if not share_query.data:
+                return jsonify({'error': 'Access denied'}), 403
+        
+        print(f"Metadata retrieved successfully for file: {file_id}")
+        
+        return jsonify({
+            'original_filename': file_data['original_filename'],
+            'encryption_metadata': file_data['encryption_metadata']
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Metadata error: {e}")
+        print(f"Full traceback:\n{error_details}")
+        return jsonify({'error': str(e), 'details': error_details}), 500

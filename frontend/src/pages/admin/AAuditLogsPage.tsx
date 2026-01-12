@@ -23,7 +23,12 @@ const AAuditLogsPage: React.FC = () => {
       setLoading(true);
       setError(null);
       const response = await getAuditLogs();
-      setLogs(response.logs);
+      // Filter OUT Key and Pairing events (they have their own tab)
+      const auditOnlyLogs = response.logs.filter(log =>
+        !log.action.toUpperCase().includes('KEY') &&
+        !log.action.toUpperCase().includes('PAIRING')
+      );
+      setLogs(auditOnlyLogs);
     } catch (err) {
       console.error('Failed to load audit logs:', err);
       setError(err instanceof Error ? err.message : 'Failed to load audit logs');
@@ -99,6 +104,7 @@ const AAuditLogsPage: React.FC = () => {
                 <option value="otp">OTP Sent</option>
                 <option value="password">Password Reset</option>
                 <option value="user">User Created</option>
+                <option value="file">File Operations</option>
               </select>
               <select
                 value={resultFilter}

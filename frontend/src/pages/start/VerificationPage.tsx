@@ -173,9 +173,19 @@ const VerificationPage: React.FC = () => {
         // Store user information in localStorage
         if (data.user) {
           localStorage.setItem('user_id', data.user.user_id);
+          localStorage.setItem('user_uuid', data.user.id);
           localStorage.setItem('user_name', data.user.full_name);
           localStorage.setItem('user_email', data.user.email);
           localStorage.setItem('user_role', data.user.role);
+
+          localStorage.setItem('user', JSON.stringify({
+              id: data.user.user_id,    // Text ID
+              uuid: data.user.id,        // UUID
+              role: data.user.role,
+              email: data.user.email,
+              name: data.user.full_name
+            }));
+
           if (data.token) {
             localStorage.setItem('auth_token', data.token);
           }

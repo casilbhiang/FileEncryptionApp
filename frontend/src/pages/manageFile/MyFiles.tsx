@@ -1,210 +1,709 @@
 'use client';
-
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
-import { Download, Trash2, Loader2 } from 'lucide-react';
-import { getMyFiles, deleteFile, type FileItem } from '../../services/Files';
-import { useFileDecryption } from '../../hooks/useFileDecryption';
+import { 
+  Download, 
+  Trash2, 
+  Loader2, 
+  Upload, 
+  Share2, 
+  Eye, 
+  ChevronLeft, 
+  ChevronRight,
+  Lock,
+  Unlock,
+  X
+} from 'lucide-react';
+import { getMyFiles, deleteFile, downloadFile, downloadAndDecryptFile, type FileItem } from '../../services/Files';
+import { getStoredEncryptionKey } from '../../services/Encryption';
 
 const MyFiles: React.FC = () => {
   const location = useLocation();
   const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
-  // TODO: Get actual user ID from auth context
-  const userId = userRole === 'doctor' ? 'DR001' : 'PT001';
-
+  
+  // Get userId from localStorage
+  const [userId] = useState<string | null>(() => localStorage.getItem('user_id'));
+  const [userUuid] = useState<string | null>(() => localStorage.getItem('user_uuid'));
+  
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('date');
-  const [sortDoctor, setSortDoctor] = useState('all');
+  const [sortField, setSortField] = useState('uploaded_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [filterType, setFilterType] = useState('all');
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const { handleDecrypt, isDecrypting } = useFileDecryption();
-  const [decryptingFileId, setDecryptingFileId] = useState<string | null>(null);
-
-  // Fetch files from backend
+  const [error, setError] = useState<string>('');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalFiles, setTotalFiles] = useState(0);
+  const filesPerPage = 5;
+  
+  // Download state
+  const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
+  
+  // Modal states
+  const [downloadOptionsModal, setDownloadOptionsModal] = useState<{
+    isOpen: boolean;
+    file: FileItem | null;
+  }>({ isOpen: false, file: null });
+  
+  const [alertModal, setAlertModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'info' | 'warning' | 'error' | 'success';
+  }>({ isOpen: false, title: '', message: '', type: 'info' });
+  
+  // Helper function to show alerts
+  const showAlert = (title: string, message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info') => {
+    setAlertModal({ isOpen: true, title, message, type });
+  };
+  
+  const getShareType = (file: FileItem): 'shared-by-me' | 'shared-with-me' | 'owned' | 'unknown' => {
+    if (!userId) return 'unknown';
+    
+    if (file.is_owned === true) {
+      if (file.is_shared === true || (file.shared_count && file.shared_count > 0)) {
+        return 'shared-by-me';
+      }
+      return 'owned';
+    }
+    
+    if (file.shared_by && file.shared_by !== userId) {
+      return 'shared-with-me';
+    }
+    
+    if (file.is_shared === true && !file.is_owned) {
+      return 'shared-with-me';
+    }
+    
+    return 'unknown';
+  };
+  
+  const getShareBadge = (file: FileItem) => {
+    const shareType = getShareType(file);
+    
+    if (shareType === 'shared-by-me') {
+      return (
+        <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+          Shared by me
+        </span>
+      );
+    }
+    
+    if (shareType === 'shared-with-me') {
+      return (
+        <span className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
+          Shared with me
+        </span>
+      );
+    }
+    
+    if (shareType === 'owned') {
+      return (
+        <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+          Your file
+        </span>
+      );
+    }
+    
+    if (file.is_shared) {
+      return (
+        <span className="px-2 py-0.5 bg-cyan-100 text-cyan-800 rounded-full text-xs font-medium">
+          Shared
+        </span>
+      );
+    }
+    
+    return null;
+  };
+  
+  const getFileSourceInfo = (file: FileItem) => {
+    const shareType = getShareType(file);
+    
+    if (shareType === 'shared-with-me' && file.shared_by_name) {
+      return `Shared by: ${file.shared_by_name}`;
+    }
+    
+    if (file.owner_name && file.owner_id !== userId) {
+      return `Owner: ${file.owner_name}`;
+    }
+    
+    if (shareType === 'shared-by-me' && file.shared_count && file.shared_count > 0) {
+      return `Shared with ${file.shared_count} ${file.shared_count === 1 ? 'person' : 'people'}`;
+    }
+    
+    if (shareType === 'owned') {
+      return 'Your file';
+    }
+    
+    return '';
+  };
+  
   useEffect(() => {
     fetchFiles();
-  }, [sortBy, sortDoctor]);
-
+  }, [currentPage, sortField, sortOrder, filterType, searchQuery]);
+  
   const fetchFiles = async () => {
     try {
       setLoading(true);
-      const response = await getMyFiles(searchQuery, sortBy, sortDoctor);
-      setFiles(response.files);
+      if (userUuid) {
+        const response = await getMyFiles(
+          userUuid, 
+          searchQuery, 
+          sortField,
+          sortOrder, 
+          filterType, 
+          currentPage, 
+          filesPerPage
+        );
+        setFiles(response.files);
+        setTotalFiles(response.total);
+        
+        if (response.pagination) {
+          setTotalPages(response.pagination.pages);
+        } else {
+          setTotalPages(Math.ceil(response.total / filesPerPage));
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch files:', error);
-      alert('Failed to load files');
+      setError('Cannot connect to server.');
     } finally {
       setLoading(false);
     }
   };
-
-  const handleDownload = async (file: FileItem) => {
+  
+  const handleSortChange = (value: string) => {
+    let field: string;
+    let order: 'asc' | 'desc';
+    
+    if (value.startsWith('-')) {
+      field = value.substring(1);
+      order = field === 'uploaded_at' ? 'asc' : 'desc';
+    } else {
+      field = value;
+      order = field === 'uploaded_at' ? 'desc' : 'asc';
+    }
+    
+    setSortField(field);
+    setSortOrder(order);
+    setCurrentPage(1);
+  };
+  
+  const getCurrentSortValue = () => {
+    if (sortField === 'uploaded_at' && sortOrder === 'desc') return 'uploaded_at';
+    if (sortField === 'uploaded_at' && sortOrder === 'asc') return '-uploaded_at';
+    if (sortField === 'name' && sortOrder === 'asc') return 'name';
+    if (sortField === 'name' && sortOrder === 'desc') return '-name';
+    if (sortField === 'size' && sortOrder === 'asc') return 'size';
+    if (sortField === 'size' && sortOrder === 'desc') return '-size';
+    return 'uploaded_at';
+  };
+  
+  const handleSearch = () => {
+    setCurrentPage(1);
+    fetchFiles();
+  };
+  
+  const handleDownloadClick = (file: FileItem) => {
+    setDownloadOptionsModal({ isOpen: true, file });
+  };
+  
+  const handleDownloadEncrypted = async (file: FileItem) => {
     try {
-      setDecryptingFileId(file.id);
-
-      // Use the hook to decrypt (handles notifications automatically)
-      const blob = await handleDecrypt({ fileId: file.id, userId }, file.name);
-
-      if (blob) {
-        // Create download link if decryption succeeded
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = file.name;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      }
+      setDownloadingFileId(file.id);
+      setDownloadOptionsModal({ isOpen: false, file: null });
+      
+      const encryptedBlob = await downloadFile(file.id);
+      
+      const url = window.URL.createObjectURL(encryptedBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${file.name}.enc`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
     } catch (error) {
-      console.error('Download process failed:', error);
+      console.error('Download failed:', error);
+      showAlert(
+        'Download Failed',
+        error instanceof Error ? error.message : 'Failed to download file.',
+        'error'
+      );
     } finally {
-      setDecryptingFileId(null);
+      setDownloadingFileId(null);
     }
   };
-
+  
+  const handleDownloadDecrypted = async (file: FileItem) => {
+    if (!userId || !userUuid) {
+      showAlert(
+        'Authentication Error',
+        'User information not found. Please log in again.',
+        'error'
+      );
+      return;
+    }
+    
+    try {
+      setDownloadingFileId(file.id);
+      setDownloadOptionsModal({ isOpen: false, file: null });
+      
+      const key = await getStoredEncryptionKey(userId);
+      
+      if (!key) {
+        showAlert(
+          'Encryption Key Not Found',
+          'Your encryption key is not available.\n\nPlease scan the QR code provided by the System Administrator to restore access to your encrypted files.',
+          'warning'
+        );
+        return;
+      }
+      
+      const { blob, filename } = await downloadAndDecryptFile({
+        fileId: file.id,
+        userUuid: userUuid,
+        decryptionKey: key
+      });
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+    } catch (error) {
+      console.error('Download failed:', error);
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Decryption failed')) {
+          showAlert(
+            'Decryption Failed',
+            'Failed to decrypt the file. Your encryption key may be incorrect or the file may be corrupted.',
+            'error'
+          );
+        } else if (error.message.includes('metadata not found')) {
+          showAlert(
+            'Encryption Error',
+            'This file was not properly encrypted or the encryption information is missing.',
+            'error'
+          );
+        } else {
+          showAlert('Download Failed', error.message, 'error');
+        }
+      } else {
+        showAlert('Download Failed', 'An unexpected error occurred during download.', 'error');
+      }
+    } finally {
+      setDownloadingFileId(null);
+    }
+  };
+  
   const handleDelete = async (file: FileItem) => {
-    if (window.confirm(`Are you sure you want to delete ${file.name}?`)) {
+    if (window.confirm(`Delete ${file.name}?`)) {
       try {
-        await deleteFile(file.id);
-        // Refresh file list
-        fetchFiles();
+        if (userUuid) {
+          await deleteFile(file.id, userUuid);
+          fetchFiles();
+        }
       } catch (error) {
         console.error('Delete failed:', error);
-        alert('Failed to delete file');
+        showAlert('Delete Failed', 'Failed to delete file.', 'error');
       }
     }
   };
-
-  const formatFileSize = (bytes: number): string => {
+  
+  const formatFileSize = (bytes: number | undefined): string => {
+    if (!bytes) return '0 B';
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
-
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+  
+  const formatDetailedTimestamp = (timestamp: string | undefined): string => {
+    if (!timestamp) return 'Never';
+    
+    try {
+      const date = new Date(timestamp);
+      
+      const dateString = date.toLocaleDateString('en-US', { 
+        year: 'numeric',
+        month: 'short', 
+        day: 'numeric',
+        timeZone: 'Asia/Singapore'
+      });
+      
+      const timeString = date.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit',
+        timeZone: 'Asia/Singapore',
+        hour12: true 
+      });
+      
+      return `${dateString} at ${timeString}`;
+    } catch (error) {
+      return 'Invalid date';
+    }
   };
-
+  
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+  
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+      let endPage = startPage + maxVisiblePages - 1;
+      
+      if (endPage > totalPages) {
+        endPage = totalPages;
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+      }
+      
+      for (let i = startPage; i <= endPage; i++) {
+        pages.push(i);
+      }
+    }
+    
+    return pages;
+  };
+  
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setFilterType('all');
+    setSortField('uploaded_at');
+    setSortOrder('desc');
+    setCurrentPage(1);
+    fetchFiles();
+  };
+  
   return (
     <div className="min-h-screen bg-gray-100 flex">
       <Sidebar userRole={userRole} currentPage="my-files" />
-
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
         <div className="mb-6">
           <h1 className="text-2xl lg:text-3xl font-bold mb-2">MY FILES</h1>
-
+          
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 text-red-600 rounded text-sm">
+              <button onClick={fetchFiles} className="ml-2 text-blue-600 underline">
+                Try again
+              </button>
+            </div>
+          )}
+          
           <div className="flex flex-col sm:flex-row gap-3 mt-4">
             <div className="flex-1">
               <input
                 type="text"
-                placeholder="Search by file name..."
+                placeholder="Search files..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && fetchFiles()}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <button
-              onClick={fetchFiles}
+              onClick={handleSearch}
               className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+              disabled={loading}
             >
-              Search
+              {loading ? 'Searching...' : 'Search'}
             </button>
             <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={getCurrentSortValue()}
+              onChange={(e) => handleSortChange(e.target.value)}
+              className="px-4 py-2 border rounded-lg bg-white"
+              disabled={loading}
             >
-              <option value="date">Sort: date</option>
-              <option value="name">Sort: name</option>
-              <option value="size">Sort: size</option>
+              <option value="uploaded_at">Newest</option>
+              <option value="-uploaded_at">Oldest</option>
+              <option value="name">A to Z</option>
+              <option value="-name">Z to A</option>
+              <option value="size">Smallest File Size</option>
+              <option value="-size">Largest File Size</option>
             </select>
             <select
-              value={sortDoctor}
-              onChange={(e) => setSortDoctor(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={filterType}
+              onChange={(e) => {
+                setFilterType(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-4 py-2 border rounded-lg bg-white"
+              disabled={loading}
             >
               <option value="all">All Files</option>
               <option value="shared">Shared by me</option>
               <option value="received">Received</option>
+              <option value="my_uploads">My Uploads</option>
             </select>
           </div>
-
-          {searchQuery || sortDoctor !== 'all' ? (
-            <div className="mt-3 text-sm text-gray-600">
-              Showing {files.length} files
-            </div>
-          ) : null}
+          
+          <div className="mt-3 text-sm text-gray-600">
+            Showing {((currentPage - 1) * filesPerPage) + 1} - {Math.min(currentPage * filesPerPage, totalFiles)} of {totalFiles} files
+          </div>
         </div>
-
-        {/* Files List */}
+        
         {loading ? (
-          <div className="bg-white rounded-lg p-8 shadow-sm text-center">
+          <div className="bg-white rounded-lg p-8 text-center">
+            <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-2" />
             <p className="text-gray-500">Loading files...</p>
           </div>
         ) : files.length > 0 ? (
-          <div className="space-y-3">
-            {files.map((file) => (
-              <div
-                key={file.id}
-                className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition flex items-center justify-between"
-              >
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-lg mb-1 truncate">{file.name}</h3>
-                  <p className="text-sm text-gray-600">
-                    {formatFileSize(file.size)} • by {file.shared_by}
-                  </p>
+          <div>
+            <div className="space-y-3">
+              {files.map((file) => (
+                <div key={file.id} className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex flex-col sm:flex-row justify-between gap-3 mb-4">
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-lg">{file.name}</h3>
+                        {getShareBadge(file)}
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        {formatFileSize(file.size || file.file_size)}
+                        {file.file_extension && ` • ${file.file_extension}`}
+                        {getFileSourceInfo(file) && ` • ${getFileSourceInfo(file)}`}
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleDownloadClick(file)}
+                        disabled={downloadingFileId === file.id}
+                        className="p-2 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                        title="Download options"
+                      >
+                        {downloadingFileId === file.id ? (
+                          <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                        ) : (
+                          <Download className="w-5 h-5 text-blue-600" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(file)}
+                        className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-5 h-5 text-red-600" />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="border-t pt-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                      <div className="flex items-start gap-2 p-2 bg-gray-50 rounded">
+                        <Upload className="w-4 h-4 text-gray-400 mt-0.5" />
+                        <div>
+                          <div className="text-gray-500 font-medium mb-1">Uploaded</div>
+                          <div className="text-gray-700 font-mono text-xs">
+                            {formatDetailedTimestamp(file.uploaded_at)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2 p-2 bg-gray-50 rounded">
+                        <Share2 className="w-4 h-4 text-gray-400 mt-0.5" />
+                        <div>
+                          <div className="text-gray-500 font-medium mb-1">Shared At</div>
+                          <div className="text-gray-700 font-mono text-xs">
+                            {file.shared_at ? formatDetailedTimestamp(file.shared_at) : 'Not shared'}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2 p-2 bg-gray-50 rounded">
+                        <Eye className="w-4 h-4 text-gray-400 mt-0.5" />
+                        <div>
+                          <div className="text-gray-500 font-medium mb-1">Last Accessed</div>
+                          <div className="text-gray-700 font-mono text-xs">
+                            {file.last_accessed_at ? formatDetailedTimestamp(file.last_accessed_at) : 'Never accessed'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-
-                <div className="flex items-center gap-3 ml-4">
-                  {file.is_shared && (
-                    <span className="px-4 py-1 bg-cyan-400 text-white rounded-full text-sm font-medium whitespace-nowrap">
-                      Shared
-                    </span>
-                  )}
+              ))}
+            </div>
+            
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t">
+                <div className="text-sm text-gray-600">
+                  Page {currentPage} of {totalPages}
+                </div>
+                
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={() => handleDownload(file)}
-                    disabled={isDecrypting && decryptingFileId === file.id}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition disabled:opacity-50"
-                    title="Download"
+                    onClick={() => goToPage(currentPage - 1)}
+                    disabled={currentPage === 1 || loading}
+                    className="p-2 rounded-lg border hover:bg-gray-50 disabled:opacity-50"
                   >
-                    {isDecrypting && decryptingFileId === file.id ? (
-                      <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
-                    ) : (
-                      <Download className="w-5 h-5 text-gray-600" />
-                    )}
+                    <ChevronLeft className="w-5 h-5" />
                   </button>
+                  
+                  {getPageNumbers().map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => goToPage(page)}
+                      disabled={loading}
+                      className={`px-3 py-1 rounded-lg ${
+                        currentPage === page ? 'bg-blue-500 text-white' : 'border hover:bg-gray-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  
                   <button
-                    onClick={() => handleDelete(file)}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition"
-                    title="Delete"
+                    onClick={() => goToPage(currentPage + 1)}
+                    disabled={currentPage === totalPages || loading}
+                    className="p-2 rounded-lg border hover:bg-gray-50 disabled:opacity-50"
                   >
-                    <Trash2 className="w-5 h-5 text-gray-600" />
+                    <ChevronRight className="w-5 h-5" />
                   </button>
                 </div>
-
-                <div className="hidden lg:block ml-4 min-w-[150px] text-right">
-                  <span className="text-sm text-gray-500">
-                    {formatDate(file.uploaded_at)}
-                  </span>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Go to:</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max={totalPages}
+                    value={currentPage}
+                    onChange={(e) => {
+                      const page = parseInt(e.target.value);
+                      if (!isNaN(page) && page >= 1 && page <= totalPages) {
+                        setCurrentPage(page);
+                      }
+                    }}
+                    className="w-16 px-2 py-1 border rounded text-center"
+                    disabled={loading}
+                  />
                 </div>
               </div>
-            ))}
+            )}
           </div>
         ) : (
-          <div className="bg-white rounded-lg p-8 shadow-sm text-center">
-            <p className="text-gray-500">No files found.</p>
+          <div className="bg-white rounded-lg p-8 text-center">
+            <p className="text-gray-500">No files found</p>
+            {(searchQuery || filterType !== 'all') && (
+              <button onClick={handleClearFilters} className="mt-2 text-blue-600 underline">
+                Clear search and filters
+              </button>
+            )}
           </div>
         )}
       </div>
+      
+      {/* Download Options Modal - Inline */}
+      {downloadOptionsModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div 
+            className="absolute inset-0 bg-black bg-opacity-50"
+            onClick={() => setDownloadOptionsModal({ isOpen: false, file: null })}
+          />
+          
+          <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6 z-10">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-gray-900">Download Options</h3>
+              <button
+                onClick={() => setDownloadOptionsModal({ isOpen: false, file: null })}
+                className="p-1 hover:bg-gray-100 rounded-lg transition"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <p className="text-gray-600 mb-6">
+                Choose how you want to download: <strong>{downloadOptionsModal.file?.name}</strong>
+              </p>
+              
+              <button
+                onClick={() => downloadOptionsModal.file && handleDownloadDecrypted(downloadOptionsModal.file)}
+                className="w-full flex items-center gap-3 p-4 border-2 border-green-500 rounded-lg hover:bg-green-50 transition group"
+              >
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center group-hover:bg-green-200">
+                  <Unlock className="w-6 h-6 text-green-600" />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="font-semibold text-gray-900">Download & Decrypt</div>
+                  <div className="text-sm text-gray-600">Download and decrypt the file for viewing</div>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => downloadOptionsModal.file && handleDownloadEncrypted(downloadOptionsModal.file)}
+                className="w-full flex items-center gap-3 p-4 border-2 border-blue-500 rounded-lg hover:bg-blue-50 transition group"
+              >
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center group-hover:bg-blue-200">
+                  <Lock className="w-6 h-6 text-blue-600" />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="font-semibold text-gray-900">Download Encrypted</div>
+                  <div className="text-sm text-gray-600">Download the encrypted file (.enc)</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Alert Modal - Inline */}
+      {alertModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div 
+            className="absolute inset-0 bg-black bg-opacity-50"
+            onClick={() => setAlertModal({ ...alertModal, isOpen: false })}
+          />
+          
+          <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6 z-10">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-gray-900">{alertModal.title}</h3>
+              <button
+                onClick={() => setAlertModal({ ...alertModal, isOpen: false })}
+                className="p-1 hover:bg-gray-100 rounded-lg transition"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            
+            <div className="mb-6">
+              <div className={`text-4xl mb-4 text-center ${
+                alertModal.type === 'error' ? 'text-red-600' :
+                alertModal.type === 'warning' ? 'text-orange-600' :
+                alertModal.type === 'success' ? 'text-green-600' :
+                'text-blue-600'
+              }`}>
+              </div>
+              <p className="text-gray-700 text-center whitespace-pre-line">{alertModal.message}</p>
+            </div>
+            <button
+              onClick={() => setAlertModal({ ...alertModal, isOpen: false })}
+              className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -28,12 +28,20 @@ def get_audit_logs():
         # This table may not exist yet, so handle gracefully
         audit_response = None
         try:
+            # Attempt 1: Fetch with join (requires FK)
             audit_query = supabase.table('audit_logs').select('*, users(user_id, full_name, email, role)')
             audit_query = audit_query.order('created_at', desc=True)
             audit_response = audit_query.execute()
         except Exception as audit_error:
-            print(f"Note: audit_logs table not available yet: {audit_error}")
-            audit_response = type('obj', (object,), {'data': []})()  # Empty response
+            print(f"Join query failed (likely missing FK): {audit_error}")
+            try:
+                # Attempt 2: Fetch raw logs without join
+                audit_query = supabase.table('audit_logs').select('*')
+                audit_query = audit_query.order('created_at', desc=True)
+                audit_response = audit_query.execute()
+            except Exception as e:
+                print(f"Fallback query failed: {e}")
+                audit_response = type('obj', (object,), {'data': []})()  # Empty response
 
         # Format logs for frontend
         formatted_logs = []
