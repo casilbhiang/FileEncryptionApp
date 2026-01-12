@@ -23,8 +23,32 @@ def hash_password(password: str) -> str:
     """Hash password using SHA-256"""
     return hashlib.sha256(password.encode()).hexdigest()
 
-def generate_user_id(role: str, supabase) -> str:
-    """Generate a unique user ID based on role"""
+def generate_initials_from_name(full_name: str) -> str:
+    """
+    Generate initials from full name
+    Example: "Ho Ka Yan Jeslyn" → "KYJHO"
+    Logic: Take first letter of each name part except last, then add last name
+    """
+    name_parts = full_name.strip().split()
+
+    if len(name_parts) == 0:
+        return "USR"
+    elif len(name_parts) == 1:
+        # Single name, use first 3 letters
+        return name_parts[0][:3].upper()
+    else:
+        # Multiple names: initials of all except last + last name
+        # "Ho Ka Yan Jeslyn" → K + Y + J + HO = KYJHO
+        last_name = name_parts[0].upper()  # First part is usually last name in Asian names
+        middle_initials = ''.join([part[0].upper() for part in name_parts[1:]])
+        return middle_initials + last_name
+
+def generate_user_id(role: str, full_name: str, nric: str, supabase) -> str:
+    """
+    Generate a unique compound user ID
+    Format: [INITIALS][ROLE_PREFIX]-[LAST3_NRIC]
+    Example: KYJHOPAT-67I (Ka Yan Jeslyn Ho, Patient, NRIC: T0434567I)
+    """
     # Role prefixes
     role_prefixes = {
         'admin': 'ADM',
@@ -32,27 +56,32 @@ def generate_user_id(role: str, supabase) -> str:
         'patient': 'PAT'
     }
     prefix = role_prefixes.get(role.lower(), 'USR')
-    
-    # Get all existing user IDs with this prefix
-    response = supabase.table('users').select('user_id').ilike('user_id', f'{prefix}%').execute()
-    
-    # Find the highest number used
-    max_number = 0
-    if response.data:
-        for user in response.data:
-            user_id = user.get('user_id', '')
-            # Extract the number part (e.g., "003" from "DOC003")
-            number_part = user_id.replace(prefix, '')
-            try:
-                number = int(number_part)
-                if number > max_number:
-                    max_number = number
-            except ValueError:
-                continue
-    
-    # Generate new ID with next number
-    next_number = max_number + 1
-    return f"{prefix}{str(next_number).zfill(3)}"
+
+    # Generate initials from name
+    initials = generate_initials_from_name(full_name)
+
+    # Get last 3 characters of NRIC
+    nric_suffix = nric[-3:].upper() if len(nric) >= 3 else nric.upper()
+
+    # Combine: INITIALS + ROLE_PREFIX - NRIC_SUFFIX
+    # Example: KYJHO + PAT - 67I = KYJHOPAT-67I
+    base_id = f"{initials}{prefix}"
+    user_id = f"{base_id}-{nric_suffix}"
+
+    # Check if this ID already exists (very unlikely but check anyway)
+    response = supabase.table('users').select('user_id').eq('user_id', user_id).execute()
+
+    if response.data and len(response.data) > 0:
+        # ID exists (very rare), append a number
+        counter = 2
+        while True:
+            new_user_id = f"{base_id}{counter}-{nric_suffix}"
+            check = supabase.table('users').select('user_id').eq('user_id', new_user_id).execute()
+            if not check.data or len(check.data) == 0:
+                return new_user_id
+            counter += 1
+
+    return user_id
 
 def generate_temporary_password() -> str:
     """Generate a secure temporary password"""
@@ -67,7 +96,7 @@ def create_user():
     """
     Create a new user account
     POST /api/auth/create-user
-    Body: { "full_name": "John Doe", "email": "john@example.com", "phone": "+65 1234 5678", "role": "patient" }
+    Body: { "full_name": "John Doe", "email": "john@example.com", "phone": "+65 1234 5678", "role": "patient", "nric": "S1234567A", "date_of_birth": "1990-01-01" }
     """
     try:
         data = request.get_json()
@@ -75,12 +104,26 @@ def create_user():
         email = data.get('email')
         phone = data.get('phone')
         role = data.get('role')
+        nric = data.get('nric')
+        date_of_birth = data.get('date_of_birth')
 
         # Validation
         if not full_name or not email or not role:
             return jsonify({
                 'success': False,
                 'message': 'Full name, email, and role are required'
+            }), 400
+
+        if not nric:
+            return jsonify({
+                'success': False,
+                'message': 'NRIC is required'
+            }), 400
+
+        if not date_of_birth:
+            return jsonify({
+                'success': False,
+                'message': 'Date of birth is required'
             }), 400
 
         if role.lower() not in ['admin', 'doctor', 'patient']:
@@ -100,8 +143,16 @@ def create_user():
                 'message': 'Email already exists'
             }), 409
 
-        # Generate user ID and temporary password
-        user_id = generate_user_id(role, supabase)
+        # Check if NRIC already exists
+        existing_nric = supabase.table('users').select('*').eq('nric', nric).execute()
+        if existing_nric.data and len(existing_nric.data) > 0:
+            return jsonify({
+                'success': False,
+                'message': 'NRIC already exists'
+            }), 409
+
+        # Generate compound user ID and temporary password
+        user_id = generate_user_id(role, full_name, nric, supabase)
         temp_password = generate_temporary_password()
         password_hash = hash_password(temp_password)
 
@@ -112,7 +163,9 @@ def create_user():
             'email': email,
             'role': role.lower(),
             'password_hash': password_hash,
-            'password_reset_required': True
+            'password_reset_required': True,
+            'nric': nric,
+            'date_of_birth': date_of_birth
         }
 
         response = supabase.table('users').insert(new_user).execute()
@@ -167,13 +220,14 @@ def login():
     """
     Handle user login
     POST /api/auth/login
-    Body: { "role": "admin|doctor|patient", "userId": "ADM001", "password": "password" }
+    Body: { "role": "admin|doctor|patient", "userId": "ADM001", "password": "password", "nric": "S1234567A" }
     """
     try:
         data = request.get_json()
         role = data.get('role')
         user_id = data.get('userId')
         password = data.get('password')
+        nric = data.get('nric')
 
         # Validate input
         if not role or not user_id or not password:
@@ -182,11 +236,17 @@ def login():
                 'message': 'Role, User ID, and password are required'
             }), 400
 
+        if not nric:
+            return jsonify({
+                'success': False,
+                'message': 'NRIC is required'
+            }), 400
+
         # Get Supabase admin client
         supabase = get_supabase_admin_client()
 
-        # Query user from database
-        response = supabase.table('users').select('*').eq('user_id', user_id).eq('role', role).execute()
+        # Query user from database with NRIC validation
+        response = supabase.table('users').select('*').eq('user_id', user_id).eq('role', role).eq('nric', nric).execute()
 
         if not response.data or len(response.data) == 0:
             # Log failed login attempt
@@ -195,7 +255,7 @@ def login():
                     'p_user_id': None,
                     'p_event_type': 'login_failed',
                     'p_email': None,
-                    'p_error_message': 'Invalid user ID or role',
+                    'p_error_message': 'Invalid user ID, role, or NRIC',
                     'p_metadata': {'user_id': user_id, 'role': role}
                 }).execute()
             except:
@@ -704,4 +764,46 @@ def get_users():
         return jsonify({
             'success': False,
             'message': 'An error occurred while fetching users'
+        }), 500
+
+@auth_bp.route('/users/<user_id>', methods=['GET'])
+def get_user_by_id(user_id):
+    """
+    Get a single user's details by user_id
+    GET /api/auth/users/:user_id
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Fetch user from database
+        response = supabase.table('users').select('*').eq('user_id', user_id).execute()
+
+        if not response.data or len(response.data) == 0:
+            return jsonify({
+                'success': False,
+                'message': 'User not found'
+            }), 404
+
+        user = response.data[0]
+
+        # Return user data (excluding sensitive fields)
+        return jsonify({
+            'user_id': user['user_id'],
+            'full_name': user.get('full_name') or user.get('name'),
+            'email': user.get('email'),
+            'phone': user.get('phone'),
+            'role': user.get('role'),
+            'nric': user.get('nric'),
+            'date_of_birth': user.get('date_of_birth'),
+            'created_at': user.get('created_at'),
+            'last_login': user.get('last_login')
+        }), 200
+
+    except Exception as e:
+        print(f"Get user error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while fetching user'
         }), 500

@@ -11,6 +11,7 @@ const LoginPage: React.FC = () => {
   const [formData, setFormData] = useState({
     role: '',
     userId: '',
+    nric: '',
     password: '',
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -57,6 +58,7 @@ const LoginPage: React.FC = () => {
     try {
       if (!formData.role) throw new Error('Please select a role');
       if (!formData.userId.trim()) throw new Error('Please enter your User ID');
+      if (!formData.nric.trim()) throw new Error('Please enter your NRIC');
       if (!formData.password) throw new Error('Please enter your password');
 
       const API_URL = import.meta.env.VITE_API_URL;
@@ -232,6 +234,30 @@ const LoginPage: React.FC = () => {
                       onChange={handleInputChange}
                       disabled={isLoading}
                       placeholder="Enter your User ID"
+                      className="w-full px-4 py-3 pl-10 bg-white bg-opacity-30 border-2 border-white rounded-full text-gray-900 placeholder-gray-700 focus:outline-none focus:ring-2 focus:ring-white focus:bg-opacity-40 transition font-medium disabled:opacity-50"
+                    />
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-900" />
+                  </div>
+                </div>
+
+                {/* NRIC */}
+                <div>
+                  <label className="text-white text-sm font-semibold mb-3 block">NRIC</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="nric"
+                      value={formData.nric}
+                      onChange={(e) => {
+                        const { name, value } = e.target;
+                        setFormData((prev) => ({
+                          ...prev,
+                          [name]: value.toUpperCase(),
+                        }));
+                        setError('');
+                      }}
+                      disabled={isLoading}
+                      placeholder="Enter your NRIC"
                       className="w-full px-4 py-3 pl-10 bg-white bg-opacity-30 border-2 border-white rounded-full text-gray-900 placeholder-gray-700 focus:outline-none focus:ring-2 focus:ring-white focus:bg-opacity-40 transition font-medium disabled:opacity-50"
                     />
                     <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-900" />
