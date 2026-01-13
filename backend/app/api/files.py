@@ -558,3 +558,74 @@ def get_file_metadata(file_id):
         print(f"Metadata error: {e}")
         print(f"Full traceback:\n{error_details}")
         return jsonify({'error': str(e), 'details': error_details}), 500
+
+# ===== Get All File Shares (Admin) =====
+@files_bp.route('/shares/all', methods=['GET'])
+def get_all_file_shares():
+    """Get all file shares for admin file logs page with file and user details"""
+    try:
+        # Fetch all file shares with file details
+        shares_response = supabase.table('file_shares')\
+            .select('*, encrypted_files(original_filename, owner_id)')\
+            .eq('share_status', 'active')\
+            .order('shared_at', desc=True)\
+            .execute()
+
+        if not shares_response.data:
+            return jsonify({'success': True, 'shares': []}), 200
+
+        # Build enriched shares list with file names and user details
+        enriched_shares = []
+
+        # Cache for user names to avoid repeated queries
+        user_cache = {}
+
+        def get_user_name(user_id):
+            if user_id in user_cache:
+                return user_cache[user_id]
+            try:
+                user_response = supabase.table('users')\
+                    .select('full_name')\
+                    .eq('user_id', user_id)\
+                    .execute()
+                if user_response.data:
+                    name = user_response.data[0]['full_name']
+                    user_cache[user_id] = name
+                    return name
+            except:
+                pass
+            return 'Unknown'
+
+        for share in shares_response.data:
+            file_info = share.get('encrypted_files', {})
+
+            enriched_share = {
+                'id': share['id'],
+                'file_id': share['file_id'],
+                'file_name': file_info.get('original_filename', 'Unknown'),
+                'owner_id': file_info.get('owner_id', 'Unknown'),
+                'owner_name': get_user_name(file_info.get('owner_id', '')),
+                'shared_by': share['shared_by'],
+                'shared_by_name': get_user_name(share['shared_by']),
+                'shared_with': share['shared_with'],
+                'shared_with_name': get_user_name(share['shared_with']),
+                'access_level': share['access_level'],
+                'share_status': share['share_status'],
+                'shared_at': share['shared_at'],
+                'last_accessed_at': share.get('last_accessed_at'),
+                'revoked_at': share.get('revoked_at')
+            }
+
+            enriched_shares.append(enriched_share)
+
+        return jsonify({
+            'success': True,
+            'shares': enriched_shares
+        }), 200
+
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Get all file shares error: {e}")
+        print(f"Full traceback:\n{error_details}")
+        return jsonify({'error': str(e), 'details': error_details}), 500

@@ -83,6 +83,11 @@ const ACreateUserPage: React.FC = () => {
         role: selectedRole.toLowerCase(),
       };
 
+      // Add health profile if creating a patient
+      if (selectedRole.toLowerCase() === 'patient') {
+        requestBody.health_profile = healthProfile;
+      }
+
       const response = await fetch(`${API_URL}/api/auth/create-user`, {
         method: 'POST',
         headers: {
