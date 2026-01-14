@@ -129,6 +129,13 @@ def get_key_pair(key_id):
         if not key_pair:
             return jsonify({'error': 'Key pair not found'}), 404
         
+        # Authorization Check (If user_id is provided)
+        user_id = request.args.get('user_id')
+        if include_key and user_id:
+            # Ensure the requesting user is part of this key pair
+            if user_id != key_pair.doctor_id and user_id != key_pair.patient_id:
+                 return jsonify({'error': 'Unauthorized access to key material'}), 403
+        
         if include_key:
             # If requesting the raw key, we must decrypt it first
             try:
