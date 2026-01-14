@@ -496,7 +496,7 @@ const ShareFiles: React.FC = () => {
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl lg:text-3xl font-bold mb-2">Share Files</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold mb-2">SHARE FILES</h1>
           <p className="text-gray-600">Securely share files with other users.</p>
         </div>
 
