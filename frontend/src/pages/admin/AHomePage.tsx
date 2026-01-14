@@ -108,7 +108,7 @@ const AHomePage: React.FC = () => {
             description = log.details || `for ${log.target}`;
             break;
           default:
-            title = log.action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            title = log.action.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
             description = log.details || log.target || '';
         }
 
