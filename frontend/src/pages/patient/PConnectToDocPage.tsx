@@ -289,9 +289,27 @@ const PConnectToDocPage: React.FC = () => {
                   <p className="text-sm text-gray-600">Key ID: {connectionDetails.key_id}</p>
                 </div>
               </div>
-              <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-                Active
-              </span>
+              <div className="flex flex-col items-end gap-2">
+                <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                  Active
+                </span>
+                {connectionDetails.expires_at && (
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded
+                        ${(() => {
+                      const days = Math.ceil((new Date(connectionDetails.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                      if (days < 0) return 'bg-red-100 text-red-700';
+                      if (days < 7) return 'bg-orange-100 text-orange-700';
+                      return 'bg-gray-100 text-gray-600';
+                    })()}
+                    `}>
+                    {(() => {
+                      const days = Math.ceil((new Date(connectionDetails.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                      if (days < 0) return 'Expired';
+                      return `Key Expires in ${days} days`;
+                    })()}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )}

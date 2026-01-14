@@ -18,6 +18,7 @@ const ViewQRDialog: React.FC<ViewQRDialogProps> = ({
     patient
 }) => {
     const [qrCode, setQrCode] = useState<string | null>(null);
+    const [expiresAt, setExpiresAt] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -37,6 +38,7 @@ const ViewQRDialog: React.FC<ViewQRDialogProps> = ({
             setError(null);
             const response = await getKeyQRCode(keyId);
             setQrCode(response.qr_code);
+            setExpiresAt(response.expires_at || null);
         } catch (err) {
             console.error('Failed to load QR code:', err);
             setError('Failed to load QR code. The key might have been revoked or deleted.');
@@ -100,6 +102,11 @@ const ViewQRDialog: React.FC<ViewQRDialogProps> = ({
                                     className="w-48 h-48 object-contain"
                                 />
                             </div>
+                            {expiresAt && (
+                                <p className="text-sm text-gray-500">
+                                    Expires: <span className="font-medium text-gray-900">{new Date(expiresAt).toLocaleDateString()}</span>
+                                </p>
+                            )}
                         </div>
                     ) : null}
 
