@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import { QrCode, Camera, AlertTriangle, CheckCircle, User, Key } from 'lucide-react';
 import QRScanner from '../../components/QRScanner';
-import { verifyScannedQR, getUserConnections } from '../../services/keyService';
-import { hasEncryptionKey, clearEncryptionKey } from '../../services/Encryption';
+import { verifyScannedQR, getUserConnections, getKeyPair } from '../../services/keyService';
+import { hasEncryptionKey, clearEncryptionKey, storeEncryptionKey, importKeyFromBase64 } from '../../services/Encryption';
 
 const DConnectToPatientPage: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
@@ -20,6 +20,7 @@ const DConnectToPatientPage: React.FC = () => {
   const doctorId = localStorage.getItem('user_id');
 
   // Load existing connections on mount
+
   useEffect(() => {
     const loadConnections = async () => {
       try {
@@ -44,8 +45,24 @@ const DConnectToPatientPage: React.FC = () => {
           setIsConnected(true);
 
           if (!hasKey) {
-            // Ghost Connection: Backend says connected, but browser forgot key
-            setKeyMissing(true);
+            // Ghost Connection detected: Try to restore key from backend
+            console.log('Ghost connection detected. Attempting to restore key from backend...');
+            try {
+              const keyResult = await getKeyPair(activeConnection.key_id, doctorId);
+              if (keyResult.success && keyResult.key_pair && keyResult.key_pair.encryption_key) {
+                // Import and store the key
+                const key = await importKeyFromBase64(keyResult.key_pair.encryption_key);
+                await storeEncryptionKey(key, doctorId);
+                console.log('Key successfully restored from backend!');
+                setKeyMissing(false);
+              } else {
+                console.warn('Failed to restore key: Key not returned by backend');
+                setKeyMissing(true);
+              }
+            } catch (restoreErr) {
+              console.error('Failed to restore key:', restoreErr);
+              setKeyMissing(true);
+            }
           } else {
             setKeyMissing(false);
           }
