@@ -106,6 +106,7 @@ def create_user():
         role = data.get('role')
         nric = data.get('nric')
         date_of_birth = data.get('date_of_birth')
+        health_profile = data.get('health_profile')  # Optional, only for patients
 
         # Validation
         if not full_name or not email or not role:
@@ -177,21 +178,66 @@ def create_user():
             }), 500
 
         print(f"DEBUG: User created successfully, response data: {response.data}")
-        print(f"DEBUG: About to log user creation event")
+        print(f"NOTE: User creation will be automatically logged by database trigger")
 
-        # Log user creation
-        try:
-            print(f"Attempting to log user creation event for user_id: {response.data[0]['id']}")
-            rpc_response = supabase.rpc('log_simple_auth_event', {
-                'p_user_id': response.data[0]['id'],
-                'p_event_type': 'user_created',
-                'p_email': email
-            }).execute()
-            print(f"User creation log result: {rpc_response}")
-        except Exception as e:
-            print(f"Failed to log user creation: {e}")
-            import traceback
-            traceback.print_exc()
+        # Create patient profile if role is patient and health_profile data is provided
+        if role.lower() == 'patient' and health_profile:
+            try:
+                print(f"Creating patient profile for user: {user_id}")
+
+                # Parse health profile data
+                age = int(health_profile.get('age')) if health_profile.get('age') else None
+                sex = health_profile.get('sex')
+                blood_type = health_profile.get('bloodType')
+                height = health_profile.get('height')
+                weight = health_profile.get('weight')
+
+                # Parse allergies (comma-separated string to array)
+                allergies_str = health_profile.get('allergies', '')
+                allergies = [a.strip() for a in allergies_str.split(',') if a.strip()] if allergies_str else []
+
+                # Parse chronic conditions (comma-separated string to array)
+                conditions_str = health_profile.get('chronicConditions', '')
+                chronic_conditions = [c.strip() for c in conditions_str.split(',') if c.strip()] if conditions_str else []
+
+                # Parse vaccinations (comma-separated string to array of objects)
+                vaccinations_str = health_profile.get('vaccinations', '')
+                vaccinations = []
+                if vaccinations_str:
+                    vac_items = [v.strip() for v in vaccinations_str.split(',') if v.strip()]
+                    for vac in vac_items:
+                        # Simple format: "Covid-19 2020" or just "Covid-19"
+                        parts = vac.rsplit(' ', 1)
+                        if len(parts) == 2 and parts[1].isdigit():
+                            vaccinations.append({'name': parts[0], 'year': int(parts[1])})
+                        else:
+                            vaccinations.append({'name': vac, 'year': None})
+
+                profile_data = {
+                    'user_id': response.data[0]['id'],
+                    'custom_user_id': user_id,
+                    'age': age,
+                    'sex': sex,
+                    'blood_type': blood_type,
+                    'height': height,
+                    'weight': weight,
+                    'allergies': allergies,
+                    'chronic_conditions': chronic_conditions,
+                    'vaccinations': vaccinations
+                }
+
+                profile_response = supabase.table('patient_profiles').insert(profile_data).execute()
+
+                if profile_response.data:
+                    print(f"Patient profile created successfully for {user_id}")
+                else:
+                    print(f"Warning: Failed to create patient profile for {user_id}")
+
+            except Exception as e:
+                print(f"Error creating patient profile: {e}")
+                import traceback
+                traceback.print_exc()
+                # Don't fail user creation if profile creation fails
 
         return jsonify({
             'success': True,
@@ -806,4 +852,75 @@ def get_user_by_id(user_id):
         return jsonify({
             'success': False,
             'message': 'An error occurred while fetching user'
+        }), 500
+
+@auth_bp.route('/patients/<user_id>/profile', methods=['GET'])
+def get_patient_profile(user_id):
+    """
+    Get patient's complete profile including health data
+    GET /api/auth/patients/:user_id/profile
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Fetch user basic info
+        user_response = supabase.table('users').select('*').eq('user_id', user_id).execute()
+
+        if not user_response.data or len(user_response.data) == 0:
+            return jsonify({
+                'success': False,
+                'message': 'Patient not found'
+            }), 404
+
+        user = user_response.data[0]
+
+        # Check if user is a patient
+        if user.get('role') != 'patient':
+            return jsonify({
+                'success': False,
+                'message': 'User is not a patient'
+            }), 400
+
+        # Fetch patient health profile
+        profile_response = supabase.table('patient_profiles')\
+            .select('*')\
+            .eq('custom_user_id', user_id)\
+            .execute()
+
+        health_profile = None
+        if profile_response.data and len(profile_response.data) > 0:
+            profile = profile_response.data[0]
+            health_profile = {
+                'age': profile.get('age'),
+                'sex': profile.get('sex'),
+                'blood_type': profile.get('blood_type'),
+                'height': profile.get('height'),
+                'weight': profile.get('weight'),
+                'allergies': profile.get('allergies', []),
+                'chronic_conditions': profile.get('chronic_conditions', []),
+                'vaccinations': profile.get('vaccinations', [])
+            }
+
+        # Return combined data
+        return jsonify({
+            'success': True,
+            'patient': {
+                'user_id': user['user_id'],
+                'full_name': user.get('full_name') or user.get('name'),
+                'email': user.get('email'),
+                'phone': user.get('phone'),
+                'nric': user.get('nric'),
+                'date_of_birth': user.get('date_of_birth'),
+                'created_at': user.get('created_at'),
+                'health_profile': health_profile
+            }
+        }), 200
+
+    except Exception as e:
+        print(f"Get patient profile error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while fetching patient profile'
         }), 500

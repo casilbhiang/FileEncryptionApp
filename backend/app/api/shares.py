@@ -479,7 +479,7 @@ def get_available_users():
                 
         elif user_role.lower() == 'doctor':
             print(f"3. Looking for patients connected to doctor {user_id}...")
-            
+
             try:
                 connections_query = supabase.table('doctor_patient_connections')\
                     .select('patient_id, connection_status')\

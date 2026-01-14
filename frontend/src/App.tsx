@@ -30,6 +30,7 @@ import ACreateUserPage from './pages/admin/ACreateUserPage';
 import AKeyMgtPage from './pages/admin/AKeyMgtPage';
 import AAuditLogsPage from './pages/admin/AAuditLogsPage';
 import AKeyLogsPage from './pages/admin/AKeyLogsPage';
+import AFileLogsPage from './pages/admin/AFileLogsPage';
 import ACloudStoragePage from './pages/admin/ACloudStoragePage';
 
 function App() {
@@ -70,6 +71,7 @@ function App() {
           <Route path="/admin/key-management" element={<AKeyMgtPage />} />
           <Route path="/admin/audit-logs" element={<AAuditLogsPage />} />
           <Route path="/admin/key-logs" element={<AKeyLogsPage />} />
+          <Route path="/admin/file-logs" element={<AFileLogsPage />} />
           <Route path="/admin/cloud-storage" element={<ACloudStoragePage />} />
 
           {/* Redirect unknown routes to home */}

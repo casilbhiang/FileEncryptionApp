@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, FileText, Upload, Share2, Users, UserPlus, Key, LogOut, Menu, X, Bell } from 'lucide-react';
+import { Home, FileText, Upload, Share2, Users, UserPlus, Key, LogOut, Menu, X, Bell, FolderOpen } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import simncryptLogo from '../../images/simncrypt.jpg';
 import { useNotifications } from '../../contexts/NotificationContext';
@@ -77,6 +77,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
       { id: 'key-management', label: 'Key Management', icon: Key, path: '/admin/key-management' },
       { id: 'audit-logs', label: 'Audit Logs', icon: FileText, path: '/admin/audit-logs' },
       { id: 'key-logs', label: 'Key Logs', icon: Key, path: '/admin/key-logs' },
+      { id: 'file-logs', label: 'File Logs', icon: FolderOpen, path: '/admin/file-logs' },
       //{ id: 'cloud-storage', label: 'Cloud Storage', icon: Cloud, path: '/admin/cloud-storage' },
     ],
   };
