@@ -63,8 +63,16 @@ const AKeyMgtPage: React.FC = () => {
     }
   };
 
+  // Helper function to normalize timestamp format for cross-browser compatibility
+  const normalizeTimestamp = (isoDate: string): string => {
+    // Fix timestamps with more than 3 decimal places in milliseconds
+    // e.g., '2026-01-13T10:27:48.0968+00:00' -> '2026-01-13T10:27:48.096+00:00'
+    return isoDate.replace(/(\.\d{3})\d+([\+\-Z])/g, '$1$2');
+  };
+
   const formatDate = (isoDate: string): string => {
-    const date = new Date(isoDate);
+    const normalizedDate = normalizeTimestamp(isoDate);
+    const date = new Date(normalizedDate);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
