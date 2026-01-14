@@ -7,6 +7,7 @@ from app.crypto.qr_generator import QRCodeGenerator
 from app.models.encryption_models import KeyPair
 from app.models.storage import key_pair_store
 from app.utils.audit import audit_logger, AuditAction, AuditResult
+from datetime import datetime, timedelta
 import json
 
 keys_bp = Blueprint('keys', __name__)
@@ -47,7 +48,8 @@ def generate_key_pair():
             doctor_id=doctor_id,
             patient_id=patient_id,
             encryption_key=encrypted_key_b64,  # Storing encrypted blob
-            status='Active'
+            status='Pending',
+            expires_at=datetime.utcnow() + timedelta(days=60) # Key expires in 2 months
         )
         
         # Store key pair
@@ -241,8 +243,83 @@ def get_qr_code(key_id):
         
         return jsonify({
             'success': True,
-            'qr_code': f'data:image/png;base64,{qr_code}'
+            'qr_code': f'data:image/png;base64,{qr_code}',
+            'expires_at': key_pair.expires_at.isoformat() if key_pair.expires_at else None
         }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@keys_bp.route('/<key_id>/refresh', methods=['POST'])
+def refresh_key_pair(key_id):
+    """
+    Refresh a key pair (Rotate key)
+    This creates a NEW key pair and revokes the old one.
+    Users must re-scan the new QR code.
+    """
+    try:
+        # Get old key pair
+        old_key_pair = key_pair_store.get(key_id)
+        if not old_key_pair:
+            return jsonify({'error': 'Key pair not found'}), 404
+            
+        doctor_id = old_key_pair.doctor_id
+        patient_id = old_key_pair.patient_id
+        
+        # Revoke old key
+        key_pair_store.update_status(key_id, 'Revoked')
+        
+        # Generate NEW encryption key (DEK)
+        encryption_key = EncryptionManager.generate_key()
+        key_b64 = EncryptionManager.key_to_base64(encryption_key)
+
+        # Encrypt the DEK for storage
+        from config import Config
+        encrypted_key_b64 = EncryptionManager.encrypt_dek(key_b64, Config.MASTER_KEY)
+        
+        # Generate new key pair ID
+        new_key_id = EncryptionManager.generate_key_pair_id()
+        
+        # Create new key pair
+        new_key_pair = KeyPair(
+            key_id=new_key_id,
+            doctor_id=doctor_id,
+            patient_id=patient_id,
+            encryption_key=encrypted_key_b64,
+            status='Pending', # Start as Pending until scanned
+            expires_at=datetime.utcnow() + timedelta(days=60)
+        )
+        
+        # Store new key pair
+        key_pair_store.create(new_key_pair)
+        
+        # Log rotation
+        audit_logger.log(
+            user_id="ADMIN",
+            user_name="System Admin",
+            action=AuditAction.KEY_ROTATE,
+            target=f"{doctor_id} -> {patient_id}",
+            result=AuditResult.OK,
+            details=f"Rotated key {key_id} to {new_key_id}"
+        )
+        
+        # Generate QR code for NEW key
+        qr_data = {
+            'key_id': new_key_id,
+            'key': key_b64,
+            'doctor_id': doctor_id,
+            'patient_id': patient_id
+        }
+        qr_code = QRCodeGenerator.generate_connection_qr(qr_data, size=300)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Key rotated successfully. Please scan the new QR code.',
+            'old_key_id': key_id,
+            'new_key_pair': new_key_pair.to_dict(),
+            'qr_code': f'data:image/png;base64,{qr_code}'
+        }), 201
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -278,12 +355,33 @@ def scan_qr_code():
         if not key_pair:
             return jsonify({'error': 'Invalid key pair'}), 404
             
-        if key_pair.status != 'Active':
-            return jsonify({'error': 'Key pair is not active'}), 403
+        if key_pair.status not in ['Active', 'Pending']:
+            return jsonify({'error': 'Key pair is not active or pending'}), 403
             
+        # Check Expiration
+        # Check Expiration
+        if key_pair.expires_at:
+             # Ensure we compare like with like (Convert both to naive UTC)
+             expires_at_naive = key_pair.expires_at.replace(tzinfo=None)
+             if expires_at_naive < datetime.utcnow():
+                return jsonify({'error': 'Key pair has expired'}), 403
+
         # Verify participants match
         if key_pair.doctor_id != doctor_id or key_pair.patient_id != patient_id:
             return jsonify({'error': 'Key pair mismatch'}), 403
+
+        # If Pending, activate it now (First scan)
+        if key_pair.status == 'Pending':
+            key_pair = key_pair_store.update_status(key_id, 'Active')
+            
+            audit_logger.log(
+                user_id="SYSTEM",
+                user_name="System",
+                action=AuditAction.PAIRING_SCAN,
+                target=f"{key_pair.doctor_id} <-> {key_pair.patient_id}",
+                result=AuditResult.OK,
+                details="Key pair activated via scan"
+            )
             
         # Decrypt key to return to user
         try:
@@ -361,18 +459,20 @@ def get_user_connections(user_id):
     try:
         connections = key_pair_store.list_by_user(user_id)
         
+        connection_list = []
+        for kp in connections:
+            connection_list.append({
+                'key_id': kp.key_id,
+                'doctor_id': kp.doctor_id,
+                'patient_id': kp.patient_id,
+                'status': kp.status,
+                'created_at': kp.created_at.isoformat() if kp.created_at else None,
+                'expires_at': kp.expires_at.isoformat() if kp.expires_at else None
+            })
+
         return jsonify({
             'success': True,
-            'connections': [
-                {
-                    'key_id': kp.key_id,
-                    'doctor_id': kp.doctor_id,
-                    'patient_id': kp.patient_id,
-                    'status': kp.status,
-                    'created_at': kp.created_at.isoformat() if kp.created_at else None
-                }
-                for kp in connections
-            ]
+            'connections': connection_list
         }), 200
         
     except Exception as e:

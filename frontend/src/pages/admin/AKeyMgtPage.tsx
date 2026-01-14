@@ -15,8 +15,10 @@ interface KeyPair {
   patient: string;
   patientId: string;
   created: string;
+  expires: string;
   status: 'Active' | 'Inactive' | 'Revoked';
   rawCreated: string; // For sorting
+  rawExpires: string | null;
 }
 
 const AKeyMgtPage: React.FC = () => {
@@ -50,7 +52,9 @@ const AKeyMgtPage: React.FC = () => {
         patient: `Patient ${kp.patient_id}`,
         patientId: kp.patient_id,
         created: formatDate(kp.created_at),
+        expires: kp.expires_at ? new Date(kp.expires_at).toLocaleDateString() : 'Never',
         rawCreated: kp.created_at,
+        rawExpires: kp.expires_at,
         status: kp.status
       }));
 
@@ -110,7 +114,13 @@ const AKeyMgtPage: React.FC = () => {
 
   // Statistics
   const totalKeys = keyPairs.length;
-  const expiringSoon = 0; // TODO: Implement expiration logic
+  // Count keys expiring in next 7 days
+  const expiringSoon = keyPairs.filter(k => {
+    if (!k.rawExpires || k.status !== 'Active') return false;
+    const days = Math.ceil((new Date(k.rawExpires).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+    return days >= 0 && days < 7;
+  }).length;
+
   const generateToday = keyPairs.filter(k => {
     const date = new Date(k.rawCreated);
     const today = new Date();
@@ -279,6 +289,7 @@ const AKeyMgtPage: React.FC = () => {
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Doctor</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Patient</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Created</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Expires</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
@@ -299,6 +310,21 @@ const AKeyMgtPage: React.FC = () => {
                             ) : (
                               keyPair.created
                             )}
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-600">
+                            {(() => {
+                              if (!keyPair.rawExpires) return 'Never';
+                              const diff = new Date(keyPair.rawExpires).getTime() - new Date().getTime();
+                              const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+
+                              if (diff < 0) {
+                                return <span className="text-red-500 font-medium">Expired</span>;
+                              } else if (days <= 7) {
+                                return <span className="text-orange-600 font-medium">In {days} days</span>;
+                              } else {
+                                return <span>In {days} days</span>;
+                              }
+                            })()}
                           </td>
                           <td className="px-4 py-4">
                             <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${keyPair.status === 'Active' ? 'bg-green-100 text-green-700' :

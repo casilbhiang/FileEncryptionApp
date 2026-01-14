@@ -18,7 +18,7 @@ def debug_columns():
             }).execute()
             print("   ✅ Inserted 'test_string_id'. Column allows TEXT.")
         except Exception as e:
-            print(f"   ❌ Insert Failed: {e}")
+            print(f"Insert Failed: {e}")
 
         # Test 2: Insert TEXT ID into encrypted_files
         print("\n2. Testing encrypted_files (Expect 'test_id' failure if UUID)...")
@@ -30,9 +30,9 @@ def debug_columns():
                 'encrypted_filename': 'debug_test.txt.enc', 
                 'file_size': 0
             }).execute()
-            print("   ✅ Inserted 'test_string_id'. Column allows TEXT.")
+            print("Inserted 'test_string_id'. Column allows TEXT.")
         except Exception as e:
-            print(f"   ❌ Insert Failed: {e}")
+            print(f"Insert Failed: {e}")
 
 if __name__ == "__main__":
     debug_columns()
