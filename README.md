@@ -1,4 +1,4 @@
-     Completed Features
+ Completed Features
 
 #### 1. **Key Management System**
 - **API Integration**: Connected frontend to backend API for real-time key management

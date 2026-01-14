@@ -13,6 +13,9 @@ import { getMyFiles } from '../../services/Files';
 import type { ShareFileParams } from '../../services/sharesService';
 import type { FileItem } from '../../services/Files';
 
+// ADD: Import NotificationContext for sidebar bell notifications
+import { useNotifications } from '../../contexts/NotificationContext';
+
 // Define User interface matching your backend
 interface User {
   id: string;
@@ -35,6 +38,9 @@ const ShareFiles: React.FC = () => {
   
   // Get user role from URL
   const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
+  
+  // ADD: Initialize notification context for sidebar bell only
+  const { addNotification } = useNotifications();
   
   // Get current user from localStorage
   const getCurrentUser = (): CurrentUser | null => {
@@ -144,16 +150,40 @@ const ShareFiles: React.FC = () => {
       const files = result.files || [];
       console.log('Number of files received:', files.length);
       
-      // Filter to show only files owned by the user
-      const ownedFiles = files.filter(file => 
-        file.is_owned === true || 
-        file.owner_id === currentUser.id ||
-        !file.shared_by // If no shared_by, it's owned
-      );
+      // 🔥 UPDATED: Filter to show ONLY files that:
+      // 1. Are uploaded by current user (owned)
+      // 2. Are NOT shared with anyone yet
+      const sharableFiles = files.filter(file => {
+        // Check if file is owned by current user
+        const isOwnedByCurrentUser = 
+          file.is_owned === true || 
+          file.owner_id === currentUser.id ||
+          !file.shared_by;
+        
+        // Check if file is NOT shared yet
+        const isNotShared = 
+          (!file.shared_count || file.shared_count === 0) &&
+          (!file.shared_at || file.shared_at === 'null' || file.shared_at === '') &&
+          file.is_shared !== true;
+        
+        // File is sharable if it's owned AND not shared yet
+        return isOwnedByCurrentUser && isNotShared;
+      });
       
-      setAvailableFiles(ownedFiles);
+      console.log('Sharable files found:', sharableFiles.length);
+      console.log('Sharable files details:', sharableFiles.map(f => ({
+        name: f.name,
+        is_owned: f.is_owned,
+        owner_id: f.owner_id,
+        shared_by: f.shared_by,
+        shared_count: f.shared_count,
+        shared_at: f.shared_at,
+        is_shared: f.is_shared
+      })));
       
-      if (ownedFiles.length === 0) {
+      setAvailableFiles(sharableFiles);
+      
+      if (sharableFiles.length === 0) {
         setErrors(prev => ({ 
           ...prev, 
           files: 'No files available to share. Please upload files first.' 
@@ -295,9 +325,62 @@ const ShareFiles: React.FC = () => {
       
       if (result.success) {
         const recipientName = availableUsers.find(u => u.id === selectedRecipient)?.name || 'Recipient';
+        const sharerName = currentUser?.name || 'You';
+        
+        // Get the first file name (since you're sharing one file at a time)
+        const sharedFileName = selectedFiles.map(fileId => {
+          const file = availableFiles.find(f => f.id === fileId);
+          return file?.name || 'Unknown file';
+        })[0] || 'file';
+        
+        // ADD: Sidebar bell notification for successful share (FOR SHARER)
+        addNotification({
+          user_id: currentUser.id,
+          title: 'Files Shared',
+          // 🔥 UPDATED: Format: "Shared [file name] with [user name] [user id]"
+          message: `Shared "${sharedFileName}" with ${recipientName} (ID: ${selectedRecipient})`,
+          type: 'file_shared',
+          metadata: {
+            recipientName: recipientName,
+            recipientId: selectedRecipient,
+            fileName: sharedFileName,
+            fileCount: selectedFiles.length,
+            fileNames: selectedFiles.map(fileId => {
+              const file = availableFiles.find(f => f.id === fileId);
+              return file?.name || 'Unknown file';
+            }),
+            action: 'share_success',
+            share_id: result.data?.share_id
+          },
+          showAsToast: true // Show toast for sharer
+        });
+        
+        // 🔥 NEW: ADD NOTIFICATION FOR RECIPIENT
+        addNotification({
+          user_id: selectedRecipient, // Recipient's user ID
+          title: 'Files Received',
+          // 🔥 UPDATED: Format: "Received [file name] from [user name] [user id]"
+          message: `Received "${sharedFileName}" from ${sharerName} (ID: ${currentUser.id})`,
+          type: 'file_received',
+          metadata: {
+            sharerName: sharerName,
+            sharerId: currentUser.id,
+            fileName: sharedFileName,
+            fileCount: selectedFiles.length,
+            fileNames: selectedFiles.map(fileId => {
+              const file = availableFiles.find(f => f.id === fileId);
+              return file?.name || 'Unknown file';
+            }),
+            action: 'file_received',
+            share_id: result.data?.share_id
+          },
+          showAsToast: false // Don't show toast for recipient
+        });
+        
         setShareResult({
           success: true,
-          message: `File shared successfully with ${recipientName}!`,
+          // 🔥 UPDATED: Also update success message
+          message: `"${sharedFileName}" shared successfully with ${recipientName} (ID: ${selectedRecipient})!`,
           share_id: result.data?.share_id
         });
         
@@ -307,10 +390,26 @@ const ShareFiles: React.FC = () => {
         setSelectedRecipient('');
         setShowFileDropdown(false);
         
-        // Refresh files list
+        // Refresh files list to update available files
         setTimeout(() => fetchUserFiles(), 1000);
         
       } else {
+        // ADD: Sidebar bell notification for share error
+        addNotification({
+          user_id: currentUser.id,
+          title: 'Share Failed',
+          message: `Failed to share file${selectedFiles.length > 1 ? 's' : ''} with ${recipientUser.name}`,
+          type: 'error',
+          metadata: {
+            recipientName: recipientUser.name,
+            recipientId: selectedRecipient,
+            fileCount: selectedFiles.length,
+            action: 'share_error',
+            error: result.error
+          },
+          showAsToast: false // Only in sidebar, no toast popup
+        });
+        
         setShareResult({
           success: false,
           message: result.error || 'Failed to share file. Please try again.'
@@ -318,6 +417,20 @@ const ShareFiles: React.FC = () => {
       }
     } catch (error) {
       console.error('Error sharing:', error);
+      
+      // ADD: Sidebar bell notification for network error
+      addNotification({
+        user_id: currentUser?.id || 'unknown',
+        title: 'Network Error',
+        message: 'Failed to share files due to network connection',
+        type: 'error',
+        metadata: {
+          action: 'network_error',
+          error: error instanceof Error ? error.message : 'Unknown error'
+        },
+        showAsToast: false // Only in sidebar, no toast popup
+      });
+      
       setShareResult({
         success: false,
         message: 'Network error. Please check your connection and try again.'
@@ -397,7 +510,7 @@ const ShareFiles: React.FC = () => {
                 <strong> Role:</strong> {currentUser.role}
               </p>
               <p className="text-xs text-blue-600 mt-1">
-                <strong>Files:</strong> {availableFiles.length} available | 
+                <strong>Sharable Files:</strong> {availableFiles.length} available | 
                 <strong> Recipients:</strong> {availableUsers.length} available
               </p>
               {debugInfo && (
@@ -499,7 +612,7 @@ const ShareFiles: React.FC = () => {
                     : selectedFiles.length > 0
                       ? `${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''} selected`
                       : availableFiles.length === 0
-                      ? 'No files available to share'
+                      ? 'No sharable files available'
                       : 'Click to select files'
                   }
                 </span>
@@ -515,7 +628,7 @@ const ShareFiles: React.FC = () => {
               )}
             </div>
 
-            {/* Files Dropdown List */}
+            {/* Files Dropdown List - ONLY shows sharable files */}
             {showFileDropdown && !loading.files && availableFiles.length > 0 && (
               <div className="border border-gray-300 rounded-lg bg-white shadow-sm max-h-64 overflow-y-auto mb-4">
                 {availableFiles.map((file) => (
@@ -591,10 +704,10 @@ const ShareFiles: React.FC = () => {
                   <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
                   <div>
                     <p className="text-yellow-700 text-sm">
-                      You don't have any files to share.
+                      You don't have any sharable files.
                     </p>
                     <p className="text-yellow-600 text-xs mt-1">
-                      Upload files first from the My Files page.
+                      Upload new files or check if your existing files are already shared.
                     </p>
                     <button
                       onClick={() => navigate(userRole === 'doctor' ? '/doctor/my-files' : '/patient/my-files')}
@@ -672,11 +785,8 @@ const ShareFiles: React.FC = () => {
             Files are securely encrypted during sharing. Only the recipient can decrypt them.
           </p>
         </div>
-
-
-    
-        </div>
       </div>
+    </div>
   );
 };
 
