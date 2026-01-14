@@ -22,6 +22,10 @@ interface RecentFile {
   id: string;
   original_filename: string;
   uploaded_at: string;
+  owner_id: string;
+  owner_name?: string;
+  shared_by?: string;
+  shared_by_name?: string;
 }
 
 const DViewHealthProfilePage: React.FC = () => {
@@ -79,21 +83,43 @@ const DViewHealthProfilePage: React.FC = () => {
 
   const fetchRecentFiles = async () => {
     try {
-      // Fetch files shared with doctor by this patient
-      const response = await fetch(`${API_URL}/api/files/my-files?user_id=${userId}`);
+      // Fetch all file shares between doctor and patient
+      const response = await fetch(`${API_URL}/api/files/shares/all`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch file shares');
+      }
+
       const data = await response.json();
 
-      if (data.success && data.files) {
-        // Filter files owned by the patient and shared with the doctor
-        const patientFiles = data.files
-          .filter((file: any) => file.owner_id === patientId)
+      if (data.success && data.shares) {
+        // Filter shares between this doctor and patient (both directions)
+        const sharedFiles = data.shares
+          .filter((share: any) =>
+            (share.shared_by === userId && share.shared_with === patientId) ||
+            (share.shared_by === patientId && share.shared_with === userId)
+          )
+          .map((share: any) => ({
+            id: share.file_id,
+            original_filename: share.file_name || 'Unknown file',
+            uploaded_at: share.shared_at,
+            owner_id: share.owner_id,
+            owner_name: share.owner_name,
+            shared_by: share.shared_by,
+            shared_by_name: share.shared_by_name
+          }))
           .sort((a: any, b: any) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime())
           .slice(0, 5); // Get latest 5 files
 
-        setRecentFiles(patientFiles);
+        setRecentFiles(sharedFiles);
       }
     } catch (err) {
-      console.error('Failed to fetch recent files:', err);
+      console.error('Failed to fetch shared files:', err);
       // Don't show error, just leave files empty
     }
   };
@@ -238,15 +264,21 @@ const DViewHealthProfilePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Medical Records Section */}
+        {/* Shared Medical Records Section */}
         <div className="mt-6 bg-white rounded-lg p-6 border-2 border-blue-400">
-          <h3 className="text-lg font-bold mb-4">Recent Medical Records</h3>
+          <h3 className="text-lg font-bold mb-4">Shared Medical Records</h3>
+          <p className="text-sm text-gray-600 mb-4">Files shared between you and this patient</p>
           {recentFiles.length > 0 ? (
             <div className="space-y-2">
               {recentFiles.map((file) => (
-                <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="text-gray-700">{file.original_filename}</span>
-                  <span className="text-sm text-gray-500">{formatDate(file.uploaded_at)}</span>
+                <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                  <div className="flex-1">
+                    <p className="text-gray-900 font-medium">{file.original_filename}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Shared by: {file.shared_by_name || file.shared_by}
+                    </p>
+                  </div>
+                  <span className="text-sm text-gray-500 ml-4">{formatDate(file.uploaded_at)}</span>
                 </div>
               ))}
             </div>
