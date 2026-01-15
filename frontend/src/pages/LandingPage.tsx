@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import TopBar from '../components/layout/TopBar';
 
-const HomePage: React.FC = () => {
+const LandingPage: React.FC = () => {
   const features = [
     {
       icon: Lock,
@@ -526,4 +526,4 @@ const HomePage: React.FC = () => {
   );
 };
 
-export default HomePage;
+export default LandingPage;
