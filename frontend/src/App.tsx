@@ -3,7 +3,7 @@ import { NotificationProvider } from './contexts/NotificationContext';
 import NotificationToast from './components/NotificationToast';
 
 // Public Pages
-import HomePage from './pages/Homepage';
+import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/start/LoginPage';
 import VerificationPage from './pages/start/VerificationPage';
 import ResetPasswordPage from './pages/start/ResetPasswordPage';
@@ -40,7 +40,7 @@ function App() {
       <Router>
         <Routes>
           {/* Public Routes */}
-          <Route path="/" element={<HomePage />} />
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/verify" element={<VerificationPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
