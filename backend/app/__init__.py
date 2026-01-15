@@ -7,7 +7,14 @@ def create_app(config_name='development'):
     app.config.from_object(config[config_name])
     
     # Enable CORS
-    CORS(app)
+    CORS(app, resources={
+        r"/api/*": {
+            "origins": "*",
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"],
+            "supports_credentials": True
+        }
+    })
     
     # Register blueprints
     from app.api.auth import auth_bp
@@ -16,7 +23,7 @@ def create_app(config_name='development'):
     from app.api.audit import audit_bp
     from app.api.shares import shares_bp
     from app.api.biometric import biometric_bp
-
+    
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(keys_bp, url_prefix='/api/keys')
     app.register_blueprint(files_bp, url_prefix='/api/files')
@@ -46,5 +53,13 @@ def create_app(config_name='development'):
                 'biometric': '/api/auth/biometric'
             }
         }, 200
+    
+    # Add after_request handler for CORS headers
+    @app.after_request
+    def after_request(response):
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        return response
     
     return app
