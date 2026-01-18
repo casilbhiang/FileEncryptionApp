@@ -5,7 +5,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import NotificationToast from './components/NotificationToast';
 
 // Public Pages
-import HomePage from './pages/Homepage';
+import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/start/LoginPage';
 import VerificationPage from './pages/start/VerificationPage';
 import ResetPasswordPage from './pages/start/ResetPasswordPage';
@@ -38,15 +38,26 @@ import ACloudStoragePage from './pages/admin/ACloudStoragePage';
 function App() {
   return (
     <NotificationProvider>
-      <AuthProvider>
-        <NotificationToast />
+<<<<<<< HEAD
+  <AuthProvider>
+    <NotificationToast />
+    <Router>
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/verify" element={<VerificationPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+=======
+      <NotificationToast />
         <Router>
           <Routes>
             {/* Public Routes */}
-            <Route path="/" element={<HomePage />} />
+            <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/verify" element={<VerificationPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+>>>>>>> 4899968a18f2abc3d23302109ff7eeca37422fbe
 
             {/* Patient Routes */}
             <Route path="/patient" element={
@@ -175,7 +186,7 @@ function App() {
         </Router>
       </AuthProvider>
     </NotificationProvider>
-  );
+    );
 }
 
-export default App;
+    export default App;
