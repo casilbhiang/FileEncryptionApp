@@ -242,6 +242,31 @@ def login():
                 'message': 'NRIC is required'
             }), 400
 
+        # Input Sanitization / Validation
+        import re
+        
+        # Validate Role (letters only)
+        if not re.match(r'^[a-zA-Z]+$', role):
+             return jsonify({
+                'success': False,
+                'message': 'Invalid role format'
+            }), 400
+
+        # Validate User ID (Alphanumeric and hyphens, strictly following the generated format)
+        # Format example: KYJHOPAT-67I
+        if not re.match(r'^[A-Z0-9]+-[A-Z0-9]+$', user_id):
+             return jsonify({
+                'success': False,
+                'message': 'Invalid User ID format'
+            }), 400
+
+        # Validate NRIC (Alphanumeric)
+        if not re.match(r'^[A-Z0-9]+$', nric):
+             return jsonify({
+                'success': False,
+                'message': 'Invalid NRIC format'
+            }), 400
+
         # Get Supabase admin client
         supabase = get_supabase_admin_client()
 
