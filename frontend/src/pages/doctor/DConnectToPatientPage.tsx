@@ -206,7 +206,6 @@ const DConnectToPatientPage: React.FC = () => {
         <div className="bg-white rounded-lg p-6 lg:p-8 max-w-3xl">
           <h2 className="text-xl font-bold mb-6">How to Connect</h2>
 
-          {/* Steps omitted for brevity, keeping same structure */}
           {/* Step 1 */}
           <div className="flex gap-4 mb-6">
             <div className="w-10 h-10 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold flex-shrink-0">
