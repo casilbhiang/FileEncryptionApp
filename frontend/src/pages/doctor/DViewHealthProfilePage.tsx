@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, User } from 'lucide-react';
 
 interface PatientHealthData {
   name: string;
@@ -186,12 +186,19 @@ const DViewHealthProfilePage: React.FC = () => {
 
         {/* Patient Health Profile Card */}
         <div className="mb-4">
-          <h2 className="text-xl font-bold mb-4">{patientData.name} Health Profile</h2>
+          <h2 className="text-xl font-bold mb-4">{patientData.name}'s Health Profile</h2>
           
-          {/* Patient Header Card - Without Profile Picture */}
+          {/* Patient Header Card - Added icon for profile name/email */}
           <div className="bg-purple-100 rounded-lg p-6 mb-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-1">{patientData.name}</h3>
-            <p className="text-sm text-gray-700">{patientData.email}</p>
+            <div className="flex items-center">
+              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mr-4">
+                <User className="w-8 h-8 text-purple-600" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-1">{patientData.name}</h3>
+                <p className="text-sm text-gray-700">{patientData.email}</p>
+              </div>
+            </div>
           </div>
         </div>
 
