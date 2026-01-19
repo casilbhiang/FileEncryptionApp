@@ -29,6 +29,7 @@ export interface QRCodeResponse {
     success: boolean;
     key_id: string;
     qr_code: string;
+    expires_at?: string;
 }
 
 /**
@@ -130,6 +131,44 @@ export async function getUserConnections(userId: string): Promise<any> {
     if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to fetch connections');
+    }
+
+    return response.json();
+}
+
+/**
+ * Get a specific key pair by ID (Optionally with full key)
+ */
+export async function getKeyPair(keyId: string, userId: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/keys/${keyId}?include_key=true&user_id=${userId}`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to fetch key pair');
+    }
+
+    return response.json();
+}
+
+/**
+ * Refresh a key pair (Rotate Key)
+ */
+export async function refreshKeyPair(keyId: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/keys/${keyId}/refresh`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to refresh key pair');
     }
 
     return response.json();
