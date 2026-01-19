@@ -69,7 +69,6 @@ class KeyPairStore:
         response = self.supabase.table('key_pairs')\
             .update({'status': status})\
             .eq('key_id', key_id)\
-            .select()\
             .execute()
             
         if response.data:

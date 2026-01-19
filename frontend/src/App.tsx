@@ -1,9 +1,11 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { AuthProvider } from './contexts/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 import NotificationToast from './components/NotificationToast';
 
 // Public Pages
-import HomePage from './pages/Homepage';
+import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/start/LoginPage';
 import VerificationPage from './pages/start/VerificationPage';
 import ResetPasswordPage from './pages/start/ResetPasswordPage';
@@ -36,48 +38,142 @@ import ACloudStoragePage from './pages/admin/ACloudStoragePage';
 function App() {
   return (
     <NotificationProvider>
-      <NotificationToast />
-      <Router>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<HomePage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/verify" element={<VerificationPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <AuthProvider>
+        <NotificationToast />
+        <Router>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/verify" element={<VerificationPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-          {/* Patient Routes */}
-          <Route path="/patient" element={<PHomePage />} />
-          <Route path="/patient/home" element={<PHomePage />} />
-          <Route path="/patient/my-files" element={<MyFilesPage />} />
-          <Route path="/patient/upload" element={<UploadFilePage />} />
-          <Route path="/patient/share" element={<ShareFiles />} />
-          <Route path="/patient/connect" element={<PConnectToDocPage />} />
+            {/* Patient Routes */}
+            <Route path="/patient" element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <PHomePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/patient/home" element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <PHomePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/patient/my-files" element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <MyFilesPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/patient/upload" element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <UploadFilePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/patient/share" element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <ShareFiles />
+              </ProtectedRoute>
+            } />
+            <Route path="/patient/connect" element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <PConnectToDocPage />
+              </ProtectedRoute>
+            } />
 
-          {/* Doctor Routes */}
-          <Route path="/doctor" element={<DHomePage />} />
-          <Route path="/doctor/home" element={<DHomePage />} />
-          <Route path="/doctor/my-files" element={<MyFilesPage />} />
-          <Route path="/doctor/upload" element={<UploadFilePage />} />
-          <Route path="/doctor/share" element={<ShareFiles />} />
-          <Route path="/doctor/patients" element={<DViewPatientPage />} />
-          <Route path="/doctor/patient-profile/:patientId" element={<DViewHealthProfilePage />} />
-          <Route path="/doctor/connect" element={<DConnectToPatientPage />} />
+            {/* Doctor Routes */}
+            <Route path="/doctor" element={
+              <ProtectedRoute allowedRoles={['doctor']}>
+                <DHomePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/doctor/home" element={
+              <ProtectedRoute allowedRoles={['doctor']}>
+                <DHomePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/doctor/my-files" element={
+              <ProtectedRoute allowedRoles={['doctor']}>
+                <MyFilesPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/doctor/upload" element={
+              <ProtectedRoute allowedRoles={['doctor']}>
+                <UploadFilePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/doctor/share" element={
+              <ProtectedRoute allowedRoles={['doctor']}>
+                <ShareFiles />
+              </ProtectedRoute>
+            } />
+            <Route path="/doctor/patients" element={
+              <ProtectedRoute allowedRoles={['doctor']}>
+                <DViewPatientPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/doctor/patient-profile/:patientId" element={
+              <ProtectedRoute allowedRoles={['doctor']}>
+                <DViewHealthProfilePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/doctor/connect" element={
+              <ProtectedRoute allowedRoles={['doctor']}>
+                <DConnectToPatientPage />
+              </ProtectedRoute>
+            } />
 
-          {/* Admin Routes */}
-          <Route path="/admin" element={<AHomePage />} />
-          <Route path="/admin/home" element={<AHomePage />} />
-          <Route path="/admin/user-management" element={<AUserMgtPage />} />
-          <Route path="/admin/create-user" element={<ACreateUserPage />} />
-          <Route path="/admin/key-management" element={<AKeyMgtPage />} />
-          <Route path="/admin/audit-logs" element={<AAuditLogsPage />} />
-          <Route path="/admin/key-logs" element={<AKeyLogsPage />} />
-          <Route path="/admin/file-logs" element={<AFileLogsPage />} />
-          <Route path="/admin/cloud-storage" element={<ACloudStoragePage />} />
+            {/* Admin Routes */}
+            <Route path="/admin" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AHomePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/home" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AHomePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/user-management" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AUserMgtPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/create-user" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <ACreateUserPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/key-management" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AKeyMgtPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/audit-logs" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AAuditLogsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/key-logs" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AKeyLogsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/file-logs" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AFileLogsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/cloud-storage" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <ACloudStoragePage />
+              </ProtectedRoute>
+            } />
 
-          {/* Redirect unknown routes to home */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Router>
+            {/* Redirect unknown routes to home */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Router>
+      </AuthProvider>
     </NotificationProvider>
   );
 }

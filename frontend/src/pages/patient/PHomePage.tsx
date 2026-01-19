@@ -1,12 +1,11 @@
 'use client';
-
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
-import { Loader2, RefreshCw, Eye, Download, User } from 'lucide-react';
+import { Loader2, RefreshCw, Eye, Download, User, FileText, Share2, Inbox, CheckCircle } from 'lucide-react';
 import { getMyFiles, type FileItem, formatFileSize } from '../../services/Files';
 
 const PHomePage: React.FC = () => {
-  const userRole = 'patient'; // Fixed for patient homepage
+  const userRole = 'patient'; 
   
   const [userName, setUserName] = useState<string>('Patient');
   const [recentFiles, setRecentFiles] = useState<FileItem[]>([]);
@@ -135,11 +134,11 @@ const PHomePage: React.FC = () => {
 
       {/* Main Content */}
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
-        {/* Header - Changed from blue gradient to white background */}
+        {/* Header */}
         <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4">
             <div>
-              <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">Welcome Back, {userName} 👋</h1>
+              <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">Welcome Back, {userName}</h1>
               <p className="text-gray-600 mt-2">Your health data is securely encrypted and protected.</p>
             </div>
             
@@ -174,7 +173,7 @@ const PHomePage: React.FC = () => {
                   <p className="text-2xl font-bold text-gray-800">{stats.totalFiles}</p>
                 </div>
                 <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <span className="text-blue-600 font-semibold">📁</span>
+                  <FileText className="w-5 h-5 text-blue-600" />
                 </div>
               </div>
             </div>
@@ -186,7 +185,7 @@ const PHomePage: React.FC = () => {
                   <p className="text-2xl font-bold text-gray-800">{stats.sharedFiles}</p>
                 </div>
                 <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                  <span className="text-green-600 font-semibold">↗️</span>
+                  <Share2 className="w-5 h-5 text-green-600" />
                 </div>
               </div>
             </div>
@@ -198,7 +197,7 @@ const PHomePage: React.FC = () => {
                   <p className="text-2xl font-bold text-gray-800">{stats.receivedFiles}</p>
                 </div>
                 <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <span className="text-purple-600 font-semibold">↙️</span>
+                  <Inbox className="w-5 h-5 text-purple-600" />
                 </div>
               </div>
             </div>
@@ -207,8 +206,10 @@ const PHomePage: React.FC = () => {
           {/* Error message */}
           {error && (
             <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <div className="flex items-center">
-                <span className="mr-2 text-red-500">⚠️</span>
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-red-600 text-xs font-bold">!</span>
+                </div>
                 <span className="text-red-600">{error}</span>
               </div>
               <button 
@@ -347,15 +348,15 @@ const PHomePage: React.FC = () => {
           <h3 className="text-lg font-semibold text-gray-800 mb-3">Quick Tips</h3>
           <ul className="space-y-2 text-sm text-gray-600">
             <li className="flex items-start gap-2">
-              <span className="text-blue-600 mt-0.5">✓</span>
+              <CheckCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
               <span>All files are automatically encrypted for your security</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-blue-600 mt-0.5">✓</span>
+              <CheckCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
               <span>You can share files with your doctors from the My Files page</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-blue-600 mt-0.5">✓</span>
+              <CheckCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
               <span>Only you and authorized recipients can decrypt your files</span>
             </li>
           </ul>

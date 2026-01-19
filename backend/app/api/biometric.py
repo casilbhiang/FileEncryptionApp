@@ -16,7 +16,7 @@ if not SUPABASE_SERVICE_ROLE_KEY:
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 # Blueprint for biometric routes
-biometric_bp = Blueprint('biometric', __name__, url_prefix='/api/auth/biometric')
+biometric_bp = Blueprint('biometric', __name__)
 
 # Helper function to get client IP address
 def get_client_ip():
@@ -25,12 +25,15 @@ def get_client_ip():
     return request.remote_addr
 
 # ===== Generate Challenge =====
-@biometric_bp.route('/challenge', methods=['POST'])
+@biometric_bp.route('/challenge', methods=['POST', 'OPTIONS'])
 def generate_challenge():
+    if request.method == "OPTIONS":
+        return '', 204
+    
     try:
         data = request.get_json()
         user_id = data.get('user_id')
-        challenge_type = data.get('type')  # 'registration' or 'authentication'
+        challenge_type = data.get('type')
         
         if not user_id or not challenge_type:
             return jsonify({'message': 'Missing required fields'}), 400
@@ -44,7 +47,9 @@ def generate_challenge():
             'user_id': user_id,
             'challenge': challenge_b64,
             'challenge_type': challenge_type,
-            'used': False
+            'used': False,
+            'ip_address': get_client_ip(),
+            'user_agent': request.headers.get('User-Agent', 'Unknown')
         }
         
         supabase.table('biometric_challenges').insert(challenge_data).execute()
@@ -62,27 +67,27 @@ def generate_challenge():
             if not credential_ids:
                 return jsonify({'message': 'No biometric credentials registered for this user'}), 404
         
-        print(f"Challenge generated for user {user_id}, type: {challenge_type}")
+        print(f"✓ Biometric {challenge_type} challenge generated for {user_id}")
         return jsonify(response_data), 200
         
     except Exception as e:
         import traceback
-        error_details = traceback.format_exc()
-        print(f"Challenge generation error: {e}")
-        print(f"Full traceback:\n{error_details}")
+        print(f"✗ Challenge error: {e}")
+        traceback.print_exc()
         return jsonify({'message': 'Failed to generate challenge', 'error': str(e)}), 500
 
 # ===== Register Biometric Credential =====
-@biometric_bp.route('/register', methods=['POST'])
+@biometric_bp.route('/register', methods=['POST', 'OPTIONS'])
 def register_biometric():
+    if request.method == "OPTIONS":
+        return '', 204
+    
     try:
         data = request.get_json()
         user_id = data.get('user_id')
         credential_id = data.get('credential_id')
         public_key = data.get('public_key')
         device_name = data.get('device_name')
-        attestation_object = data.get('attestation_object')
-        client_data_json = data.get('client_data_json')
         
         if not all([user_id, credential_id, public_key, device_name]):
             return jsonify({'message': 'Missing required fields'}), 400
@@ -105,7 +110,8 @@ def register_biometric():
         
         # Mark challenge as used
         supabase.table('biometric_challenges').update({
-            'used': True
+            'used': True,
+            'used_at': datetime.utcnow().isoformat()
         }).eq('id', challenge_id).execute()
         
         # Check if credential already exists
@@ -123,12 +129,14 @@ def register_biometric():
             'public_key': public_key,
             'device_name': device_name,
             'counter': 0,
-            'is_active': True
+            'is_active': True,
+            'registration_ip': get_client_ip(),
+            'registration_user_agent': request.headers.get('User-Agent', 'Unknown')
         }
         
-        result = supabase.table('biometric_credentials').insert(credential_data).execute()
+        supabase.table('biometric_credentials').insert(credential_data).execute()
         
-        print(f"Biometric registered for user {user_id} on {device_name}")
+        print(f"✓ Biometric registered for {user_id} on {device_name}")
         
         return jsonify({
             'message': 'Biometric credential registered successfully',
@@ -137,14 +145,16 @@ def register_biometric():
         
     except Exception as e:
         import traceback
-        error_details = traceback.format_exc()
-        print(f"Registration error: {e}")
-        print(f"Full traceback:\n{error_details}")
+        print(f"✗ Registration error: {e}")
+        traceback.print_exc()
         return jsonify({'message': 'Failed to register biometric', 'error': str(e)}), 500
 
 # ===== Verify Biometric Authentication =====
-@biometric_bp.route('/verify', methods=['POST'])
+@biometric_bp.route('/verify', methods=['POST', 'OPTIONS'])
 def verify_biometric():
+    if request.method == "OPTIONS":
+        return '', 204
+    
     try:
         data = request.get_json()
         user_id = data.get('user_id')
@@ -187,11 +197,10 @@ def verify_biometric():
         credential = credential_result.data[0]
         current_counter = credential['counter']
         
-        print(f"Biometric authentication verified for user {user_id}")
-        
         # Mark challenge as used
         supabase.table('biometric_challenges').update({
-            'used': True
+            'used': True,
+            'used_at': datetime.utcnow().isoformat()
         }).eq('id', challenge_id).execute()
         
         # Update credential: increment counter and update last_used
@@ -200,6 +209,8 @@ def verify_biometric():
             'counter': current_counter + 1
         }).eq('credential_id', credential_id).execute()
         
+        print(f"Biometric authentication verified for {user_id}")
+        
         return jsonify({
             'message': 'Biometric authentication successful',
             'verified': True
@@ -207,14 +218,16 @@ def verify_biometric():
         
     except Exception as e:
         import traceback
-        error_details = traceback.format_exc()
-        print(f"Verification error: {e}")
-        print(f"Full traceback:\n{error_details}")
+        print(f"✗ Verification error: {e}")
+        traceback.print_exc()
         return jsonify({'message': 'Biometric verification failed', 'error': str(e)}), 500
 
 # ===== Check if User Has Registered Biometric =====
-@biometric_bp.route('/check', methods=['GET'])
+@biometric_bp.route('/check', methods=['GET', 'OPTIONS'])
 def check_biometric():
+    if request.method == "OPTIONS":
+        return '', 204
+        
     try:
         user_id = request.args.get('user_id')
         
@@ -225,16 +238,11 @@ def check_biometric():
         result = supabase.rpc('has_registered_biometric', {'p_user_id': user_id}).execute()
         has_biometric = result.data if result.data is not None else False
         
-        print(f"Biometric check for user {user_id}: {has_biometric}")
-        
         return jsonify({
             'has_biometric': has_biometric,
             'user_id': user_id
         }), 200
         
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Check error: {e}")
-        print(f"Full traceback:\n{error_details}")
+        print(f"✗ Check error: {e}")
         return jsonify({'message': 'Failed to check biometric status', 'error': str(e)}), 500

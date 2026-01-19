@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import { QrCode, Camera, AlertTriangle, CheckCircle, Stethoscope, Key } from 'lucide-react';
 import QRScanner from '../../components/QRScanner';
-import { verifyScannedQR, getUserConnections } from '../../services/keyService';
-import { hasEncryptionKey, clearEncryptionKey } from '../../services/Encryption';
+import { verifyScannedQR, getUserConnections, getKeyPair } from '../../services/keyService';
+import { hasEncryptionKey, clearEncryptionKey, storeEncryptionKey, importKeyFromBase64 } from '../../services/Encryption';
 
 const PConnectToDocPage: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
@@ -43,8 +43,24 @@ const PConnectToDocPage: React.FC = () => {
           setIsConnected(true);
 
           if (!hasKey) {
-            // Ghost Connection
-            setKeyMissing(true);
+            // Ghost Connection detected: Try to restore key from backend
+            console.log('Ghost connection detected. Attempting to restore key from backend...');
+            try {
+              const keyResult = await getKeyPair(activeConnection.key_id, patientId);
+              if (keyResult.success && keyResult.key_pair && keyResult.key_pair.encryption_key) {
+                // Import and store the key
+                const key = await importKeyFromBase64(keyResult.key_pair.encryption_key);
+                await storeEncryptionKey(key, patientId);
+                console.log('Key successfully restored from backend!');
+                setKeyMissing(false);
+              } else {
+                console.warn('Failed to restore key: Key not returned by backend');
+                setKeyMissing(true);
+              }
+            } catch (restoreErr) {
+              console.error('Failed to restore key:', restoreErr);
+              setKeyMissing(true);
+            }
           } else {
             setKeyMissing(false);
           }
@@ -289,9 +305,27 @@ const PConnectToDocPage: React.FC = () => {
                   <p className="text-sm text-gray-600">Key ID: {connectionDetails.key_id}</p>
                 </div>
               </div>
-              <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-                Active
-              </span>
+              <div className="flex flex-col items-end gap-2">
+                <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                  Active
+                </span>
+                {connectionDetails.expires_at && (
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded
+                        ${(() => {
+                      const days = Math.ceil((new Date(connectionDetails.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                      if (days < 0) return 'bg-red-100 text-red-700';
+                      if (days < 7) return 'bg-orange-100 text-orange-700';
+                      return 'bg-gray-100 text-gray-600';
+                    })()}
+                    `}>
+                    {(() => {
+                      const days = Math.ceil((new Date(connectionDetails.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                      if (days < 0) return 'Expired';
+                      return `Key Expires in ${days} days`;
+                    })()}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )}
