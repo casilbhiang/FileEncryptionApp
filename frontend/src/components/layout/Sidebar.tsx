@@ -56,6 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
       { id: 'my-files', label: 'My Files', icon: FileText, path: '/patient/my-files' },
       { id: 'upload', label: 'Upload Files', icon: Upload, path: '/patient/upload' },
       { id: 'share', label: 'Share Files', icon: Share2, path: '/patient/share' },
+      { id: 'profile', label: 'My Profile', icon: Users, path: '/patient/profile' },
       { id: 'connect', label: 'Connect to Doctor', icon: UserPlus, path: '/patient/connect' },
     ],
     admin: [

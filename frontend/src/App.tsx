@@ -13,6 +13,7 @@ import ResetPasswordPage from './pages/start/ResetPasswordPage';
 // Patient Pages
 import PHomePage from './pages/patient/PHomePage';
 import PConnectToDocPage from './pages/patient/PConnectToDocPage';
+import PProfilePage from './pages/patient/PProfilePage';
 
 // Doctor Pages
 import DHomePage from './pages/doctor/DHomePage';
@@ -72,6 +73,11 @@ function App() {
             <Route path="/patient/share" element={
               <ProtectedRoute allowedRoles={['patient']}>
                 <ShareFiles />
+              </ProtectedRoute>
+            } />
+            <Route path="/patient/profile" element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <PProfilePage />
               </ProtectedRoute>
             } />
             <Route path="/patient/connect" element={
