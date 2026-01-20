@@ -63,16 +63,18 @@ const AUserMgtPage: React.FC = () => {
   // Filter and sort users
   const filteredUsers = users
     .filter((user) => {
-      const matchesSearch = 
+      // Search by name, email, ID, or role
+      const matchesSearch =
         user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.id.toLowerCase().includes(searchQuery.toLowerCase());
+        user.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.role.toLowerCase().includes(searchQuery.toLowerCase());
 
-      const matchesRole = 
-        roleFilter === 'all' || 
+      const matchesRole =
+        roleFilter === 'all' ||
         user.role.toLowerCase() === roleFilter.toLowerCase();
 
-      const matchesStatus = 
+      const matchesStatus =
         statusFilter === 'all' ||
         (statusFilter === 'active' && user.status === 'Active') ||
         (statusFilter === 'inactive' && user.status === 'Inactive');
@@ -203,7 +205,7 @@ const AUserMgtPage: React.FC = () => {
               <div className="flex flex-col sm:flex-row gap-3">
                 <input
                   type="text"
-                  placeholder="Search by name, email, or ID..."
+                  placeholder="Search by name, email, ID, or role..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -226,15 +228,6 @@ const AUserMgtPage: React.FC = () => {
                   <option value="all">All Status</option>
                   <option value="active">Active Only</option>
                   <option value="inactive">Inactive Only</option>
-                </select>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="name">Sort: Name</option>
-                  <option value="role">Sort: Role</option>
-                  <option value="status">Sort: Status</option>
                 </select>
               </div>
 

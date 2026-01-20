@@ -629,3 +629,98 @@ def get_all_file_shares():
         print(f"Get all file shares error: {e}")
         print(f"Full traceback:\n{error_details}")
         return jsonify({'error': str(e), 'details': error_details}), 500
+
+
+# ===== Get All File Operations (Admin) - Uploads + Shares =====
+@files_bp.route('/operations/all', methods=['GET'])
+def get_all_file_operations():
+    """Get all file operations (uploads and shares) for admin file logs page"""
+    try:
+        # Cache for user info to avoid repeated queries
+        user_cache = {}
+
+        def get_user_info(user_id):
+            """Returns tuple of (full_name, user_id) for display"""
+            if not user_id:
+                return ('Unknown', 'Unknown')
+            if user_id in user_cache:
+                return user_cache[user_id]
+            try:
+                user_response = supabase.table('users')\
+                    .select('full_name, user_id')\
+                    .eq('user_id', user_id)\
+                    .execute()
+                if user_response.data:
+                    name = user_response.data[0]['full_name'] or user_id
+                    uid = user_response.data[0]['user_id']
+                    user_cache[user_id] = (name, uid)
+                    return (name, uid)
+            except:
+                pass
+            user_cache[user_id] = (user_id, user_id)
+            return (user_id, user_id)
+
+        operations = []
+
+        # 1. Fetch all completed uploads
+        uploads_response = supabase.table('encrypted_files')\
+            .select('id, original_filename, owner_id, uploaded_at, upload_status')\
+            .eq('upload_status', 'completed')\
+            .eq('is_deleted', False)\
+            .order('uploaded_at', desc=True)\
+            .execute()
+
+        for upload in uploads_response.data:
+            owner_name, owner_uid = get_user_info(upload['owner_id'])
+            operations.append({
+                'id': f"upload_{upload['id']}",
+                'type': 'upload',
+                'timestamp': upload['uploaded_at'],
+                'file_name': upload['original_filename'],
+                'owner_id': owner_uid,
+                'owner_name': owner_name,
+                'action': 'Uploaded',
+                'shared_with': None,
+                'shared_with_name': None,
+                'status': 'completed'
+            })
+
+        # 2. Fetch all file shares
+        shares_response = supabase.table('file_shares')\
+            .select('*, encrypted_files(original_filename, owner_id)')\
+            .order('shared_at', desc=True)\
+            .execute()
+
+        for share in shares_response.data:
+            file_info = share.get('encrypted_files', {})
+            owner_id = file_info.get('owner_id', share['shared_by'])
+            owner_name, owner_uid = get_user_info(owner_id)
+            shared_with_name, shared_with_uid = get_user_info(share['shared_with'])
+
+            operations.append({
+                'id': f"share_{share['id']}",
+                'type': 'share',
+                'timestamp': share['shared_at'],
+                'file_name': file_info.get('original_filename', 'Unknown'),
+                'owner_id': owner_uid,
+                'owner_name': owner_name,
+                'action': f"Shared to {shared_with_name} ({shared_with_uid})",
+                'shared_with': shared_with_uid,
+                'shared_with_name': shared_with_name,
+                'status': share['share_status']
+            })
+
+        # Sort all operations by timestamp (newest first)
+        operations.sort(key=lambda x: x['timestamp'] or '', reverse=True)
+
+        return jsonify({
+            'success': True,
+            'operations': operations
+        }), 200
+
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Get all file operations error: {e}")
+        print(f"Full traceback:\n{error_details}")
+        return jsonify({'error': str(e), 'details': error_details}), 500
