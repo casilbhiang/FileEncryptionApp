@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(del database_setup.sql add_compound_userid.sql migrate_to_compound_userids.sql update_existing_users_manual.sql migrate_compound_userids_safe.sql fix_audit_logging.sql insert_existing_patient_profiles.sql create_patient_profiles_table.sql create_patient_profiles_table_simple.sql create_patient_profiles_table_fixed.sql insert_existing_patient_profiles_fixed.sql check_connections_table.sql fix_connections_table_column.sql add_user_creation_audit_logs.sql backfill_user_creation_simple.sql verify_user_creation_logs.sql create_user_creation_trigger.sql)",
+      "Bash(git fetch:*)",
+      "Bash(git merge:*)"
     ]
   }
 }

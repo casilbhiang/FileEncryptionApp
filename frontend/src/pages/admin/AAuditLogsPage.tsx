@@ -6,9 +6,9 @@ import { getAuditLogs, type AuditLog } from '../../services/auditService';
 
 const AAuditLogsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [userFilter, setUserFilter] = useState('all');
   const [actionFilter, setActionFilter] = useState('all');
   const [resultFilter, setResultFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('');
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,16 +42,23 @@ const AAuditLogsPage: React.FC = () => {
 
   // Filter logs based on current filters
   const filteredLogs = logs.filter((log) => {
-    const matchesSearch =
-      log.user.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.target.toLowerCase().includes(searchQuery.toLowerCase());
+    // Search by user, action, target, details, or timestamp/date
+    // Use optional chaining and nullish coalescing to prevent errors
+    const searchLower = searchQuery.toLowerCase();
+    const matchesSearch = !searchQuery ||
+      (log.user || '').toLowerCase().includes(searchLower) ||
+      (log.action || '').toLowerCase().includes(searchLower) ||
+      (log.target || '').toLowerCase().includes(searchLower) ||
+      (log.details || '').toLowerCase().includes(searchLower) ||
+      (log.timestamp || '').toLowerCase().includes(searchLower);
 
-    const matchesUser = userFilter === 'all' || log.user.includes(userFilter);
     const matchesAction = actionFilter === 'all' || log.action === actionFilter;
     const matchesResult = resultFilter === 'all' || log.result === resultFilter.toUpperCase();
 
-    return matchesSearch && matchesUser && matchesAction && matchesResult;
+    // Date filter - match by date string
+    const matchesDate = !dateFilter || (log.timestamp || '').includes(dateFilter);
+
+    return matchesSearch && matchesAction && matchesResult && matchesDate;
   });
 
   return (
@@ -78,45 +85,62 @@ const AAuditLogsPage: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm">
           {/* Table Header with Filters */}
           <div className="p-4 border-b">
-            <div className="flex flex-col sm:flex-row gap-3 mb-4">
-              <input
-                type="text"
-                placeholder="Search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <select
-                value={userFilter}
-                onChange={(e) => setUserFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Users</option>
-                <option value="ADMIN">Admin Users</option>
-                <option value="Dr">Doctors</option>
-                <option value="Mrs">Patients</option>
-              </select>
-              <select
-                value={actionFilter}
-                onChange={(e) => setActionFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Actions</option>
-                {uniqueActions.map((action) => (
-                  <option key={action} value={action}>
-                    {action}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={resultFilter}
-                onChange={(e) => setResultFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Results</option>
-                <option value="ok">Success (OK)</option>
-                <option value="failed">Failed</option>
-              </select>
+            <div className="flex flex-col gap-3 mb-4">
+              {/* Search and Date filter row */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="text"
+                  placeholder="Search by user, action, target, details, or date..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  type="date"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  title="Filter by date"
+                />
+              </div>
+              {/* Dropdown filters row */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <select
+                  value={actionFilter}
+                  onChange={(e) => setActionFilter(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All Actions</option>
+                  {uniqueActions.map((action) => (
+                    <option key={action} value={action}>
+                      {action}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={resultFilter}
+                  onChange={(e) => setResultFilter(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All Results</option>
+                  <option value="ok">Success (OK)</option>
+                  <option value="failed">Failed</option>
+                </select>
+                {/* Clear filters button */}
+                {(searchQuery || actionFilter !== 'all' || resultFilter !== 'all' || dateFilter) && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setActionFilter('all');
+                      setResultFilter('all');
+                      setDateFilter('');
+                    }}
+                    className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition"
+                  >
+                    Clear Filters
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

@@ -176,6 +176,11 @@ const AKeyMgtPage: React.FC = () => {
       console.error('Failed to delete key:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete key pair';
       setError(errorMessage);
+
+      // Close the dialog even on error so the page doesn't freeze
+      setShowDeleteDialog(false);
+      setSelectedKey(null);
+
       alert(`Error: ${errorMessage}`);
     }
   };
