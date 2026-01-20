@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 
 interface KeyPair {
@@ -14,7 +14,7 @@ interface KeyPair {
 interface DeleteKeysDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: () => Promise<void>;
   keyPair: KeyPair | null;
 }
 
@@ -24,7 +24,24 @@ const DeleteKeysDialog: React.FC<DeleteKeysDialogProps> = ({
   onConfirm,
   keyPair
 }) => {
+  const [isDeleting, setIsDeleting] = useState(false);
+
   if (!isOpen || !keyPair) return null;
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await onConfirm();
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (!isDeleting) {
+      onClose();
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -44,16 +61,18 @@ const DeleteKeysDialog: React.FC<DeleteKeysDialogProps> = ({
         </div>
         <div className="flex gap-3">
           <button
-            onClick={onClose}
-            className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition"
+            onClick={handleClose}
+            disabled={isDeleting}
+            className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button
-            onClick={onConfirm}
-            className="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition"
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Delete key pair
+            {isDeleting ? 'Deleting...' : 'Delete key pair'}
           </button>
         </div>
       </div>

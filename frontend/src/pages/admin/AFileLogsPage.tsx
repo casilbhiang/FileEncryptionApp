@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, AlertTriangle, X, Trash2 } from 'lucide-react';
 
 interface FileLog {
   id: string;
@@ -16,6 +16,16 @@ interface FileLog {
   status: string;
 }
 
+interface OutdatedFile {
+  id: string;
+  file_name: string;
+  owner_id: string;
+  owner_name: string;
+  uploaded_at: string;
+  file_size: number;
+  file_extension: string;
+}
+
 const AFileLogsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [fileTypeFilter, setFileTypeFilter] = useState('all');
@@ -24,7 +34,16 @@ const AFileLogsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Outdated files state
+  const [outdatedFiles, setOutdatedFiles] = useState<OutdatedFile[]>([]);
+  const [outdatedCount, setOutdatedCount] = useState(0);
+  const [showOutdatedModal, setShowOutdatedModal] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
+
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const OUTDATED_DAYS = 90; // Files older than 90 days
 
   // Helper function to extract file extension
   const getFileExtension = (filename: string): string => {
@@ -33,9 +52,19 @@ const AFileLogsPage: React.FC = () => {
     return parts.length > 1 ? parts.pop()?.toLowerCase() || '' : '';
   };
 
+  // Format file size
+  const formatFileSize = (bytes: number): string => {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
   // Load file logs from API
   useEffect(() => {
     loadFileLogs();
+    loadOutdatedFiles();
   }, []);
 
   const loadFileLogs = async () => {
@@ -76,6 +105,95 @@ const AFileLogsPage: React.FC = () => {
       setError(err instanceof Error ? err.message : 'Failed to load file logs');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadOutdatedFiles = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/files/outdated?days=${OUTDATED_DAYS}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        console.error('Failed to fetch outdated files');
+        return;
+      }
+
+      const data = await response.json();
+      setOutdatedFiles(data.outdated_files || []);
+      setOutdatedCount(data.count || 0);
+    } catch (err) {
+      console.error('Failed to load outdated files:', err);
+    }
+  };
+
+  const handleSelectFile = (fileId: string) => {
+    const newSelected = new Set(selectedFiles);
+    if (newSelected.has(fileId)) {
+      newSelected.delete(fileId);
+    } else {
+      newSelected.add(fileId);
+    }
+    setSelectedFiles(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedFiles.size === outdatedFiles.length) {
+      setSelectedFiles(new Set());
+    } else {
+      setSelectedFiles(new Set(outdatedFiles.map(f => f.id)));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedFiles.size === 0) return;
+
+    const confirmDelete = window.confirm(
+      `Are you sure you want to permanently delete ${selectedFiles.size} file(s)? This action cannot be undone.`
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      setDeleting(true);
+      setDeleteSuccess(null);
+
+      const response = await fetch(`${API_URL}/api/files/outdated/delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ file_ids: Array.from(selectedFiles) }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete files');
+      }
+
+      const data = await response.json();
+
+      setDeleteSuccess(`Successfully deleted ${data.deleted_count} file(s)`);
+      setSelectedFiles(new Set());
+
+      // Reload outdated files and logs
+      await loadOutdatedFiles();
+      await loadFileLogs();
+
+      // Close modal if no more outdated files
+      if (outdatedCount - data.deleted_count === 0) {
+        setTimeout(() => {
+          setShowOutdatedModal(false);
+          setDeleteSuccess(null);
+        }, 2000);
+      }
+    } catch (err) {
+      console.error('Failed to delete files:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete files');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -121,13 +239,45 @@ const AFileLogsPage: React.FC = () => {
             <p className="text-gray-600">Track File Uploads And Sharing Events</p>
           </div>
           <button
-            onClick={loadFileLogs}
+            onClick={() => { loadFileLogs(); loadOutdatedFiles(); }}
             disabled={loading}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
             title="Refresh logs"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
+          </button>
+        </div>
+
+        {/* Outdated Files Section - Always visible */}
+        <div className={`mb-6 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border ${
+          outdatedCount > 0
+            ? 'bg-amber-50 border-amber-200'
+            : 'bg-gray-50 border-gray-200'
+        }`}>
+          <div className="flex items-center gap-3">
+            <AlertTriangle className={`w-6 h-6 ${outdatedCount > 0 ? 'text-amber-600' : 'text-gray-400'}`} />
+            <div>
+              <p className={`font-semibold ${outdatedCount > 0 ? 'text-amber-800' : 'text-gray-700'}`}>
+                Outdated Files: {outdatedCount}
+              </p>
+              <p className={`text-sm ${outdatedCount > 0 ? 'text-amber-700' : 'text-gray-500'}`}>
+                {outdatedCount > 0
+                  ? `${outdatedCount} file${outdatedCount !== 1 ? 's' : ''} older than ${OUTDATED_DAYS} days need to be removed to reduce storage and security risks.`
+                  : `No files older than ${OUTDATED_DAYS} days found.`
+                }
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowOutdatedModal(true)}
+            className={`px-4 py-2 rounded-lg transition font-medium ${
+              outdatedCount > 0
+                ? 'bg-amber-600 text-white hover:bg-amber-700'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            {outdatedCount > 0 ? 'View & Delete' : 'View Details'}
           </button>
         </div>
 
@@ -218,7 +368,9 @@ const AFileLogsPage: React.FC = () => {
                         <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate" title={log.file_name}>
                           {log.file_name}
                         </td>
-                        <td className="px-4 py-4 text-sm text-gray-900">{log.owner_name}</td>
+                        <td className="px-4 py-4 text-sm text-gray-900">
+                          {log.owner_name} ({log.owner_id})
+                        </td>
                         <td className="px-4 py-4 text-sm text-gray-900">
                           <span className={`inline-flex items-center gap-1 ${
                             log.type === 'upload' ? 'text-blue-600' : 'text-purple-600'
@@ -257,6 +409,125 @@ const AFileLogsPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Outdated Files Modal */}
+      {showOutdatedModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Outdated Files</h2>
+                <p className="text-sm text-gray-600">
+                  Files older than {OUTDATED_DAYS} days ({outdatedFiles.length} files)
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowOutdatedModal(false);
+                  setSelectedFiles(new Set());
+                  setDeleteSuccess(null);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg transition"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Success Message */}
+            {deleteSuccess && (
+              <div className="mx-4 mt-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+                {deleteSuccess}
+              </div>
+            )}
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-auto p-4">
+              {outdatedFiles.length > 0 ? (
+                <table className="w-full">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-4 py-3 text-left">
+                        <input
+                          type="checkbox"
+                          checked={selectedFiles.size === outdatedFiles.length && outdatedFiles.length > 0}
+                          onChange={handleSelectAll}
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">File Name</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Owner</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Uploaded</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Size</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {outdatedFiles.map((file) => (
+                      <tr key={file.id} className={`hover:bg-gray-50 ${selectedFiles.has(file.id) ? 'bg-blue-50' : ''}`}>
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedFiles.has(file.id)}
+                            onChange={() => handleSelectFile(file.id)}
+                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate" title={file.file_name}>
+                          {file.file_name}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900">
+                          {file.owner_name} ({file.owner_id})
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {new Date(file.uploaded_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {formatFileSize(file.file_size)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No outdated files found.
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between p-4 border-t bg-gray-50">
+              <div className="text-sm text-gray-600">
+                {selectedFiles.size > 0 ? (
+                  <span>{selectedFiles.size} file(s) selected</span>
+                ) : (
+                  <span>Select files to delete</span>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowOutdatedModal(false);
+                    setSelectedFiles(new Set());
+                    setDeleteSuccess(null);
+                  }}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteSelected}
+                  disabled={selectedFiles.size === 0 || deleting}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {deleting ? 'Deleting...' : `Delete Selected (${selectedFiles.size})`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
