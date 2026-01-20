@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
 import { Search, Mic, Loader2 } from 'lucide-react';
+import { storage } from '../../utils/storage';
 
 interface Patient {
   user_id: string;
@@ -21,7 +22,7 @@ const DViewPatientPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
 
-  const userId = localStorage.getItem('user_id');
+  const userId = storage.getItem('user_id');
   const API_URL = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
@@ -100,7 +101,7 @@ const DViewPatientPage: React.FC = () => {
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl lg:text-3xl font-bold mb-4">View My Patients</h1>
-          
+
           {/* Search Bar */}
           <div className="relative max-w-2xl">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -142,8 +143,8 @@ const DViewPatientPage: React.FC = () => {
               {searchQuery
                 ? 'No patients found matching your search'
                 : patients.length === 0
-                ? 'You have no connected patients yet'
-                : 'No patients found'}
+                  ? 'You have no connected patients yet'
+                  : 'No patients found'}
             </p>
             {patients.length === 0 && (
               <p className="text-sm text-gray-400 mt-2">
@@ -188,7 +189,7 @@ const DViewPatientPage: React.FC = () => {
                     {patient.email && (
                       <p className="text-sm text-gray-700">Email: {patient.email}</p>
                     )}
-              </div>
+                  </div>
 
                   {/* Patient Profile Button */}
                   <button

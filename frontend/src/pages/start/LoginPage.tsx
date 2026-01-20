@@ -5,6 +5,7 @@ import { Eye, EyeOff, Lock, User, ChevronDown } from 'lucide-react';
 import simncryptLogo from '../../images/simncrypt.jpg';
 import BiometricModal from '../../components/BiometricModal';
 import BiometricService from '../../services/Biometric';
+import { storage } from '../../utils/storage';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  
+
   // Biometric states
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [biometricMode, setBiometricMode] = useState<'register' | 'authenticate'>('authenticate');
@@ -74,17 +75,17 @@ const LoginPage: React.FC = () => {
       if (!response.ok) throw new Error(data.message || 'Login failed');
 
       /* ================= STORE AUTH ================= */
-      localStorage.setItem('auth_token', data.token);
+      storage.setItem('auth_token', data.token);
 
       const email = data.user?.email || `${formData.userId}@clinic.com`;
 
-      localStorage.setItem('user_role', data.user.role);
-      localStorage.setItem('user_id', data.user.user_id);
-      localStorage.setItem('user_uuid', data.user.id);
-      localStorage.setItem('user_email', email);
-      localStorage.setItem('is_first_login', data.user.is_first_login ? 'true' : 'false');
+      storage.setItem('user_role', data.user.role);
+      storage.setItem('user_id', data.user.user_id);
+      storage.setItem('user_uuid', data.user.id);
+      storage.setItem('user_email', email);
+      storage.setItem('is_first_login', data.user.is_first_login ? 'true' : 'false');
 
-      localStorage.setItem('user', JSON.stringify({
+      storage.setItem('user', JSON.stringify({
         id: data.user.user_id,
         uuid: data.user.id,
         role: data.user.role,
@@ -119,7 +120,7 @@ const LoginPage: React.FC = () => {
     try {
       // Check if biometrics are available
       const isAvailable = await BiometricService.isBiometricAvailable();
-      
+
       if (!isAvailable) {
         // Device doesn't support biometrics, proceed without it
         console.log('Biometrics not available on this device');

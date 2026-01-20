@@ -1,8 +1,8 @@
-/* Web Crypto API for AES-GCM-256 Encryption */ 
+/* Web Crypto API for AES-GCM-256 Encryption */
 
 interface EncryptionResult {
     encryptedBlob: Blob;
-    iv: string; 
+    iv: string;
     authTag: string;
     algorithm: string;
 }
@@ -43,61 +43,63 @@ export async function importKeyFromHex(hexKey: string): Promise<CryptoKey> {
     return await importKeyFromQRCode(keyBytes);
 }
 
+import { storage } from '../utils/storage';
+
 // Store Encryption Key in Browser
 export async function storeEncryptionKey(key: CryptoKey, userId: string): Promise<void> {
     try {
         const exported = await crypto.subtle.exportKey('raw', key);
         const base64Key = arrayBufferToBase64(exported);
-        localStorage.setItem(`encryptionKey_${userId}`, base64Key);
+        storage.setItem(`encryptionKey_${userId}`, base64Key);
         console.log('Encryption key stored for user: ', userId);
     } catch (error) {
         console.error('Failed to store encryption key: ', error);
         throw new Error('Failed to store encryption key');
     }
 }
-    
+
 
 // Retrieve Encryption Key
 export async function getStoredEncryptionKey(userId: string): Promise<CryptoKey | null> {
     try {
-        const base64Key = localStorage.getItem(`encryptionKey_${userId}`);
-    if (!base64Key) {
-        console.log('No stored key found for user: ', userId);
-        return null;
-    }
+        const base64Key = storage.getItem(`encryptionKey_${userId}`);
+        if (!base64Key) {
+            console.log('No stored key found for user: ', userId);
+            return null;
+        }
 
-    const keyBytes = base64ToArrayBuffer(base64Key);
-    const key = await crypto.subtle.importKey(
-        'raw',
-        keyBytes as BufferSource,
-        { name: 'AES-GCM', length: 256 },
-        true,
-        ['encrypt', 'decrypt']
-    );
-    
-    console.log('Retrieved stored encryption key for user: ', userId);
-    return key;
+        const keyBytes = base64ToArrayBuffer(base64Key);
+        const key = await crypto.subtle.importKey(
+            'raw',
+            keyBytes as BufferSource,
+            { name: 'AES-GCM', length: 256 },
+            true,
+            ['encrypt', 'decrypt']
+        );
+
+        console.log('Retrieved stored encryption key for user: ', userId);
+        return key;
     } catch (error) {
         console.error('Failed to retrieve encryption key: ', error);
         return null;
-    } 
+    }
 }
-    
+
 // Check if encryption key is stored
 export function hasEncryptionKey(userId: string): boolean {
-    return localStorage.getItem(`encryptionKey_${userId}`) !== null;
+    return storage.getItem(`encryptionKey_${userId}`) !== null;
 }
 
 // Check if encryption key is cleared (logout)
 export function clearEncryptionKey(userId: string): void {
-    localStorage.removeItem(`encryptionKey_${userId}`);
+    storage.removeItem(`encryptionKey_${userId}`);
     console.log('Cleared encryption key for user: ', userId);
 }
 
 // ===== File Encryption =====
 
 // Encrypt file before upload
-export async function encryptFile( file: File, key: CryptoKey ): Promise<EncryptionResult> {
+export async function encryptFile(file: File, key: CryptoKey): Promise<EncryptionResult> {
     try {
         console.log('Starting encryption for file: ', file.name);
 
@@ -133,7 +135,7 @@ export async function encryptFile( file: File, key: CryptoKey ): Promise<Encrypt
 }
 
 // Decrypt file after download
-export async function decryptFile( params: DecryptionParams ): Promise<Blob> {
+export async function decryptFile(params: DecryptionParams): Promise<Blob> {
     try {
         const { encryptedBlob, iv, key } = params;
         console.log('Starting decryption of file');
@@ -199,7 +201,7 @@ function hexToUint8Array(hex: string): Uint8Array {
 
     const bytes = new Uint8Array(hex.length / 2);
     for (let i = 0; i < hex.length; i += 2) {
-        bytes[i/2] = parseInt(hex.substr(i, 2), 16);
+        bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
     }
     return bytes;
 }

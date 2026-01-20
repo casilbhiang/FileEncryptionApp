@@ -6,6 +6,7 @@ import { QrCode, Camera, AlertTriangle, CheckCircle, User, Key } from 'lucide-re
 import QRScanner from '../../components/QRScanner';
 import { verifyScannedQR, getUserConnections, getKeyPair } from '../../services/keyService';
 import { hasEncryptionKey, clearEncryptionKey, storeEncryptionKey, importKeyFromBase64 } from '../../services/Encryption';
+import { storage } from '../../utils/storage';
 
 const DConnectToPatientPage: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
@@ -17,7 +18,7 @@ const DConnectToPatientPage: React.FC = () => {
 
   // Mock doctor ID - in production this would come from auth context
   // Get doctor ID from localStorage
-  const doctorId = localStorage.getItem('user_id');
+  const doctorId = storage.getItem('user_id');
 
   // Load existing connections on mount
 

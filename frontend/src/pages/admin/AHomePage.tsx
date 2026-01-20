@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import { CheckCircle, XCircle, Loader2, RefreshCw, Activity, Database, Cloud, Lock, Eye } from 'lucide-react';
+import { storage } from '../../utils/storage';
 
 interface ActivityItem {
   id: string;
@@ -23,9 +24,9 @@ interface SystemHealthItem {
 }
 
 const AHomePage: React.FC = () => {
-  const userName = localStorage.getItem('user_name') || 'Admin';
+  const userName = storage.getItem('user_name') || 'Admin';
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-  
+
   const [recentActivities, setRecentActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [systemHealth, setSystemHealth] = useState<SystemHealthItem[]>([
@@ -119,26 +120,26 @@ const AHomePage: React.FC = () => {
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    
+
     if (diffHours < 24) {
-      return `Today at ${date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
+      return `Today at ${date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
         minute: '2-digit',
-        hour12: true 
+        hour12: true
       })}`;
     } else if (diffHours < 48) {
-      return `Yesterday at ${date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
+      return `Yesterday at ${date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
         minute: '2-digit',
-        hour12: true 
+        hour12: true
       })}`;
     } else {
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-        hour12: true 
+        hour12: true
       });
     }
   };
@@ -157,7 +158,7 @@ const AHomePage: React.FC = () => {
   const fetchRecentActivities = async () => {
     try {
       setLoading(true);
-      
+
       const response = await fetch(`${API_URL}/api/audit/logs?limit=10`, {
         method: 'GET',
         headers: {
@@ -245,9 +246,9 @@ const AHomePage: React.FC = () => {
               <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">Welcome Back, {userName}</h1>
               <p className="text-gray-600 mt-2">Monitor system health, manage users, and secure encryption keys.</p>
             </div>
-            
+
             <div className="flex gap-3">
-              <button 
+              <button
                 onClick={handleRefresh}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-all"
                 title="Refresh data"
@@ -313,9 +314,9 @@ const AHomePage: React.FC = () => {
                 <p className="text-sm text-gray-500">Latest system events and actions</p>
               </div>
             </div>
-            
+
             <div className="flex gap-3">
-              <button 
+              <button
                 onClick={() => window.location.href = '/admin/audit-logs'}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
               >
@@ -350,8 +351,8 @@ const AHomePage: React.FC = () => {
           {!loading && displayActivities.length > 0 && (
             <div className="space-y-4">
               {displayActivities.map((activity) => (
-                <div 
-                  key={activity.id} 
+                <div
+                  key={activity.id}
                   className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors group"
                 >
                   <div className="flex-1 mb-3 sm:mb-0">
@@ -363,7 +364,7 @@ const AHomePage: React.FC = () => {
                     </div>
                     <p className="text-sm text-gray-600">{activity.description}</p>
                   </div>
-                  
+
                   <div className="text-sm text-gray-500 whitespace-nowrap ml-4">
                     {activity.timestamp}
                   </div>
@@ -375,7 +376,7 @@ const AHomePage: React.FC = () => {
           {/* Show "View More" if there are more activities */}
           {!loading && recentActivities.length > 5 && (
             <div className="mt-6 text-center">
-              <button 
+              <button
                 onClick={() => window.location.href = '/admin/audit-logs'}
                 className="text-blue-600 hover:text-blue-800 font-medium"
               >

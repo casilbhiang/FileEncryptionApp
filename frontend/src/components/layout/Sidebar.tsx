@@ -4,6 +4,7 @@ import { Home, FileText, Upload, Share2, Users, UserPlus, Key, LogOut, Menu, X, 
 import type { LucideIcon } from 'lucide-react';
 import simncryptLogo from '../../images/simncrypt.jpg';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { storage } from '../../utils/storage';
 
 interface NavItem {
   id: string;
@@ -89,7 +90,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          user_id: localStorage.getItem('user_id'),
+          user_id: storage.getItem('user_id'),
         }),
       });
     } catch (error) {
@@ -97,7 +98,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
       // Continue with logout even if API call fails
     } finally {
       // Clear all local storage data
-      localStorage.clear();
+      storage.clear();
       // Clear session storage as well
       sessionStorage.clear();
       // Navigate to login page
@@ -259,8 +260,8 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
                 key={item.id}
                 onClick={() => handleNavigate(item.path)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium mb-2 transition ${isActive
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'hover:bg-gray-100 text-gray-700'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'hover:bg-gray-100 text-gray-700'
                   }`}
               >
                 <Icon className="w-5 h-5" />

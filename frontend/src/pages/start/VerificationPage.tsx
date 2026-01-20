@@ -5,6 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, CheckCircle, RotateCcw } from 'lucide-react';
 import simncryptLogo from '../../images/simncrypt.jpg';
 import { useAuth } from '../../contexts/AuthContext';
+import { storage } from '../../utils/storage';
 
 interface LocationState {
   email?: string;
@@ -17,8 +18,8 @@ const VerificationPage: React.FC = () => {
   const state = location.state as LocationState;
   const { login } = useAuth();
 
-  const email = state?.email || localStorage.getItem('user_email') || 'your.email@example.com';
-  const role = state?.role || localStorage.getItem('user_role') || 'patient';
+  const email = state?.email || storage.getItem('user_email') || 'your.email@example.com';
+  const role = state?.role || storage.getItem('user_role') || 'patient';
 
   console.log('VerificationPage - Email:', email, 'Role:', role);
 
@@ -215,7 +216,7 @@ const VerificationPage: React.FC = () => {
         setCode('');
 
         // 🔑 Check localStorage for first login flag
-        const isFirstLogin = localStorage.getItem('is_first_login') === 'true';
+        const isFirstLogin = storage.getItem('is_first_login') === 'true';
 
         console.log('📍 is_first_login flag:', isFirstLogin);
 
@@ -250,7 +251,7 @@ const VerificationPage: React.FC = () => {
       setCode('');
 
       // Check localStorage for first login flag
-      const isFirstLogin = localStorage.getItem('is_first_login') === 'true';
+      const isFirstLogin = storage.getItem('is_first_login') === 'true';
 
       setTimeout(() => {
         if (isFirstLogin) {

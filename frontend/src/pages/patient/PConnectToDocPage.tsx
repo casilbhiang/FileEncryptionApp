@@ -6,6 +6,7 @@ import { QrCode, Camera, AlertTriangle, CheckCircle, Stethoscope, Key } from 'lu
 import QRScanner from '../../components/QRScanner';
 import { verifyScannedQR, getUserConnections, getKeyPair } from '../../services/keyService';
 import { hasEncryptionKey, clearEncryptionKey, storeEncryptionKey, importKeyFromBase64 } from '../../services/Encryption';
+import { storage } from '../../utils/storage';
 
 const PConnectToDocPage: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
@@ -16,7 +17,7 @@ const PConnectToDocPage: React.FC = () => {
   const [keyMissing, setKeyMissing] = useState(false);
 
   // Get patient ID from localStorage
-  const patientId = localStorage.getItem('user_id');
+  const patientId = storage.getItem('user_id');
 
   // Load existing connections on mount
   useEffect(() => {

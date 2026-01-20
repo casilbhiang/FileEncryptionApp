@@ -2,14 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
-import { 
-  Download, 
-  Trash2, 
-  Loader2, 
-  Upload, 
-  Share2, 
-  Eye, 
-  ChevronLeft, 
+import {
+  Download,
+  Trash2,
+  Loader2,
+  Upload,
+  Share2,
+  Eye,
+  ChevronLeft,
   ChevronRight,
   Lock,
   Unlock,
@@ -17,15 +17,16 @@ import {
 } from 'lucide-react';
 import { getMyFiles, deleteFile, downloadFile, downloadAndDecryptFile, type FileItem } from '../../services/Files';
 import { getStoredEncryptionKey } from '../../services/Encryption';
+import { storage } from '../../utils/storage';
 
 const MyFiles: React.FC = () => {
   const location = useLocation();
   const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
-  
+
   // Get userId from localStorage
-  const [userId] = useState<string | null>(() => localStorage.getItem('user_id'));
-  const [userUuid] = useState<string | null>(() => localStorage.getItem('user_uuid'));
-  
+  const [userId] = useState<string | null>(() => storage.getItem('user_id'));
+  const [userUuid] = useState<string | null>(() => storage.getItem('user_uuid'));
+
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState('uploaded_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -33,58 +34,58 @@ const MyFiles: React.FC = () => {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalFiles, setTotalFiles] = useState(0);
   const filesPerPage = 5;
-  
+
   // Download state
   const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
-  
+
   // Modal states
   const [downloadOptionsModal, setDownloadOptionsModal] = useState<{
     isOpen: boolean;
     file: FileItem | null;
   }>({ isOpen: false, file: null });
-  
+
   const [alertModal, setAlertModal] = useState<{
     isOpen: boolean;
     title: string;
     message: string;
     type: 'info' | 'warning' | 'error' | 'success';
   }>({ isOpen: false, title: '', message: '', type: 'info' });
-  
+
   // Helper function to show alerts
   const showAlert = (title: string, message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info') => {
     setAlertModal({ isOpen: true, title, message, type });
   };
-  
+
   const getShareType = (file: FileItem): 'shared-by-me' | 'shared-with-me' | 'owned' | 'unknown' => {
     if (!userId) return 'unknown';
-    
+
     if (file.is_owned === true) {
       if (file.is_shared === true || (file.shared_count && file.shared_count > 0)) {
         return 'shared-by-me';
       }
       return 'owned';
     }
-    
+
     if (file.shared_by && file.shared_by !== userId) {
       return 'shared-with-me';
     }
-    
+
     if (file.is_shared === true && !file.is_owned) {
       return 'shared-with-me';
     }
-    
+
     return 'unknown';
   };
-  
+
   const getShareBadge = (file: FileItem) => {
     const shareType = getShareType(file);
-    
+
     if (shareType === 'shared-by-me') {
       return (
         <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
@@ -92,7 +93,7 @@ const MyFiles: React.FC = () => {
         </span>
       );
     }
-    
+
     if (shareType === 'shared-with-me') {
       return (
         <span className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
@@ -100,7 +101,7 @@ const MyFiles: React.FC = () => {
         </span>
       );
     }
-    
+
     if (shareType === 'owned') {
       return (
         <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
@@ -108,7 +109,7 @@ const MyFiles: React.FC = () => {
         </span>
       );
     }
-    
+
     if (file.is_shared) {
       return (
         <span className="px-2 py-0.5 bg-cyan-100 text-cyan-800 rounded-full text-xs font-medium">
@@ -116,52 +117,52 @@ const MyFiles: React.FC = () => {
         </span>
       );
     }
-    
+
     return null;
   };
-  
+
   const getFileSourceInfo = (file: FileItem) => {
     const shareType = getShareType(file);
-    
+
     if (shareType === 'shared-with-me' && file.shared_by_name) {
       return `Shared by: ${file.shared_by_name}`;
     }
-    
+
     if (file.owner_name && file.owner_id !== userId) {
       return `Owner: ${file.owner_name}`;
     }
-    
+
     if (shareType === 'shared-by-me' && file.shared_count && file.shared_count > 0) {
       return `Shared with ${file.shared_count} ${file.shared_count === 1 ? 'person' : 'people'}`;
     }
-    
+
     if (shareType === 'owned') {
       return 'Your file';
     }
-    
+
     return '';
   };
-  
+
   useEffect(() => {
     fetchFiles();
   }, [currentPage, sortField, sortOrder, filterType, searchQuery]);
-  
+
   const fetchFiles = async () => {
     try {
       setLoading(true);
       if (userUuid) {
         const response = await getMyFiles(
-          userUuid, 
-          searchQuery, 
+          userUuid,
+          searchQuery,
           sortField,
-          sortOrder, 
-          filterType, 
-          currentPage, 
+          sortOrder,
+          filterType,
+          currentPage,
           filesPerPage
         );
         setFiles(response.files);
         setTotalFiles(response.total);
-        
+
         if (response.pagination) {
           setTotalPages(response.pagination.pages);
         } else {
@@ -175,11 +176,11 @@ const MyFiles: React.FC = () => {
       setLoading(false);
     }
   };
-  
+
   const handleSortChange = (value: string) => {
     let field: string;
     let order: 'asc' | 'desc';
-    
+
     if (value.startsWith('-')) {
       field = value.substring(1);
       order = field === 'uploaded_at' ? 'asc' : 'desc';
@@ -187,12 +188,12 @@ const MyFiles: React.FC = () => {
       field = value;
       order = field === 'uploaded_at' ? 'desc' : 'asc';
     }
-    
+
     setSortField(field);
     setSortOrder(order);
     setCurrentPage(1);
   };
-  
+
   const getCurrentSortValue = () => {
     if (sortField === 'uploaded_at' && sortOrder === 'desc') return 'uploaded_at';
     if (sortField === 'uploaded_at' && sortOrder === 'asc') return '-uploaded_at';
@@ -202,23 +203,23 @@ const MyFiles: React.FC = () => {
     if (sortField === 'size' && sortOrder === 'desc') return '-size';
     return 'uploaded_at';
   };
-  
+
   const handleSearch = () => {
     setCurrentPage(1);
     fetchFiles();
   };
-  
+
   const handleDownloadClick = (file: FileItem) => {
     setDownloadOptionsModal({ isOpen: true, file });
   };
-  
+
   const handleDownloadEncrypted = async (file: FileItem) => {
     try {
       setDownloadingFileId(file.id);
       setDownloadOptionsModal({ isOpen: false, file: null });
-      
+
       const encryptedBlob = await downloadFile(file.id);
-      
+
       const url = window.URL.createObjectURL(encryptedBlob);
       const a = document.createElement('a');
       a.href = url;
@@ -227,7 +228,7 @@ const MyFiles: React.FC = () => {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
+
     } catch (error) {
       console.error('Download failed:', error);
       showAlert(
@@ -239,7 +240,7 @@ const MyFiles: React.FC = () => {
       setDownloadingFileId(null);
     }
   };
-  
+
   const handleDownloadDecrypted = async (file: FileItem) => {
     if (!userId || !userUuid) {
       showAlert(
@@ -249,13 +250,13 @@ const MyFiles: React.FC = () => {
       );
       return;
     }
-    
+
     try {
       setDownloadingFileId(file.id);
       setDownloadOptionsModal({ isOpen: false, file: null });
-      
+
       const key = await getStoredEncryptionKey(userId);
-      
+
       if (!key) {
         showAlert(
           'Encryption Key Not Found',
@@ -264,13 +265,13 @@ const MyFiles: React.FC = () => {
         );
         return;
       }
-      
+
       const { blob, filename } = await downloadAndDecryptFile({
         fileId: file.id,
         userUuid: userUuid,
         decryptionKey: key
       });
-      
+
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -279,10 +280,10 @@ const MyFiles: React.FC = () => {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
+
     } catch (error) {
       console.error('Download failed:', error);
-      
+
       if (error instanceof Error) {
         if (error.message.includes('Decryption failed')) {
           showAlert(
@@ -306,7 +307,7 @@ const MyFiles: React.FC = () => {
       setDownloadingFileId(null);
     }
   };
-  
+
   const handleDelete = async (file: FileItem) => {
     if (window.confirm(`Delete ${file.name}?`)) {
       try {
@@ -320,51 +321,51 @@ const MyFiles: React.FC = () => {
       }
     }
   };
-  
+
   const formatFileSize = (bytes: number | undefined): string => {
     if (!bytes) return '0 B';
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
-  
+
   const formatDetailedTimestamp = (timestamp: string | undefined): string => {
     if (!timestamp) return 'Never';
-    
+
     try {
       const date = new Date(timestamp);
-      
-      const dateString = date.toLocaleDateString('en-US', { 
+
+      const dateString = date.toLocaleDateString('en-US', {
         year: 'numeric',
-        month: 'short', 
+        month: 'short',
         day: 'numeric',
         timeZone: 'Asia/Singapore'
       });
-      
-      const timeString = date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
+
+      const timeString = date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
         timeZone: 'Asia/Singapore',
-        hour12: true 
+        hour12: true
       });
-      
+
       return `${dateString} at ${timeString}`;
     } catch (error) {
       return 'Invalid date';
     }
   };
-  
+
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
     }
   };
-  
+
   const getPageNumbers = () => {
     const pages = [];
     const maxVisiblePages = 5;
-    
+
     if (totalPages <= maxVisiblePages) {
       for (let i = 1; i <= totalPages; i++) {
         pages.push(i);
@@ -372,20 +373,20 @@ const MyFiles: React.FC = () => {
     } else {
       let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
       let endPage = startPage + maxVisiblePages - 1;
-      
+
       if (endPage > totalPages) {
         endPage = totalPages;
         startPage = Math.max(1, endPage - maxVisiblePages + 1);
       }
-      
+
       for (let i = startPage; i <= endPage; i++) {
         pages.push(i);
       }
     }
-    
+
     return pages;
   };
-  
+
   const handleClearFilters = () => {
     setSearchQuery('');
     setFilterType('all');
@@ -394,14 +395,14 @@ const MyFiles: React.FC = () => {
     setCurrentPage(1);
     fetchFiles();
   };
-  
+
   return (
     <div className="min-h-screen bg-gray-100 flex">
       <Sidebar userRole={userRole} currentPage="my-files" />
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
         <div className="mb-6">
           <h1 className="text-2xl lg:text-3xl font-bold mb-2">MY FILES</h1>
-          
+
           {error && (
             <div className="mb-4 p-3 bg-red-50 text-red-600 rounded text-sm">
               <button onClick={fetchFiles} className="ml-2 text-blue-600 underline">
@@ -409,7 +410,7 @@ const MyFiles: React.FC = () => {
               </button>
             </div>
           )}
-          
+
           <div className="flex flex-col sm:flex-row gap-3 mt-4">
             <div className="flex-1">
               <input
@@ -456,12 +457,12 @@ const MyFiles: React.FC = () => {
               <option value="my_uploads">My Uploads</option>
             </select>
           </div>
-          
+
           <div className="mt-3 text-sm text-gray-600">
             Showing {((currentPage - 1) * filesPerPage) + 1} - {Math.min(currentPage * filesPerPage, totalFiles)} of {totalFiles} files
           </div>
         </div>
-        
+
         {loading ? (
           <div className="bg-white rounded-lg p-8 text-center">
             <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-2" />
@@ -484,7 +485,7 @@ const MyFiles: React.FC = () => {
                         {getFileSourceInfo(file) && ` • ${getFileSourceInfo(file)}`}
                       </p>
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleDownloadClick(file)}
@@ -507,7 +508,7 @@ const MyFiles: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                  
+
                   <div className="border-t pt-3">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                       <div className="flex items-start gap-2 p-2 bg-gray-50 rounded">
@@ -542,13 +543,13 @@ const MyFiles: React.FC = () => {
                 </div>
               ))}
             </div>
-            
+
             {totalPages > 1 && (
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t">
                 <div className="text-sm text-gray-600">
                   Page {currentPage} of {totalPages}
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => goToPage(currentPage - 1)}
@@ -557,20 +558,19 @@ const MyFiles: React.FC = () => {
                   >
                     <ChevronLeft className="w-5 h-5" />
                   </button>
-                  
+
                   {getPageNumbers().map((page) => (
                     <button
                       key={page}
                       onClick={() => goToPage(page)}
                       disabled={loading}
-                      className={`px-3 py-1 rounded-lg ${
-                        currentPage === page ? 'bg-blue-500 text-white' : 'border hover:bg-gray-50'
-                      }`}
+                      className={`px-3 py-1 rounded-lg ${currentPage === page ? 'bg-blue-500 text-white' : 'border hover:bg-gray-50'
+                        }`}
                     >
                       {page}
                     </button>
                   ))}
-                  
+
                   <button
                     onClick={() => goToPage(currentPage + 1)}
                     disabled={currentPage === totalPages || loading}
@@ -579,7 +579,7 @@ const MyFiles: React.FC = () => {
                     <ChevronRight className="w-5 h-5" />
                   </button>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-600">Go to:</span>
                   <input
@@ -611,15 +611,15 @@ const MyFiles: React.FC = () => {
           </div>
         )}
       </div>
-      
+
       {/* Download Options Modal - Inline */}
       {downloadOptionsModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div 
+          <div
             className="absolute inset-0 bg-black bg-opacity-50"
             onClick={() => setDownloadOptionsModal({ isOpen: false, file: null })}
           />
-          
+
           <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6 z-10">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-semibold text-gray-900">Download Options</h3>
@@ -630,12 +630,12 @@ const MyFiles: React.FC = () => {
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <p className="text-gray-600 mb-6">
                 Choose how you want to download: <strong>{downloadOptionsModal.file?.name}</strong>
               </p>
-              
+
               <button
                 onClick={() => downloadOptionsModal.file && handleDownloadDecrypted(downloadOptionsModal.file)}
                 className="w-full flex items-center gap-3 p-4 border-2 border-green-500 rounded-lg hover:bg-green-50 transition group"
@@ -648,7 +648,7 @@ const MyFiles: React.FC = () => {
                   <div className="text-sm text-gray-600">Download and decrypt the file for viewing</div>
                 </div>
               </button>
-              
+
               <button
                 onClick={() => downloadOptionsModal.file && handleDownloadEncrypted(downloadOptionsModal.file)}
                 className="w-full flex items-center gap-3 p-4 border-2 border-blue-500 rounded-lg hover:bg-blue-50 transition group"
@@ -665,15 +665,15 @@ const MyFiles: React.FC = () => {
           </div>
         </div>
       )}
-      
+
       {/* Alert Modal - Inline */}
       {alertModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div 
+          <div
             className="absolute inset-0 bg-black bg-opacity-50"
             onClick={() => setAlertModal({ ...alertModal, isOpen: false })}
           />
-          
+
           <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6 z-10">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-semibold text-gray-900">{alertModal.title}</h3>
@@ -684,14 +684,13 @@ const MyFiles: React.FC = () => {
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
-            
+
             <div className="mb-6">
-              <div className={`text-4xl mb-4 text-center ${
-                alertModal.type === 'error' ? 'text-red-600' :
+              <div className={`text-4xl mb-4 text-center ${alertModal.type === 'error' ? 'text-red-600' :
                 alertModal.type === 'warning' ? 'text-orange-600' :
-                alertModal.type === 'success' ? 'text-green-600' :
-                'text-blue-600'
-              }`}>
+                  alertModal.type === 'success' ? 'text-green-600' :
+                    'text-blue-600'
+                }`}>
               </div>
               <p className="text-gray-700 text-center whitespace-pre-line">{alertModal.message}</p>
             </div>

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
 import { ArrowLeft, User } from 'lucide-react';
+import { storage } from '../../utils/storage';
 
 interface PatientHealthData {
   name: string;
@@ -37,7 +38,7 @@ const DViewHealthProfilePage: React.FC = () => {
   const [error, setError] = useState<string>('');
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-  const userId = localStorage.getItem('user_id'); // Doctor's user_id
+  const userId = storage.getItem('user_id'); // Doctor's user_id
 
   useEffect(() => {
     if (patientId) {
@@ -187,7 +188,7 @@ const DViewHealthProfilePage: React.FC = () => {
         {/* Patient Health Profile Card */}
         <div className="mb-4">
           <h2 className="text-xl font-bold mb-4">{patientData.name}'s Health Profile</h2>
-          
+
           {/* Patient Header Card - Added icon for profile name/email */}
           <div className="bg-purple-100 rounded-lg p-6 mb-6">
             <div className="flex items-center">
