@@ -629,3 +629,241 @@ def get_all_file_shares():
         print(f"Get all file shares error: {e}")
         print(f"Full traceback:\n{error_details}")
         return jsonify({'error': str(e), 'details': error_details}), 500
+
+
+# ===== Get All File Operations (Admin) - Uploads + Shares =====
+@files_bp.route('/operations/all', methods=['GET'])
+def get_all_file_operations():
+    """Get all file operations (uploads and shares) for admin file logs page"""
+    try:
+        # Cache for user info to avoid repeated queries
+        user_cache = {}
+
+        def get_user_info(user_id):
+            """Returns tuple of (full_name, user_id) for display"""
+            if not user_id:
+                return ('Unknown', 'Unknown')
+            if user_id in user_cache:
+                return user_cache[user_id]
+            try:
+                user_response = supabase.table('users')\
+                    .select('full_name, user_id')\
+                    .eq('user_id', user_id)\
+                    .execute()
+                if user_response.data:
+                    name = user_response.data[0]['full_name'] or user_id
+                    uid = user_response.data[0]['user_id']
+                    user_cache[user_id] = (name, uid)
+                    return (name, uid)
+            except:
+                pass
+            user_cache[user_id] = (user_id, user_id)
+            return (user_id, user_id)
+
+        operations = []
+
+        # 1. Fetch all completed uploads
+        uploads_response = supabase.table('encrypted_files')\
+            .select('id, original_filename, owner_id, uploaded_at, upload_status')\
+            .eq('upload_status', 'completed')\
+            .eq('is_deleted', False)\
+            .order('uploaded_at', desc=True)\
+            .execute()
+
+        for upload in uploads_response.data:
+            owner_name, owner_uid = get_user_info(upload['owner_id'])
+            operations.append({
+                'id': f"upload_{upload['id']}",
+                'type': 'upload',
+                'timestamp': upload['uploaded_at'],
+                'file_name': upload['original_filename'],
+                'owner_id': owner_uid,
+                'owner_name': owner_name,
+                'action': 'Uploaded',
+                'shared_with': None,
+                'shared_with_name': None,
+                'status': 'completed'
+            })
+
+        # 2. Fetch all file shares
+        shares_response = supabase.table('file_shares')\
+            .select('*, encrypted_files(original_filename, owner_id)')\
+            .order('shared_at', desc=True)\
+            .execute()
+
+        for share in shares_response.data:
+            file_info = share.get('encrypted_files', {})
+            owner_id = file_info.get('owner_id', share['shared_by'])
+            owner_name, owner_uid = get_user_info(owner_id)
+            shared_with_name, shared_with_uid = get_user_info(share['shared_with'])
+
+            operations.append({
+                'id': f"share_{share['id']}",
+                'type': 'share',
+                'timestamp': share['shared_at'],
+                'file_name': file_info.get('original_filename', 'Unknown'),
+                'owner_id': owner_uid,
+                'owner_name': owner_name,
+                'action': f"Shared to {shared_with_name} ({shared_with_uid})",
+                'shared_with': shared_with_uid,
+                'shared_with_name': shared_with_name,
+                'status': share['share_status']
+            })
+
+        # Sort all operations by timestamp (newest first)
+        operations.sort(key=lambda x: x['timestamp'] or '', reverse=True)
+
+        return jsonify({
+            'success': True,
+            'operations': operations
+        }), 200
+
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Get all file operations error: {e}")
+        print(f"Full traceback:\n{error_details}")
+        return jsonify({'error': str(e), 'details': error_details}), 500
+
+
+# ===== Get Outdated Files (Admin) =====
+@files_bp.route('/outdated', methods=['GET'])
+def get_outdated_files():
+    """Get files older than specified days (default 90 days) for admin cleanup"""
+    try:
+        # Get days parameter (default 90 days)
+        days_old = int(request.args.get('days', 90))
+
+        # Calculate cutoff date
+        cutoff_date = (datetime.now() - timedelta(days=days_old)).isoformat()
+
+        print(f"Fetching files older than {days_old} days (before {cutoff_date})")
+
+        # Cache for user info
+        user_cache = {}
+
+        def get_user_info(user_id):
+            if not user_id:
+                return ('Unknown', 'Unknown')
+            if user_id in user_cache:
+                return user_cache[user_id]
+            try:
+                user_response = supabase.table('users')\
+                    .select('full_name, user_id')\
+                    .eq('user_id', user_id)\
+                    .execute()
+                if user_response.data:
+                    name = user_response.data[0]['full_name'] or user_id
+                    uid = user_response.data[0]['user_id']
+                    user_cache[user_id] = (name, uid)
+                    return (name, uid)
+            except:
+                pass
+            user_cache[user_id] = (user_id, user_id)
+            return (user_id, user_id)
+
+        # Fetch outdated files (completed uploads that are old)
+        outdated_response = supabase.table('encrypted_files')\
+            .select('id, original_filename, owner_id, uploaded_at, file_size, file_extension')\
+            .eq('upload_status', 'completed')\
+            .eq('is_deleted', False)\
+            .lt('uploaded_at', cutoff_date)\
+            .order('uploaded_at', desc=False)\
+            .execute()
+
+        outdated_files = []
+        for file in outdated_response.data:
+            owner_name, owner_uid = get_user_info(file['owner_id'])
+            outdated_files.append({
+                'id': file['id'],
+                'file_name': file['original_filename'],
+                'owner_id': owner_uid,
+                'owner_name': owner_name,
+                'uploaded_at': file['uploaded_at'],
+                'file_size': file['file_size'],
+                'file_extension': file['file_extension']
+            })
+
+        return jsonify({
+            'success': True,
+            'outdated_files': outdated_files,
+            'count': len(outdated_files),
+            'days_threshold': days_old
+        }), 200
+
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Get outdated files error: {e}")
+        print(f"Full traceback:\n{error_details}")
+        return jsonify({'error': str(e), 'details': error_details}), 500
+
+
+# ===== Bulk Delete Outdated Files (Admin) =====
+@files_bp.route('/outdated/delete', methods=['POST'])
+def delete_outdated_files():
+    """Delete multiple outdated files (admin only)"""
+    try:
+        data = request.get_json()
+        file_ids = data.get('file_ids', [])
+
+        if not file_ids:
+            return jsonify({'error': 'No file IDs provided'}), 400
+
+        print(f"Admin bulk delete request for {len(file_ids)} files")
+
+        deleted_count = 0
+        errors = []
+
+        for file_id in file_ids:
+            try:
+                # Get file info first
+                file_response = supabase.table('encrypted_files')\
+                    .select('storage_path')\
+                    .eq('id', file_id)\
+                    .execute()
+
+                if file_response.data:
+                    storage_path = file_response.data[0]['storage_path']
+
+                    # Delete from storage
+                    try:
+                        supabase.storage.from_(STORAGE_BUCKET).remove([storage_path])
+                    except Exception as storage_error:
+                        print(f"Storage delete warning for {file_id}: {storage_error}")
+
+                    # Soft delete in database (mark as deleted)
+                    supabase.table('encrypted_files')\
+                        .update({'is_deleted': True})\
+                        .eq('id', file_id)\
+                        .execute()
+
+                    # Also revoke any active shares for this file
+                    supabase.table('file_shares')\
+                        .update({'share_status': 'revoked', 'revoked_at': datetime.now().isoformat()})\
+                        .eq('file_id', file_id)\
+                        .eq('share_status', 'active')\
+                        .execute()
+
+                    deleted_count += 1
+                    print(f"Deleted file: {file_id}")
+                else:
+                    errors.append(f"File {file_id} not found")
+
+            except Exception as file_error:
+                errors.append(f"Error deleting {file_id}: {str(file_error)}")
+                print(f"Error deleting file {file_id}: {file_error}")
+
+        return jsonify({
+            'success': True,
+            'deleted_count': deleted_count,
+            'total_requested': len(file_ids),
+            'errors': errors if errors else None
+        }), 200
+
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Bulk delete error: {e}")
+        print(f"Full traceback:\n{error_details}")
+        return jsonify({'error': str(e), 'details': error_details}), 500

@@ -3,10 +3,38 @@ Data models for encryption system
 """
 from datetime import datetime
 from typing import Optional
+import re
+
+def normalize_timestamp(timestamp_str: str) -> str:
+    """
+    Normalize timestamp to handle microseconds with more than 3 decimal places.
+    Python's datetime.fromisoformat() only supports up to 6 decimal places,
+    but some databases return more. This truncates to 6 decimal places.
+
+    Examples:
+        '2026-01-13T10:27:48.0968+00:00' -> '2026-01-13T10:27:48.096800+00:00'
+        '2026-01-13T10:27:48.09682345+00:00' -> '2026-01-13T10:27:48.096823+00:00'
+    """
+    # Match ISO timestamp with fractional seconds
+    # Group 1: Everything before fractional seconds
+    # Group 2: Fractional seconds (any length)
+    # Group 3: Timezone
+    pattern = r'^(.*\.)(\d+)([\+\-Z].*)$'
+    match = re.match(pattern, timestamp_str)
+
+    if match:
+        prefix, fractional, suffix = match.groups()
+        # Python datetime supports up to 6 decimal places (microseconds)
+        # Pad with zeros if less than 6, truncate if more
+        fractional_normalized = fractional[:6].ljust(6, '0')
+        return f"{prefix}{fractional_normalized}{suffix}"
+
+    return timestamp_str
+
 
 class KeyPair:
     """Represents an encryption key pair between doctor and patient"""
-    
+
     def __init__(
         self, 
         key_id: str, 
@@ -45,14 +73,23 @@ class KeyPair:
     @classmethod
     def from_dict(cls, data):
         """Create KeyPair from dictionary"""
+        # Parse timestamps with normalization to handle varying decimal precision
+        created_at = None
+        if data.get('created_at'):
+            created_at = datetime.fromisoformat(normalize_timestamp(data['created_at']))
+
+        expires_at = None
+        if data.get('expires_at'):
+            expires_at = datetime.fromisoformat(normalize_timestamp(data['expires_at']))
+
         return cls(
             key_id=data['key_id'],
             doctor_id=data['doctor_id'],
             patient_id=data['patient_id'],
             encryption_key=data['encryption_key'],
             status=data.get('status', 'Active'),
-            created_at=datetime.fromisoformat(data['created_at']) if data.get('created_at') else None,
-            expires_at=datetime.fromisoformat(data['expires_at']) if data.get('expires_at') else None
+            created_at=created_at,
+            expires_at=expires_at
         )
 
 
