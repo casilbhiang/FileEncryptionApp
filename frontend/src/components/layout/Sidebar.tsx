@@ -23,7 +23,20 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
   const [showNotifications, setShowNotifications] = useState(false);
 
   // Use notification context
-  const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotification } = useNotifications();
+  const { notifications, markAsRead, markAllAsRead, clearNotification } = useNotifications();
+
+  // Get current user ID for filtering
+  const getCurrentUserId = (): string => {
+    return localStorage.getItem('user_id') || localStorage.getItem('user_uuid') || 'unknown';
+  };
+
+  // Filter notifications for current user only
+  const userNotifications = notifications.filter(n => 
+    n.user_id === 'all' || n.user_id === getCurrentUserId() || !n.user_id
+  );
+
+  // Calculate unread count for current user only
+  const userUnreadCount = userNotifications.filter(n => !n.read).length;
 
   // Helper to format time
   const formatTime = (timestamp: string) => {
@@ -145,9 +158,10 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
           <div className="fixed top-20 left-4 lg:left-72 w-80 lg:w-96 bg-white rounded-lg shadow-2xl z-50 max-h-96 overflow-hidden flex flex-col border border-gray-200">
             {/* Header */}
             <div className="p-4 border-b bg-gray-50 flex items-center justify-between">
-              <h3 className="font-bold text-lg">Recent Upload</h3>
+              <h3 className="font-bold text-lg">Recent Notifications</h3>
               <div className="flex items-center gap-2">
-                {unreadCount > 0 && (
+                {/* 🔥 CHANGED: userUnreadCount instead of unreadCount */}
+                {userUnreadCount > 0 && (
                   <button
                     onClick={markAllAsRead}
                     className="text-xs text-blue-600 hover:text-blue-700 font-medium"
@@ -165,8 +179,9 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
             </div>
             {/* Notifications List */}
             <div className="overflow-y-auto flex-1">
-              {notifications.length > 0 ? (
-                notifications.map((notif) => (
+              {/* userNotifications instead of notifications */}
+              {userNotifications.length > 0 ? (
+                userNotifications.map((notif) => (
                   <div
                     key={notif.id}
                     className={`p-4 border-b hover:bg-gray-50 cursor-pointer transition ${!notif.read ? 'bg-cyan-50' : 'bg-white'
@@ -233,9 +248,10 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
               className="p-2 hover:bg-gray-100 rounded-lg relative transition"
             >
               <Bell className="w-6 h-6 text-gray-700" />
-              {unreadCount > 0 && (
+              {/* userUnreadCount instead of unreadCount */}
+              {userUnreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                  {unreadCount}
+                  {userUnreadCount > 9 ? '9+' : userUnreadCount}
                 </span>
               )}
             </button>
