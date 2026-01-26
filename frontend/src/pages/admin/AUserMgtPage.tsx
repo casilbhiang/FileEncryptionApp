@@ -24,8 +24,7 @@ const AUserMgtPage: React.FC = () => {
   const [editFormData, setEditFormData] = useState({
     id: '',
     name: '',
-    email: '',
-    phone: ''
+    email: ''
   });
 
   // Users data from database
@@ -107,8 +106,7 @@ const AUserMgtPage: React.FC = () => {
     setEditFormData({
       id: user.id,
       name: user.name,
-      email: user.email,
-      phone: ''
+      email: user.email
     });
     setShowEditDialog(true);
   };
@@ -156,8 +154,7 @@ const AUserMgtPage: React.FC = () => {
         },
         body: JSON.stringify({
           name: editFormData.name,
-          email: editFormData.email,
-          phone: editFormData.phone
+          email: editFormData.email
         }),
       });
 
@@ -493,18 +490,7 @@ const AUserMgtPage: React.FC = () => {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold mb-2">
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    value={editFormData.phone}
-                    onChange={(e) => setEditFormData(prev => ({ ...prev, phone: e.target.value }))}
-                    placeholder="+65 9722 1234"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+
               </div>
 
               <button

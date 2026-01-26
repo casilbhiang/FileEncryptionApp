@@ -976,7 +976,6 @@ def delete_user(user_id):
                 supabase.table('patient_profiles').delete().eq('custom_user_id', user_id).execute()
             except Exception as e:
                 print(f"Error deleting patient profile: {e}")
-                # Continue anyway to delete the user
 
         # 2. Delete the user
         response = supabase.table('users').delete().eq('user_id', user_id).execute()
@@ -1018,13 +1017,12 @@ def update_user(user_id):
     """
     Update a user's details
     PUT /api/auth/users/:user_id
-    Body: { "name": "New Name", "email": "new@example.com", "phone": "12345678" }
+    Body: { "name": "New Name", "email": "new@example.com",}
     """
     try:
         data = request.get_json()
         name = data.get('name')
         email = data.get('email')
-        phone = data.get('phone')
 
         if not name or not email:
             return jsonify({
@@ -1068,7 +1066,6 @@ def update_user(user_id):
                 'user_id': user_id,
                 'name': name,
                 'email': email,
-                'phone': phone
             }
         }), 200
 
