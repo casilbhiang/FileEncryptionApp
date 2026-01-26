@@ -7,6 +7,7 @@ from app.crypto.qr_generator import QRCodeGenerator
 from app.models.encryption_models import KeyPair
 from app.models.storage import key_pair_store
 from app.utils.audit import audit_logger, AuditAction, AuditResult
+from app.utils.supabase_client import supabase
 from datetime import datetime, timedelta
 import json
 
@@ -187,29 +188,43 @@ def update_key_status(key_id):
 
 @keys_bp.route('/<key_id>', methods=['DELETE'])
 def delete_key_pair(key_id):
-    """Delete a key pair"""
+    """Delete a key pair and the associated doctor-patient connection"""
     try:
         # Get key pair info before deleting
         key_pair = key_pair_store.get(key_id)
         if not key_pair:
             return jsonify({'error': 'Key pair not found'}), 404
-        
+
+        doctor_id = key_pair.doctor_id
+        patient_id = key_pair.patient_id
+
         # Delete the key pair
         success = key_pair_store.delete(key_id)
-        
+
+        # Also delete the doctor-patient connection
+        try:
+            supabase.table('doctor_patient_connections')\
+                .delete()\
+                .eq('doctor_id', doctor_id)\
+                .eq('patient_id', patient_id)\
+                .execute()
+            print(f"Deleted connection between {doctor_id} and {patient_id}")
+        except Exception as conn_err:
+            print(f"Warning: Failed to delete connection: {conn_err}")
+
         # Log audit event
         audit_logger.log(
             user_id="ADMIN",
             user_name="System Admin",
             action=AuditAction.KEY_DELETE,
-            target=f"{key_pair.doctor_id} → {key_pair.patient_id} ({key_id})",
+            target=f"{doctor_id} → {patient_id} ({key_id})",
             result=AuditResult.OK,
-            details=f"Deleted key pair {key_id}"
+            details=f"Deleted key pair {key_id} and connection"
         )
-        
+
         return jsonify({
             'success': True,
-            'message': 'Key pair deleted successfully'
+            'message': 'Key pair and connection deleted successfully'
         }), 200
         
     except Exception as e:
