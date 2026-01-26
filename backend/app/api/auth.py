@@ -949,3 +949,132 @@ def get_patient_profile(user_id):
             'success': False,
             'message': 'An error occurred while fetching patient profile'
         }), 500
+
+@auth_bp.route('/users/<user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    """
+    Delete a user
+    DELETE /api/auth/users/:user_id
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Check if user exists
+        user_response = supabase.table('users').select('*').eq('user_id', user_id).execute()
+
+        if not user_response.data or len(user_response.data) == 0:
+            return jsonify({
+                'success': False,
+                'message': 'User not found'
+            }), 404
+
+        user = user_response.data[0]
+
+        # 1. Delete patient profile if exists
+        if user['role'] == 'patient':
+            try:
+                supabase.table('patient_profiles').delete().eq('custom_user_id', user_id).execute()
+            except Exception as e:
+                print(f"Error deleting patient profile: {e}")
+                # Continue anyway to delete the user
+
+        # 2. Delete the user
+        response = supabase.table('users').delete().eq('user_id', user_id).execute()
+
+        if not response.data:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to delete user'
+            }), 500
+
+        # Log deletion
+        try:
+            supabase.rpc('log_simple_auth_event', {
+                'p_user_id': user['id'],
+                'p_event_type': 'user_deleted',
+                'p_email': user['email'],
+                'p_metadata': {'deleted_user_id': user_id, 'deleted_role': user['role']}
+            }).execute()
+        except:
+            pass
+
+        return jsonify({
+            'success': True,
+            'message': 'User deleted successfully'
+        }), 200
+
+    except Exception as e:
+        print(f"Delete user error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while deleting user'
+        }), 500
+
+
+@auth_bp.route('/users/<user_id>', methods=['PUT'])
+def update_user(user_id):
+    """
+    Update a user's details
+    PUT /api/auth/users/:user_id
+    Body: { "name": "New Name", "email": "new@example.com", "phone": "12345678" }
+    """
+    try:
+        data = request.get_json()
+        name = data.get('name')
+        email = data.get('email')
+        phone = data.get('phone')
+
+        if not name or not email:
+            return jsonify({
+                'success': False,
+                'message': 'Name and email are required'
+            }), 400
+
+        supabase = get_supabase_admin_client()
+
+        # Check if user exists
+        user_response = supabase.table('users').select('*').eq('user_id', user_id).execute()
+
+        if not user_response.data or len(user_response.data) == 0:
+            return jsonify({
+                'success': False,
+                'message': 'User not found'
+            }), 404
+
+        update_data = {
+            'full_name': name,
+            'email': email,
+            'updated_at': datetime.now().isoformat()
+        }
+        
+        if phone:
+            update_data['phone'] = phone
+
+        # Update user
+        response = supabase.table('users').update(update_data).eq('user_id', user_id).execute()
+
+        if not response.data:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to update user'
+            }), 500
+            
+        return jsonify({
+            'success': True,
+            'message': 'User updated successfully',
+            'user': {
+                'user_id': user_id,
+                'name': name,
+                'email': email,
+                'phone': phone
+            }
+        }), 200
+
+    except Exception as e:
+        print(f"Update user error: {e}")
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while updating user'
+        }), 500

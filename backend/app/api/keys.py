@@ -194,6 +194,17 @@ def delete_key_pair(key_id):
         if not key_pair:
             return jsonify({'error': 'Key pair not found'}), 404
         
+        # Delete the connection record from doctor_patient_connections
+        try:
+            from app.utils.supabase_client import get_supabase_admin_client
+            supabase = get_supabase_admin_client()
+            supabase.table('doctor_patient_connections').delete().match({
+                'doctor_id': key_pair.doctor_id,
+                'patient_id': key_pair.patient_id
+            }).execute()
+        except Exception as conn_err:
+             print(f"Warning: Failed to delete connection record: {conn_err}")
+
         # Delete the key pair
         success = key_pair_store.delete(key_id)
         
@@ -209,7 +220,7 @@ def delete_key_pair(key_id):
         
         return jsonify({
             'success': True,
-            'message': 'Key pair deleted successfully'
+            'message': 'Connection deleted successfully'
         }), 200
         
     except Exception as e:

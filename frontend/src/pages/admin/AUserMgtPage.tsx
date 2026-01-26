@@ -63,16 +63,16 @@ const AUserMgtPage: React.FC = () => {
   // Filter and sort users
   const filteredUsers = users
     .filter((user) => {
-      const matchesSearch = 
+      const matchesSearch =
         user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
         user.id.toLowerCase().includes(searchQuery.toLowerCase());
 
-      const matchesRole = 
-        roleFilter === 'all' || 
+      const matchesRole =
+        roleFilter === 'all' ||
         user.role.toLowerCase() === roleFilter.toLowerCase();
 
-      const matchesStatus = 
+      const matchesStatus =
         statusFilter === 'all' ||
         (statusFilter === 'active' && user.status === 'Active') ||
         (statusFilter === 'inactive' && user.status === 'Inactive');
@@ -113,26 +113,77 @@ const AUserMgtPage: React.FC = () => {
     setShowEditDialog(true);
   };
 
-  const handleDeleteConfirm = () => {
-    if (selectedUser) {
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedUser) return;
+
+    setIsProcessing(true);
+    try {
+      const API_URL = import.meta.env.VITE_API_URL;
+      const response = await fetch(`${API_URL}/api/auth/users/${selectedUser.id}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to delete user');
+      }
+
       setUsers(prevUsers => prevUsers.filter(user => user.id !== selectedUser.id));
+      setShowDeleteDialog(false);
+      setSelectedUser(null);
+      alert('User deleted successfully');
+    } catch (err: any) {
+      console.error('Error deleting user:', err);
+      alert(`Failed to delete user: ${err.message}`);
+    } finally {
+      setIsProcessing(false);
     }
-    setShowDeleteDialog(false);
-    setSelectedUser(null);
   };
 
-  const handleEditSave = () => {
-    if (selectedUser) {
-      setUsers(prevUsers => 
-        prevUsers.map(user => 
-          user.id === selectedUser.id 
-            ? { ...user, name: editFormData.name, email: editFormData.email }
+  const handleEditSave = async () => {
+    if (!selectedUser) return;
+
+    setIsProcessing(true);
+    try {
+      const API_URL = import.meta.env.VITE_API_URL;
+      const response = await fetch(`${API_URL}/api/auth/users/${selectedUser.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: editFormData.name,
+          email: editFormData.email,
+          phone: editFormData.phone
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update user');
+      }
+
+      setUsers(prevUsers =>
+        prevUsers.map(user =>
+          user.id === selectedUser.id
+            ? { ...user, name: editFormData.name, email: editFormData.email } // Optimistic update
             : user
         )
       );
+
+      setShowEditDialog(false);
+      setSelectedUser(null);
+      alert('User updated successfully');
+    } catch (err: any) {
+      console.error('Error updating user:', err);
+      alert(`Failed to update user: ${err.message}`);
+    } finally {
+      setIsProcessing(false);
     }
-    setShowEditDialog(false);
-    setSelectedUser(null);
   };
 
   return (
@@ -198,7 +249,7 @@ const AUserMgtPage: React.FC = () => {
             {/* Table Header */}
             <div className="p-4 border-b">
               <h2 className="text-xl font-bold mb-4">All Users ({totalUsers})</h2>
-              
+
               {/* Filters */}
               <div className="flex flex-col sm:flex-row gap-3">
                 <input
@@ -278,62 +329,61 @@ const AUserMgtPage: React.FC = () => {
                   <tbody className="divide-y">
                     {filteredUsers.length > 0 ? (
                       filteredUsers.map((user, index) => (
-                      <tr key={index} className="hover:bg-gray-50">
-                        <td className="px-4 py-4 text-sm text-gray-900">{user.id}</td>
-                        <td className="px-4 py-4 text-sm text-gray-900">{user.name}</td>
-                        <td className="px-4 py-4 text-sm text-gray-600">{user.email}</td>
-                        <td className="px-4 py-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            user.role === 'Doctor' ? 'bg-blue-100 text-blue-700' :
-                            user.role === 'Patient' ? 'bg-pink-100 text-pink-700' :
-                            'bg-purple-100 text-purple-700'
-                          }`}>
-                            {user.role}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4">
-                          {user.status === 'Active' ? (
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                              <span className="text-sm font-medium text-green-700">Active</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                              <div>
-                                <span className="text-sm font-medium text-orange-700">Inactive</span>
-                                <div className="text-xs text-orange-600">for {user.inactiveDays} days</div>
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="px-4 py-4 text-sm text-gray-900">{user.id}</td>
+                          <td className="px-4 py-4 text-sm text-gray-900">{user.name}</td>
+                          <td className="px-4 py-4 text-sm text-gray-600">{user.email}</td>
+                          <td className="px-4 py-4">
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${user.role === 'Doctor' ? 'bg-blue-100 text-blue-700' :
+                              user.role === 'Patient' ? 'bg-pink-100 text-pink-700' :
+                                'bg-purple-100 text-purple-700'
+                              }`}>
+                              {user.role}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4">
+                            {user.status === 'Active' ? (
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                <span className="text-sm font-medium text-green-700">Active</span>
                               </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                                <div>
+                                  <span className="text-sm font-medium text-orange-700">Inactive</span>
+                                  <div className="text-xs text-orange-600">for {user.inactiveDays} days</div>
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleEditClick(user)}
+                                className="p-2 hover:bg-gray-200 rounded-lg transition"
+                                title="Edit user"
+                              >
+                                <Settings className="w-5 h-5 text-gray-600" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteClick(user)}
+                                className="p-2 hover:bg-gray-200 rounded-lg transition"
+                                title="Delete user"
+                              >
+                                <Trash2 className="w-5 h-5 text-red-600" />
+                              </button>
                             </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleEditClick(user)}
-                              className="p-2 hover:bg-gray-200 rounded-lg transition"
-                              title="Edit user"
-                            >
-                              <Settings className="w-5 h-5 text-gray-600" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteClick(user)}
-                              className="p-2 hover:bg-gray-200 rounded-lg transition"
-                              title="Delete user"
-                            >
-                              <Trash2 className="w-5 h-5 text-red-600" />
-                            </button>
-                          </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                          No users found matching your search criteria.
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                        No users found matching your search criteria.
-                      </td>
-                    </tr>
-                  )}
+                    )}
                   </tbody>
                 </table>
               )}
@@ -344,10 +394,10 @@ const AUserMgtPage: React.FC = () => {
 
       {/* Delete User Dialog */}
       {showDeleteDialog && selectedUser && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
         >
-          <div 
+          <div
             className="bg-white rounded-lg max-w-md w-full p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
@@ -371,99 +421,103 @@ const AUserMgtPage: React.FC = () => {
               </button>
               <button
                 onClick={handleDeleteConfirm}
-                className="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition"
+                disabled={isProcessing}
+                className={`flex-1 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                Delete User
+                {isProcessing ? 'Deleting...' : 'Delete User'}
               </button>
             </div>
           </div>
-        </div>
+        </div >
       )}
 
       {/* Edit User Dialog */}
-      {showEditDialog && selectedUser && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-        >
-          <div 
-            className="bg-white rounded-lg max-w-md w-full p-6 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+      {
+        showEditDialog && selectedUser && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
           >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold">Edit User Setting</h2>
+            <div
+              className="bg-white rounded-lg max-w-md w-full p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold">Edit User Setting</h2>
+                <button
+                  onClick={() => setShowEditDialog(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="mb-6">
+                <h3 className="font-bold text-lg">{selectedUser.name}</h3>
+                <p className="text-sm text-gray-600">{selectedUser.email} | {selectedUser.id}</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2">
+                    User ID (Auto-generated)
+                  </label>
+                  <input
+                    type="text"
+                    value={selectedUser.id}
+                    disabled
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2">
+                    Full Nric Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editFormData.name}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={editFormData.email}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, email: e.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={editFormData.phone}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="+65 9722 1234"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
               <button
-                onClick={() => setShowEditDialog(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                onClick={handleEditSave}
+                disabled={isProcessing}
+                className={`w-full mt-6 px-4 py-3 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                <X className="w-5 h-5" />
+                {isProcessing ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
-
-            <div className="mb-6">
-              <h3 className="font-bold text-lg">{selectedUser.name}</h3>
-              <p className="text-sm text-gray-600">{selectedUser.email} | {selectedUser.id}</p>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold mb-2">
-                  User ID (Auto-generated)
-                </label>
-                <input
-                  type="text"
-                  value={selectedUser.id}
-                  disabled
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold mb-2">
-                  Full Nric Name
-                </label>
-                <input
-                  type="text"
-                  value={editFormData.name}
-                  onChange={(e) => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold mb-2">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={editFormData.email}
-                  onChange={(e) => setEditFormData(prev => ({ ...prev, email: e.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold mb-2">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  value={editFormData.phone}
-                  onChange={(e) => setEditFormData(prev => ({ ...prev, phone: e.target.value }))}
-                  placeholder="+65 9722 1234"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={handleEditSave}
-              className="w-full mt-6 px-4 py-3 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition"
-            >
-              Save Changes
-            </button>
           </div>
-        </div>
-      )}
+        )
+      }
     </>
   );
 };
