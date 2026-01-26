@@ -37,7 +37,8 @@ def send_otp_via_resend(recipient_email: str, otp_code: str, user_name: str, api
         resend.api_key = api_key
 
         greeting = f'Hi {user_name},' if user_name else 'Hi,'
-        from_email = os.environ.get('EMAIL_FROM', 'onboarding@resend.dev')
+        # On Resend free tier, you MUST use onboarding@resend.dev as sender
+        from_email = 'onboarding@resend.dev'
 
         html_body = f"""
 <!DOCTYPE html>
@@ -203,7 +204,8 @@ def send_password_reset_email(recipient_email: str, reset_link: str, user_name: 
         try:
             resend.api_key = resend_api_key
             greeting = f'Hi {user_name},' if user_name else 'Hi,'
-            from_email = os.environ.get('EMAIL_FROM', 'onboarding@resend.dev')
+            # On Resend free tier, you MUST use onboarding@resend.dev as sender
+            from_email = 'onboarding@resend.dev'
 
             html_body = f"""
 <!DOCTYPE html>
