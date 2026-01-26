@@ -1,6 +1,6 @@
 // services/sharesService.ts - CORRECTED VERSION
 
-const SHARES_API = 'http://localhost:5000/api/shares'; // Add this constant
+const SHARES_API = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/shares`;
 
 export interface ShareFileParams {
   file_id: string;
