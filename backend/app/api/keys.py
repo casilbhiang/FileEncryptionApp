@@ -188,7 +188,7 @@ def update_key_status(key_id):
 
 @keys_bp.route('/<key_id>', methods=['DELETE'])
 def delete_key_pair(key_id):
-    """Delete a key pair and the associated doctor-patient connection"""
+    """Delete a key pair, the associated connection, and revoke file shares"""
     try:
         # Get key pair info before deleting
         key_pair = key_pair_store.get(key_id)
@@ -198,10 +198,11 @@ def delete_key_pair(key_id):
         doctor_id = key_pair.doctor_id
         patient_id = key_pair.patient_id
 
-        # Delete the key pair
+        # Delete the key pair from database (hard delete)
         success = key_pair_store.delete(key_id)
+        print(f"Key pair {key_id} deleted from database: {success}")
 
-        # Also delete the doctor-patient connection
+        # Delete the doctor-patient connection
         try:
             supabase.table('doctor_patient_connections')\
                 .delete()\
@@ -212,6 +213,36 @@ def delete_key_pair(key_id):
         except Exception as conn_err:
             print(f"Warning: Failed to delete connection: {conn_err}")
 
+        # Revoke all file shares between this doctor and patient
+        try:
+            from datetime import timezone
+
+            # Revoke shares from doctor to patient
+            supabase.table('file_shares')\
+                .update({
+                    'share_status': 'revoked',
+                    'revoked_at': datetime.now(timezone.utc).isoformat()
+                })\
+                .eq('shared_by', doctor_id)\
+                .eq('shared_with', patient_id)\
+                .eq('share_status', 'active')\
+                .execute()
+
+            # Revoke shares from patient to doctor
+            supabase.table('file_shares')\
+                .update({
+                    'share_status': 'revoked',
+                    'revoked_at': datetime.now(timezone.utc).isoformat()
+                })\
+                .eq('shared_by', patient_id)\
+                .eq('shared_with', doctor_id)\
+                .eq('share_status', 'active')\
+                .execute()
+
+            print(f"Revoked file shares between {doctor_id} and {patient_id}")
+        except Exception as share_err:
+            print(f"Warning: Failed to revoke file shares: {share_err}")
+
         # Log audit event
         audit_logger.log(
             user_id="ADMIN",
@@ -219,12 +250,12 @@ def delete_key_pair(key_id):
             action=AuditAction.KEY_DELETE,
             target=f"{doctor_id} → {patient_id} ({key_id})",
             result=AuditResult.OK,
-            details=f"Deleted key pair {key_id} and connection"
+            details=f"Deleted key pair {key_id}, connection, and revoked file shares"
         )
 
         return jsonify({
             'success': True,
-            'message': 'Key pair and connection deleted successfully'
+            'message': 'Key pair, connection, and file shares deleted successfully'
         }), 200
         
     except Exception as e:
