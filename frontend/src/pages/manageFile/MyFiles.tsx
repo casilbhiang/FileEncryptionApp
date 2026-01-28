@@ -118,26 +118,26 @@ const MyFiles: React.FC = () => {
     return null;
   };
   
-const getFileSourceInfo = (file: FileItem) => {
+const getFileSourceInfo = (file: FileItem): string => {
   const shareType = getShareType(file);
+  const userId = localStorage.getItem('user_id');
   
-  // For files shared WITH me, show who shared it
+  // For files shared WITH me
   if (shareType === 'shared-with-me' && file.shared_by_name) {
     return `Shared by: ${file.shared_by_name}`;
   }
   
-  // For files I OWN but shared with others, show who I shared with
+  // For files I OWN but shared with others
   if (shareType === 'shared-by-me') {
-    // Safely check and use shared_with_names
-    if (file.shared_with_names && Array.isArray(file.shared_with_names) && file.shared_with_names.length > 0) {
+    // TypeScript now recognizes shared_with_names because it's in the interface
+    if (file.shared_with_names && file.shared_with_names.length > 0) {
       if (file.shared_with_names.length === 1) {
         return `Shared with: ${file.shared_with_names[0]}`;
-      } else {
-        return `Shared with: ${file.shared_with_names.join(', ')}`;
       }
+      return `Shared with: ${file.shared_with_names.join(', ')}`;
     }
     
-    // Fallback: show count if names aren't available
+    // Fallback to count
     if (file.shared_count && file.shared_count > 0) {
       return `Shared with ${file.shared_count} ${file.shared_count === 1 ? 'person' : 'people'}`;
     }
