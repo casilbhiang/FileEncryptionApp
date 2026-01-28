@@ -127,17 +127,20 @@ const getFileSourceInfo = (file: FileItem) => {
   }
   
   // For files I OWN but shared with others, show who I shared with
-  if (shareType === 'shared-by-me' && file.shared_with_names && file.shared_with_names.length > 0) {
-    if (file.shared_with_names.length === 1) {
-      return `Shared with: ${file.shared_with_names[0]}`;
-    } else {
-      return `Shared with: ${file.shared_with_names.join(', ')}`;
+  if (shareType === 'shared-by-me') {
+    // Safely check and use shared_with_names
+    if (file.shared_with_names && Array.isArray(file.shared_with_names) && file.shared_with_names.length > 0) {
+      if (file.shared_with_names.length === 1) {
+        return `Shared with: ${file.shared_with_names[0]}`;
+      } else {
+        return `Shared with: ${file.shared_with_names.join(', ')}`;
+      }
     }
-  }
-  
-  // Fallback: show count if names aren't available
-  if (shareType === 'shared-by-me' && file.shared_count && file.shared_count > 0) {
-    return `Shared with ${file.shared_count} ${file.shared_count === 1 ? 'person' : 'people'}`;
+    
+    // Fallback: show count if names aren't available
+    if (file.shared_count && file.shared_count > 0) {
+      return `Shared with ${file.shared_count} ${file.shared_count === 1 ? 'person' : 'people'}`;
+    }
   }
   
   if (file.owner_name && file.owner_id !== userId) {
@@ -149,7 +152,7 @@ const getFileSourceInfo = (file: FileItem) => {
   }
   
   return '';
-};  
+};
 
 
   useEffect(() => {
