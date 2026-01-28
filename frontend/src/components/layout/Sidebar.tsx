@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, FileText, Upload, Share2, Users, UserPlus, Key, LogOut, Menu, X, Bell, FolderOpen, RefreshCw } from 'lucide-react';
+import { Home, FileText, Upload, Share2, Users, UserPlus, Key, LogOut, Menu, X, Bell, FolderOpen } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import simncryptLogo from '../../images/simncrypt.jpg';
 import { useNotifications } from '../../contexts/NotificationContext';
@@ -171,7 +171,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
           <div className="fixed top-20 left-4 lg:left-72 w-80 lg:w-96 bg-white rounded-lg shadow-2xl z-50 max-h-96 overflow-hidden flex flex-col border border-gray-200">
             {/* Header */}
             <div className="p-4 border-b bg-gray-50 flex items-center justify-between">
-              <h3 className="font-bold text-lg">Files Received</h3>
+              <h3 className="font-bold text-lg">Notifications</h3>
               <div className="flex items-center gap-2">
                 {userUnreadCount > 0 && (
                   <button
@@ -181,19 +181,6 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
                     Mark all read
                   </button>
                 )}
-                <button
-                  onClick={() => fetchNotifications(false)}
-                  className="p-1 hover:bg-gray-200 rounded"
-                  title="Refresh notifications"
-                >
-                  <RefreshCw className="w-4 h-4 text-gray-600" />
-                </button>
-                <button
-                  onClick={() => setShowNotifications(false)}
-                  className="p-1 hover:bg-gray-200 rounded"
-                >
-                  <X className="w-5 h-5 text-gray-600" />
-                </button>
               </div>
             </div>
             {/* Notifications List */}
@@ -233,9 +220,9 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
               ) : (
                 <div className="p-8 text-center text-gray-500">
                   <Bell className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                  <p>No files received</p>
+                  <p>No notifications</p>
                   <p className="text-sm text-gray-400 mt-1">
-                    Files shared with you will appear here.
+                    You have no notifications.
                   </p>
                   <button
                     onClick={() => fetchNotifications(false)}
