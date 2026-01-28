@@ -31,11 +31,6 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
     fetchNotifications
   } = useNotifications();
 
-  // FIXED: Get current user STRING ID (not UUID) for API calls
-  const getCurrentUserStringId = (): string => {
-    const userId = localStorage.getItem('user_id');
-    return userId || '';
-  };
 
   // ADD: Get current user UUID for filtering notifications
   const getCurrentUserUuid = (): string => {
