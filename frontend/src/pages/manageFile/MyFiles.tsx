@@ -490,7 +490,7 @@ const getFileSourceInfo = (file: FileItem) => {
         {/* REMOVED: <ToastNotification /> - Now handled globally by NotificationToast component */}
         
         <div className="mb-6">
-          <h1 className="text-2xl lg:text-3xl font-bold mb-2">MY FILES</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold mb-2">My Files</h1>
           
           {error && (
             <div className="mb-4 p-3 bg-red-50 text-red-600 rounded text-sm">

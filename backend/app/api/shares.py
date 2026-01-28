@@ -645,3 +645,43 @@ def get_available_users():
         print(f"Get available users error: {e}")
         print(f"Full traceback:\n{error_details}")
         return jsonify({'error': f'{str(e)}', 'details': error_details}), 500
+    
+    
+# ===== Get Files Shared With Specific Recipient =====
+@shares_bp.route('/shared-with/<recipient_id>', methods=['GET'])
+def get_files_shared_with_recipient(recipient_id):
+    """
+    Get file IDs that have already been shared with a specific recipient
+    Query params: shared_by (user_id of the sharer)
+    """
+    try:
+        shared_by = request.args.get('shared_by')
+        if not shared_by:
+            return jsonify({'error': 'shared_by parameter is required'}), 400
+        
+        print(f"Checking files shared by {shared_by} with {recipient_id}")
+        
+        # Query for active shares between these two users
+        shares = supabase.table('file_shares')\
+            .select('file_id')\
+            .eq('shared_by', shared_by)\
+            .eq('shared_with', recipient_id)\
+            .eq('share_status', 'active')\
+            .execute()
+        
+        file_ids = [share['file_id'] for share in shares.data]
+        
+        print(f"Found {len(file_ids)} files already shared")
+        
+        return jsonify({
+            'file_ids': file_ids,
+            'count': len(file_ids),
+            'shared_by': shared_by,
+            'shared_with': recipient_id
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error getting files shared with recipient: {e}")
+        return jsonify({'error': f'{str(e)}', 'details': error_details}), 500
