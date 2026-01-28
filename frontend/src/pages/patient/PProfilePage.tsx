@@ -161,6 +161,7 @@ const PProfilePage: React.FC = () => {
               <div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-1">{patientData.name}</h3>
                 <p className="text-sm text-gray-700">{patientData.email}</p>
+                <p className="text-sm text-gray-700 mt-1">User ID: {localStorage.getItem('user_id')}</p>
               </div>
             </div>
           </div>
@@ -235,34 +236,6 @@ const PProfilePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Information Note - Similar to Doctor's Shared Files Section but for Patients */}
-        <div className="mt-6 bg-white rounded-lg p-6 border-2 border-blue-400">
-          <h3 className="text-lg font-bold mb-2">Medical Files Information</h3>
-          <p className="text-sm text-gray-600 mb-4">
-            To view, upload, or manage your medical files, please visit the{' '}
-            <button
-              onClick={() => navigate('/patient/my-files')}
-              className="text-blue-600 font-medium hover:underline"
-            >
-              My Files
-            </button>
-            {' '}page.
-          </p>
-          <div className="flex gap-4">
-            <button
-              onClick={() => navigate('/patient/my-files')}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
-            >
-              Go to My Files
-            </button>
-            <button
-              onClick={() => navigate('/patient/upload')}
-              className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition"
-            >
-              Upload New File
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

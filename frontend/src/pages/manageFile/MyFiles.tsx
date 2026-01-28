@@ -8,7 +8,6 @@ import {
   Loader2, 
   Upload, 
   Share2, 
-  Eye, 
   ChevronLeft, 
   ChevronRight,
   Lock,
@@ -17,10 +16,14 @@ import {
 } from 'lucide-react';
 import { getMyFiles, deleteFile, downloadFile, downloadAndDecryptFile, type FileItem } from '../../services/Files';
 import { getStoredEncryptionKey } from '../../services/Encryption';
-
+// REPLACE the custom hook with NotificationContext
+import { useNotifications } from '../../contexts/NotificationContext';
 const MyFiles: React.FC = () => {
   const location = useLocation();
   const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
+  
+  // USE NotificationContext instead of multiple hooks
+  const { showSuccessToast, showErrorToast, showWarningToast } = useNotifications();
   
   // Get userId from localStorage
   const [userId] = useState<string | null>(() => localStorage.getItem('user_id'));
@@ -49,17 +52,9 @@ const MyFiles: React.FC = () => {
     file: FileItem | null;
   }>({ isOpen: false, file: null });
   
-  const [alertModal, setAlertModal] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    type: 'info' | 'warning' | 'error' | 'success';
-  }>({ isOpen: false, title: '', message: '', type: 'info' });
-  
-  // Helper function to show alerts
-  const showAlert = (title: string, message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info') => {
-    setAlertModal({ isOpen: true, title, message, type });
-  };
+  // REMOVED: Local toast state and functions
+  // REMOVED: Import of CheckCircle, AlertCircle, Info
+  // REMOVED: showToast, showAlert, ToastNotification function
   
   const getShareType = (file: FileItem): 'shared-by-me' | 'shared-with-me' | 'owned' | 'unknown' => {
     if (!userId) return 'unknown';
@@ -228,12 +223,28 @@ const MyFiles: React.FC = () => {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
       
+      // UNIFIED NOTIFICATION: Shows toast AND adds to sidebar
+      showSuccessToast(
+        'File Downloaded',
+        `${file.name}.enc downloaded successfully`,
+        {
+          fileName: `${file.name}.enc`,
+          fileId: file.id,
+          isShared: getShareType(file) === 'shared-with-me',
+          action: 'download_encrypted'
+        }
+      );
+      
     } catch (error) {
       console.error('Download failed:', error);
-      showAlert(
+      
+      showErrorToast(
         'Download Failed',
         error instanceof Error ? error.message : 'Failed to download file.',
-        'error'
+        {
+          fileName: `${file.name}.enc`,
+          action: 'download_error'
+        }
       );
     } finally {
       setDownloadingFileId(null);
@@ -242,10 +253,9 @@ const MyFiles: React.FC = () => {
   
   const handleDownloadDecrypted = async (file: FileItem) => {
     if (!userId || !userUuid) {
-      showAlert(
+      showErrorToast(
         'Authentication Error',
-        'User information not found. Please log in again.',
-        'error'
+        'User information not found. Please log in again.'
       );
       return;
     }
@@ -257,10 +267,13 @@ const MyFiles: React.FC = () => {
       const key = await getStoredEncryptionKey(userId);
       
       if (!key) {
-        showAlert(
+        showWarningToast(
           'Encryption Key Not Found',
-          'Your encryption key is not available.\n\nPlease scan the QR code provided by the System Administrator to restore access to your encrypted files.',
-          'warning'
+          'Your encryption key is not available. Please scan the QR code to restore access.',
+          {
+            fileName: file.name,
+            action: 'key_missing'
+          }
         );
         return;
       }
@@ -280,27 +293,58 @@ const MyFiles: React.FC = () => {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
       
+      showSuccessToast(
+        'File Downloaded',
+        `${file.name} downloaded and decrypted successfully`,
+        {
+          fileName: file.name,
+          fileId: file.id,
+          isShared: getShareType(file) === 'shared-with-me',
+          action: 'download_decrypted'
+        }
+      );
+      
     } catch (error) {
       console.error('Download failed:', error);
       
       if (error instanceof Error) {
         if (error.message.includes('Decryption failed')) {
-          showAlert(
+          showErrorToast(
             'Decryption Failed',
             'Failed to decrypt the file. Your encryption key may be incorrect or the file may be corrupted.',
-            'error'
+            {
+              fileName: file.name,
+              action: 'decryption_error'
+            }
           );
         } else if (error.message.includes('metadata not found')) {
-          showAlert(
+          showErrorToast(
             'Encryption Error',
             'This file was not properly encrypted or the encryption information is missing.',
-            'error'
+            {
+              fileName: file.name,
+              action: 'encryption_error'
+            }
           );
         } else {
-          showAlert('Download Failed', error.message, 'error');
+          showErrorToast(
+            'Download Failed', 
+            error.message,
+            {
+              fileName: file.name,
+              action: 'download_error'
+            }
+          );
         }
       } else {
-        showAlert('Download Failed', 'An unexpected error occurred during download.', 'error');
+        showErrorToast(
+          'Download Failed', 
+          'An unexpected error occurred during download.',
+          {
+            fileName: file.name,
+            action: 'download_error'
+          }
+        );
       }
     } finally {
       setDownloadingFileId(null);
@@ -313,10 +357,30 @@ const MyFiles: React.FC = () => {
         if (userUuid) {
           await deleteFile(file.id, userUuid);
           fetchFiles();
+          
+          showSuccessToast(
+            'File Deleted', 
+            `${file.name} has been deleted`,
+            {
+              fileName: file.name,
+              fileId: file.id,
+              isShared: getShareType(file) === 'shared-by-me' || getShareType(file) === 'shared-with-me',
+              sharedBy: file.shared_by_name || undefined,
+              action: 'delete'
+            }
+          );
         }
       } catch (error) {
         console.error('Delete failed:', error);
-        showAlert('Delete Failed', 'Failed to delete file.', 'error');
+        
+        showErrorToast(
+          'Delete Failed', 
+          'Failed to delete file.',
+          {
+            fileName: file.name,
+            action: 'delete_error'
+          }
+        );
       }
     }
   };
@@ -395,10 +459,14 @@ const MyFiles: React.FC = () => {
     fetchFiles();
   };
   
+  // REMOVED: ToastNotification component
+  
   return (
     <div className="min-h-screen bg-gray-100 flex">
       <Sidebar userRole={userRole} currentPage="my-files" />
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
+        {/* REMOVED: <ToastNotification /> - Now handled globally by NotificationToast component */}
+        
         <div className="mb-6">
           <h1 className="text-2xl lg:text-3xl font-bold mb-2">MY FILES</h1>
           
@@ -509,7 +577,7 @@ const MyFiles: React.FC = () => {
                   </div>
                   
                   <div className="border-t pt-3">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                       <div className="flex items-start gap-2 p-2 bg-gray-50 rounded">
                         <Upload className="w-4 h-4 text-gray-400 mt-0.5" />
                         <div>
@@ -525,15 +593,6 @@ const MyFiles: React.FC = () => {
                           <div className="text-gray-500 font-medium mb-1">Shared At</div>
                           <div className="text-gray-700 font-mono text-xs">
                             {file.shared_at ? formatDetailedTimestamp(file.shared_at) : 'Not shared'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2 p-2 bg-gray-50 rounded">
-                        <Eye className="w-4 h-4 text-gray-400 mt-0.5" />
-                        <div>
-                          <div className="text-gray-500 font-medium mb-1">Last Accessed</div>
-                          <div className="text-gray-700 font-mono text-xs">
-                            {file.last_accessed_at ? formatDetailedTimestamp(file.last_accessed_at) : 'Never accessed'}
                           </div>
                         </div>
                       </div>
@@ -665,47 +724,7 @@ const MyFiles: React.FC = () => {
           </div>
         </div>
       )}
-      
-      {/* Alert Modal - Inline */}
-      {alertModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div 
-            className="absolute inset-0 bg-black bg-opacity-50"
-            onClick={() => setAlertModal({ ...alertModal, isOpen: false })}
-          />
-          
-          <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6 z-10">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-gray-900">{alertModal.title}</h3>
-              <button
-                onClick={() => setAlertModal({ ...alertModal, isOpen: false })}
-                className="p-1 hover:bg-gray-100 rounded-lg transition"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-            
-            <div className="mb-6">
-              <div className={`text-4xl mb-4 text-center ${
-                alertModal.type === 'error' ? 'text-red-600' :
-                alertModal.type === 'warning' ? 'text-orange-600' :
-                alertModal.type === 'success' ? 'text-green-600' :
-                'text-blue-600'
-              }`}>
-              </div>
-              <p className="text-gray-700 text-center whitespace-pre-line">{alertModal.message}</p>
-            </div>
-            <button
-              onClick={() => setAlertModal({ ...alertModal, isOpen: false })}
-              className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
-
 export default MyFiles;
