@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home, FileText, Upload, Share2, Users, UserPlus, Key, LogOut, Menu, X, Bell, FolderOpen, RefreshCw } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -28,7 +28,6 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
     markAsRead, 
     markAllAsRead, 
     clearNotification, 
-    unreadCount,
     fetchNotifications
   } = useNotifications();
 
@@ -45,7 +44,6 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
   };
 
   // Use both
-  const currentUserStringId = getCurrentUserStringId(); // For API calls: 'JYDOC-67F'
   const currentUserUuid = getCurrentUserUuid();          // For filtering: 'ca3f1487-...'
 
   // ✅ FIXED: Filter notifications for current user AND only show file_received notifications
