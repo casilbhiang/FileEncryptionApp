@@ -5,7 +5,7 @@ import Sidebar from '../../components/layout/Sidebar';
 import { QrCode, Camera, AlertTriangle, CheckCircle, Stethoscope, Key } from 'lucide-react';
 import QRScanner from '../../components/QRScanner';
 import { verifyScannedQR, getUserConnections, getKeyPair } from '../../services/keyService';
-import { hasEncryptionKey, clearEncryptionKey, storeEncryptionKey, importKeyFromBase64 } from '../../services/Encryption';
+import { hasEncryptionKey, storeEncryptionKey, importKeyFromBase64 } from '../../services/Encryption';
 import { storage } from '../../utils/storage';
 
 const PConnectToDocPage: React.FC = () => {

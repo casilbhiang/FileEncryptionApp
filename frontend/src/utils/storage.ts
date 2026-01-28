@@ -1,12 +1,6 @@
 import Cookies from 'js-cookie';
 import CryptoJS from 'crypto-js';
 
-// Storage utility to wrap js-cookie and provide a consistent interface
-// mirroring localStorage (setItem, getItem, removeItem) but using Cookies.
-// NOW WITH ENCRYPTION using AES.
-
-// Secret key for encryption - in production this should be an environment variable
-// Using a fallback for now if env var is missing
 const SECRET_KEY = import.meta.env.VITE_STORAGE_KEY || 'default-secure-key-change-this';
 
 const encrypt = (text: string): string => {
