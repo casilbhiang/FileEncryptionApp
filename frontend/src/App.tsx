@@ -34,7 +34,6 @@ import AKeyMgtPage from './pages/admin/AKeyMgtPage';
 import AAuditLogsPage from './pages/admin/AAuditLogsPage';
 import AKeyLogsPage from './pages/admin/AKeyLogsPage';
 import AFileLogsPage from './pages/admin/AFileLogsPage';
-import ACloudStoragePage from './pages/admin/ACloudStoragePage';
 
 function App() {
   return (
@@ -167,11 +166,6 @@ function App() {
             <Route path="/admin/file-logs" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AFileLogsPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/cloud-storage" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <ACloudStoragePage />
               </ProtectedRoute>
             } />
 

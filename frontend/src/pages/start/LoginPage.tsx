@@ -39,13 +39,48 @@ const LoginPage: React.FC = () => {
     setError('');
   };
 
-  const handleBiometricSuccess = () => {
-    // Biometric authentication successful, proceed with navigation
+  const handleBiometricSuccess = async () => {
+    // Biometric authentication successful
     if (pendingNavigation) {
-      setSuccess('Authentication successful! Redirecting...');
-      setTimeout(() => {
-        navigate(pendingNavigation.path, pendingNavigation.options);
-      }, 1000);
+      try {
+        setIsLoading(true);
+        
+        // For admin users, NOW send the OTP after biometric verification
+        const API_URL = import.meta.env.VITE_API_URL;
+        const email = localStorage.getItem('user_email');
+        const userId = localStorage.getItem('user_id');
+        
+        console.log('Biometric verified, requesting OTP for admin...');
+        
+        // Call the new endpoint to send OTP
+        const response = await fetch(`${API_URL}/api/auth/admin/send-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, user_id: userId }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to send OTP');
+        }
+        
+        const data = await response.json();
+        console.log('OTP sent successfully:', data);
+        
+        setSuccess('Biometric verified! OTP sent to your email.');
+        setShowBiometricModal(false);
+        
+        setTimeout(() => {
+          navigate(pendingNavigation.path, pendingNavigation.options);
+        }, 1000);
+        
+      } catch (error: any) {
+        console.error('Error sending OTP:', error);
+        setError(error.message || 'Biometric verified but failed to send OTP. Please try again.');
+        setShowBiometricModal(false);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -73,29 +108,37 @@ const LoginPage: React.FC = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Login failed');
 
+      // DEBUG: Log the response to see what we're getting
+      console.log('Login response data.user:', data.user);
+      console.log('full_name from backend:', data.user?.full_name);
+
       /* ================= STORE AUTH ================= */
       localStorage.setItem('auth_token', data.token);
-
       const email = data.user?.email || `${formData.userId}@clinic.com`;
-
+      
+      // Try to get full_name, if not available use user_id as fallback
+      const fullName = data.user?.full_name || data.user?.name || formData.userId;
+      console.log('Full name to store:', fullName); // Debug
+      
       localStorage.setItem('user_role', data.user.role);
       localStorage.setItem('user_id', data.user.user_id);
       localStorage.setItem('user_uuid', data.user.id);
       localStorage.setItem('user_email', email);
+      localStorage.setItem('full_name', fullName); // Store full_name directly
+      console.log('Stored in localStorage - full_name:', localStorage.getItem('full_name')); // Debug
       localStorage.setItem('is_first_login', data.user.is_first_login ? 'true' : 'false');
-
       localStorage.setItem('user', JSON.stringify({
         id: data.user.user_id,
         uuid: data.user.id,
         role: data.user.role,
         email,
-        name: data.user.full_name
+        name: fullName
       }));
 
       /* ================= ADMIN BIOMETRIC ================= */
       if (formData.role === 'admin') {
-        await handleAdminBiometric(email);
-        return;
+        await handleAdminBiometric(email); // ← ADD await HERE
+        return; // Don't proceed further - handleAdminBiometric will handle navigation
       }
 
       /* ================= NORMAL USERS ================= */

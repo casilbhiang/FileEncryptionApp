@@ -1,5 +1,4 @@
 'use client';
-
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import { CheckCircle, XCircle, Loader2, RefreshCw, Activity, Database, Cloud, Lock, Eye } from 'lucide-react';
@@ -23,7 +22,7 @@ interface SystemHealthItem {
 }
 
 const AHomePage: React.FC = () => {
-  const userName = localStorage.getItem('user_name') || 'Admin';
+  const [userName, setUserName] = useState<string>('Admin');
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   
   const [recentActivities, setRecentActivities] = useState<ActivityItem[]>([]);
@@ -59,6 +58,43 @@ const AHomePage: React.FC = () => {
   ]);
 
   useEffect(() => {
+    // Fetch user name with multiple fallback methods
+    let displayName = 'Admin'; // default fallback
+    
+    // Method 1: Try getting from 'user' JSON object
+    const userDataStr = localStorage.getItem('user');
+    if (userDataStr) {
+      try {
+        const userData = JSON.parse(userDataStr);
+        if (userData.name) {
+          displayName = userData.name;
+        }
+      } catch (e) {
+        console.error('Error parsing user data:', e);
+      }
+    }
+    
+    // Method 2: Try direct keys as backup
+    if (displayName === 'Admin') {
+      const directName = localStorage.getItem('full_name') || 
+                        localStorage.getItem('user_name') || 
+                        localStorage.getItem('name');
+      if (directName) {
+        displayName = directName;
+      }
+    }
+    
+    // Method 3: Extract from email as last resort
+    if (displayName === 'Admin') {
+      const email = localStorage.getItem('user_email') || localStorage.getItem('email');
+      if (email) {
+        displayName = email.split('@')[0];
+      }
+    }
+    
+    console.log('Final display name:', displayName); // Debug log
+    setUserName(displayName);
+
     checkSystemHealth();
     fetchRecentActivities();
   }, []);
@@ -170,7 +206,7 @@ const AHomePage: React.FC = () => {
       }
 
       const data = await response.json();
-
+      
       const activities: ActivityItem[] = (data.logs || []).slice(0, 5).map((log: any) => {
         let title = '';
         let description = '';
@@ -236,7 +272,7 @@ const AHomePage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-100 flex">
       <Sidebar userRole="admin" currentPage="home" />
-
+      
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
         {/* Header */}
         <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border">

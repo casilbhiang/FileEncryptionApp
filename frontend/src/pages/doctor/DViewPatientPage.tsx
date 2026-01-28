@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
-import { Search, Mic, Loader2 } from 'lucide-react';
+import { Search, Loader2 } from 'lucide-react';
 
 interface Patient {
   user_id: string;
@@ -111,9 +111,6 @@ const DViewPatientPage: React.FC = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
-            <button className="absolute right-4 top-1/2 transform -translate-y-1/2">
-              <Mic className="w-5 h-5 text-gray-400" />
-            </button>
           </div>
         </div>
 
