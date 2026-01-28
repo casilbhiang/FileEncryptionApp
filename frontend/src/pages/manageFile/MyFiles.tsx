@@ -118,33 +118,38 @@ const MyFiles: React.FC = () => {
     return null;
   };
   
-const getFileSourceInfo = (file: FileItem): string => {
+const getFileSourceInfo = (file: FileItem) => {
   const shareType = getShareType(file);
   const userId = localStorage.getItem('user_id');
   
-  // For files shared WITH me
+  // For files shared WITH me, show who shared it
   if (shareType === 'shared-with-me' && file.shared_by_name) {
     return `Shared by: ${file.shared_by_name}`;
   }
   
-  // For files I OWN but shared with others
+  // For files I OWN but shared with others, show who I shared with
   if (shareType === 'shared-by-me') {
-    // TypeScript now recognizes shared_with_names because it's in the interface
-    if (file.shared_with_names && file.shared_with_names.length > 0) {
-      if (file.shared_with_names.length === 1) {
-        return `Shared with: ${file.shared_with_names[0]}`;
+    // Use type assertion to satisfy TypeScript
+    const fileWithSharedNames = file as FileItem & { shared_with_names?: string[] };
+    
+    if (fileWithSharedNames.shared_with_names && fileWithSharedNames.shared_with_names.length > 0) {
+      if (fileWithSharedNames.shared_with_names.length === 1) {
+        return `Shared with: ${fileWithSharedNames.shared_with_names[0]}`;
+      } else {
+        return `Shared with: ${fileWithSharedNames.shared_with_names.join(', ')}`;
       }
-      return `Shared with: ${file.shared_with_names.join(', ')}`;
     }
     
-    // Fallback to count
-    if (file.shared_count && file.shared_count > 0) {
-      return `Shared with ${file.shared_count} ${file.shared_count === 1 ? 'person' : 'people'}`;
+    // Fallback: show count if names aren't available
+    const fileWithCount = file as FileItem & { shared_count?: number };
+    if (fileWithCount.shared_count && fileWithCount.shared_count > 0) {
+      return `Shared with ${fileWithCount.shared_count} ${fileWithCount.shared_count === 1 ? 'person' : 'people'}`;
     }
   }
   
-  if (file.owner_name && file.owner_id !== userId) {
-    return `Owner: ${file.owner_name}`;
+  const fileWithOwnerName = file as FileItem & { owner_name?: string };
+  if (fileWithOwnerName.owner_name && file.owner_id !== userId) {
+    return `Owner: ${fileWithOwnerName.owner_name}`;
   }
   
   if (shareType === 'owned') {
@@ -153,7 +158,6 @@ const getFileSourceInfo = (file: FileItem): string => {
   
   return '';
 };
-
 
   useEffect(() => {
     fetchFiles();
