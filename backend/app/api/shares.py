@@ -40,7 +40,7 @@ def share_file():
         
         file_id = data['file_id']
         shared_by = data['shared_by']
-        shared_by_uuid = data['shared_by_uuid']
+        shared_by_uuid = data.get('shared_by_uuid')  # Make this optional with get()
         shared_with = data['shared_with']
         access_level = data.get('access_level', 'read')
         message = data.get('message', '')
@@ -51,7 +51,7 @@ def share_file():
         
         # Verify file exists and user owns it
         file_check = supabase.table('encrypted_files')\
-            .select('id, userid, owner_id, original_filename')\
+            .select('id, userid, owner_id, original_filename, file_size, file_extension')\
             .eq('id', file_id)\
             .eq('is_deleted', False)\
             .eq('upload_status', 'completed')\
@@ -62,8 +62,22 @@ def share_file():
         
         file_data = file_check.data[0]
         
+        # Get sender's UUID if not provided
+        if not shared_by_uuid:
+            sender_query = supabase.table('users')\
+                .select('id')\
+                .eq('user_id', shared_by)\
+                .limit(1)\
+                .execute()
+            
+            if sender_query.data:
+                shared_by_uuid = sender_query.data[0]['id']
+                print(f"✅ Found sender UUID: {shared_by_uuid} for user_id: {shared_by}")
+            else:
+                print(f"⚠️ Could not find sender UUID for user_id: {shared_by}")
+        
         # Check if user owns the file
-        if file_data['userid'] != shared_by_uuid:
+        if shared_by_uuid and file_data['userid'] != shared_by_uuid:
             return jsonify({'error': 'You do not own this file'}), 403
         
         # Check if trying to share with yourself
@@ -101,23 +115,101 @@ def share_file():
         
         share_id = result.data[0]['id']
         
-        print(f"File shared: {file_id} from {shared_by} to {shared_with}")
+        print(f"✅ File shared: {file_id} from {shared_by} to {shared_with}")
+        print(f"📁 File: {file_data['original_filename']}")
+        print(f"🔑 Access level: {access_level}")
+        print(f"🆔 Share ID: {share_id}")
+        
+        # ===== CREATE NOTIFICATION FOR RECIPIENT =====
+        print(f"🔔 Starting notification creation process...")
+        
+        try:
+            # Import the helper function
+            from app.api.notifications import create_share_notification
+            
+            # Create notification for recipient
+            notification = create_share_notification(
+                file_data=file_data,
+                shared_by=shared_by,
+                shared_with=shared_with,
+                access_level=access_level
+            )
+            
+            if notification:
+                print(f"📢 Notification successfully created: {notification['id']}")
+                notification_sent = True
+                notification_id = notification['id']
+            else:
+                print(f"⚠️ Notification creation failed, but share succeeded")
+                notification_sent = False
+                notification_id = None
+                
+        except ImportError as e:
+            print(f"⚠️ Could not import create_share_notification: {e}")
+            print(f"⚠️ Make sure the function exists in notifications.py")
+            notification_sent = False
+            notification_id = None
+        except Exception as e:
+            print(f"⚠️ Error creating notification: {e}")
+            import traceback
+            traceback.print_exc()
+            notification_sent = False
+            notification_id = None
+        # ===== END NOTIFICATION CREATION =====
+        
+        # Also create a success notification for the sender (optional)
+        try:
+            from app.api.notifications import _create_notification_core
+            
+            sender_notification = _create_notification_core(
+                user_id=shared_by,
+                title='✅ File Shared Successfully',
+                message=f'You shared "{file_data["original_filename"]}" with {shared_with}',
+                notification_type='info',
+                metadata={
+                    'file_id': file_id,
+                    'file_name': file_data['original_filename'],
+                    'recipient_id': shared_with,
+                    'share_id': share_id
+                },
+                related_file_id=file_id,
+                related_user_id=shared_with
+            )
+            
+            if sender_notification:
+                print(f"📢 Sender notification created: {sender_notification['id']}")
+                
+        except Exception as e:
+            print(f"⚠️ Could not create sender notification: {e}")
         
         return jsonify({
+            'success': True,
             'message': 'File shared successfully',
             'share_id': share_id,
             'file_name': file_data['original_filename'],
             'shared_with': shared_with,
-            'access_level': access_level
+            'access_level': access_level,
+            'notification': {
+                'sent': notification_sent,
+                'id': notification_id
+            },
+            'debug': {
+                'file_id': file_id,
+                'shared_by': shared_by,
+                'shared_with': shared_with,
+                'access_level': access_level
+            }
         }), 201
         
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
-        print(f"Share error: {e}")
+        print(f"❌ Share error: {e}")
         print(f"Full traceback:\n{error_details}")
         return jsonify({'error': f'{str(e)}', 'details': error_details}), 500
-
+    
+    
+    
 # ===== Get Shares for a File =====
 @shares_bp.route('/file/<file_id>', methods=['GET'])
 def get_file_shares(file_id):
@@ -130,9 +222,21 @@ def get_file_shares(file_id):
         if not user_id:
             return jsonify({'error': 'User ID is required'}), 400
         
-        # Verify user owns the file
+        # First get user's UUID
+        user_query = supabase.table('users')\
+            .select('id')\
+            .eq('user_id', user_id)\
+            .limit(1)\
+            .execute()
+        
+        if not user_query.data:
+            return jsonify({'error': 'User not found'}), 404
+        
+        user_uuid = user_query.data[0]['id']
+        
+        # Verify file exists and user owns it
         file_check = supabase.table('encrypted_files')\
-            .select('user_id, owner_id')\
+            .select('userid')\
             .eq('id', file_id)\
             .eq('is_deleted', False)\
             .execute()
@@ -140,7 +244,7 @@ def get_file_shares(file_id):
         if not file_check.data:
             return jsonify({'error': 'File not found'}), 404
         
-        if file_check.data[0]['user_id'] != user_uuid:
+        if file_check.data[0]['userid'] != user_uuid:  # Changed from 'user_id' to 'userid'
             return jsonify({'error': 'Not authorized. You do not own this file'}), 403
         
         # Get all active shares for this file
