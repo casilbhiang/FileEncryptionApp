@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
-import { Loader2, RefreshCw, Eye, Download, User, FileText, Share2, Inbox, CheckCircle } from 'lucide-react';
+import { Loader2, RefreshCw, Eye, FileText, Share2, Inbox, CheckCircle } from 'lucide-react';
 import { getMyFiles, type FileItem, formatFileSize } from '../../services/Files';
 
 const PHomePage: React.FC = () => {
@@ -19,6 +19,40 @@ const PHomePage: React.FC = () => {
 
   // Fetch data when component loads
   useEffect(() => {
+    // Get user name from localStorage - try multiple possible keys
+    let displayName = 'Patient'; // default fallback
+    
+    // Method 1: Try getting from 'full_name' direct key
+    const fullName = localStorage.getItem('full_name');
+    
+    if (fullName) {
+      displayName = fullName;
+    } else {
+      // Method 2: Try getting from 'user' JSON object
+      const userDataStr = localStorage.getItem('user');
+      
+      if (userDataStr) {
+        try {
+          const userData = JSON.parse(userDataStr);
+          if (userData.name) {
+            displayName = userData.name;
+          }
+        } catch (e) {
+          console.error('Error parsing user data:', e);
+        }
+      }
+    }
+    
+    // Method 3: Extract from email as last resort
+    if (displayName === 'Patient') {
+      const email = localStorage.getItem('user_email') || localStorage.getItem('email');
+      if (email) {
+        displayName = email.split('@')[0];
+      }
+    }
+    
+    setUserName(displayName);
+    
     fetchRecentFiles();
   }, []);
 
@@ -36,10 +70,6 @@ const PHomePage: React.FC = () => {
         setLoading(false);
         return;
       }
-
-      // Try to get user name from localStorage
-      const storedName = localStorage.getItem('user_name') || localStorage.getItem('email') || 'Patient';
-      setUserName(storedName);
 
       // Call the same endpoint as MyFiles page with recent files filter
       // Using page=1, limit=10 for recent files
@@ -123,10 +153,6 @@ const PHomePage: React.FC = () => {
     window.location.href = '/patient/my-files';
   };
 
-  const handleViewShared = () => {
-    window.location.href = '/patient/my-files';
-  };
-
   return (
     <div className="min-h-screen bg-gray-100 flex">
       {/* Sidebar */}
@@ -156,11 +182,6 @@ const PHomePage: React.FC = () => {
                   <RefreshCw className="w-5 h-5 text-blue-600" />
                 )}
               </button>
-              
-              {/* User profile placeholder */}
-              <div className="p-2 bg-gray-100 rounded-lg border">
-                <User className="w-5 h-5 text-gray-600" />
-              </div>
             </div>
           </div>
           
@@ -242,12 +263,6 @@ const PHomePage: React.FC = () => {
               >
                 View All Files
               </button>
-              <button 
-                onClick={handleViewShared}
-                className="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
-              >
-                View Shared
-              </button>
             </div>
           </div>
 
@@ -264,7 +279,7 @@ const PHomePage: React.FC = () => {
           )}
 
           {/* No user logged in */}
-          {!loading && !localStorage.getItem('user_id') && (
+          {!loading && !localStorage.getItem('user_uuid') && (
             <div className="text-center py-8">
               <div className="text-gray-500 mb-2 text-lg">Please log in to view your files</div>
               <p className="text-gray-400">
@@ -274,7 +289,7 @@ const PHomePage: React.FC = () => {
           )}
 
           {/* User logged in but no files */}
-          {!loading && localStorage.getItem('user_id') && recentFiles.length === 0 && !error && (
+          {!loading && localStorage.getItem('user_uuid') && recentFiles.length === 0 && !error && (
             <div className="text-center py-8">
               <div className="text-gray-500 mb-2 text-lg">No files found</div>
               <p className="text-gray-400 mb-4">
@@ -313,32 +328,8 @@ const PHomePage: React.FC = () => {
                       <span>{formatDate(file.uploaded_at)}</span>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <button 
-                      onClick={() => window.location.href = `/patient/my-files`}
-                      className="px-3 py-1.5 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
-                    >
-                      View
-                    </button>
-                    <div className="w-8 h-8 flex items-center justify-center">
-                      <Download className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
-                    </div>
-                  </div>
                 </div>
               ))}
-            </div>
-          )}
-
-          {/* Show "View More" if there are more files */}
-          {!loading && recentFiles.length > 3 && (
-            <div className="mt-6 text-center">
-              <button 
-                onClick={handleViewAllFiles}
-                className="text-blue-600 hover:text-blue-800 font-medium"
-              >
-                View all {recentFiles.length} files →
-              </button>
             </div>
           )}
         </div>
