@@ -8,8 +8,7 @@ from app.crypto.qr_generator import QRCodeGenerator
 from app.models.encryption_models import KeyPair
 from app.models.storage import key_pair_store
 from app.utils.audit import audit_logger, AuditAction, AuditResult
-from app.utils.supabase_client import supabase
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 
 keys_bp = Blueprint('keys', __name__)
@@ -205,6 +204,7 @@ def delete_key_pair(key_id):
 
         # Delete the doctor-patient connection
         try:
+            supabase = get_supabase_admin_client()
             supabase.table('doctor_patient_connections')\
                 .delete()\
                 .eq('doctor_id', doctor_id)\
@@ -216,7 +216,7 @@ def delete_key_pair(key_id):
 
         # Revoke all file shares between this doctor and patient
         try:
-            from datetime import timezone
+            supabase = get_supabase_admin_client()
 
             # Revoke shares from doctor to patient
             supabase.table('file_shares')\
