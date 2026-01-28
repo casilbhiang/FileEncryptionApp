@@ -75,19 +75,9 @@ const AAuditLogsPage: React.FC = () => {
     const matchesAction = actionFilter === 'all' || log.action === actionFilter;
     const matchesResult = resultFilter === 'all' || log.result === resultFilter.toUpperCase();
 
-    // Date filter - compare dates properly
-    let matchesDate = true;
-    if (dateFilter) {
-      try {
-        // dateFilter is in YYYY-MM-DD format from the date picker
-        const [year, month, day] = dateFilter.split('-');
-        // Convert to DD/MM/YYYY to match the formatted timestamp
-        const formattedDateFilter = `${day}/${month}/${year}`;
-        matchesDate = (log.timestamp || '').includes(formattedDateFilter);
-      } catch {
-        matchesDate = (log.timestamp || '').includes(dateFilter);
-      }
-    }
+    // Date filter - raw timestamp from API is in YYYY-MM-DD format
+    // dateFilter from date picker is also YYYY-MM-DD, so compare directly
+    const matchesDate = !dateFilter || (log.timestamp || '').includes(dateFilter);
 
     return matchesSearch && matchesAction && matchesResult && matchesDate;
   });
