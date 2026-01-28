@@ -118,28 +118,40 @@ const MyFiles: React.FC = () => {
     return null;
   };
   
-  const getFileSourceInfo = (file: FileItem) => {
-    const shareType = getShareType(file);
-    
-    if (shareType === 'shared-with-me' && file.shared_by_name) {
-      return `Shared by: ${file.shared_by_name}`;
-    }
-    
-    if (file.owner_name && file.owner_id !== userId) {
-      return `Owner: ${file.owner_name}`;
-    }
-    
-    if (shareType === 'shared-by-me' && file.shared_count && file.shared_count > 0) {
-      return `Shared with ${file.shared_count} ${file.shared_count === 1 ? 'person' : 'people'}`;
-    }
-    
-    if (shareType === 'owned') {
-      return 'Your file';
-    }
-    
-    return '';
-  };
+const getFileSourceInfo = (file: FileItem) => {
+  const shareType = getShareType(file);
   
+  // For files shared WITH me, show who shared it
+  if (shareType === 'shared-with-me' && file.shared_by_name) {
+    return `Shared by: ${file.shared_by_name}`;
+  }
+  
+  // For files I OWN but shared with others, show who I shared with
+  if (shareType === 'shared-by-me' && file.shared_with_names && file.shared_with_names.length > 0) {
+    if (file.shared_with_names.length === 1) {
+      return `Shared with: ${file.shared_with_names[0]}`;
+    } else {
+      return `Shared with: ${file.shared_with_names.join(', ')}`;
+    }
+  }
+  
+  // Fallback: show count if names aren't available
+  if (shareType === 'shared-by-me' && file.shared_count && file.shared_count > 0) {
+    return `Shared with ${file.shared_count} ${file.shared_count === 1 ? 'person' : 'people'}`;
+  }
+  
+  if (file.owner_name && file.owner_id !== userId) {
+    return `Owner: ${file.owner_name}`;
+  }
+  
+  if (shareType === 'owned') {
+    return 'Your file';
+  }
+  
+  return '';
+};  
+
+
   useEffect(() => {
     fetchFiles();
   }, [currentPage, sortField, sortOrder, filterType, searchQuery]);
