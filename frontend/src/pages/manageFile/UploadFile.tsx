@@ -331,7 +331,7 @@ const UploadFilePage: React.FC = () => {
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
         <div className="mb-6">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold mb-2">UPLOAD FILES</h1>
+            <h1 className="text-2xl lg:text-3xl font-bold mb-2">Upload Files</h1>
             <p className="text-gray-600">Your Data Is Securely Encrypted And Accessible Only To You.</p>
               
               {/* Warning banner when key is not available */}
