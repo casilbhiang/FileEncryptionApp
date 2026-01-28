@@ -418,18 +418,22 @@ def scan_qr_code():
         # Persist Connection in Supabase
         # This allows the "My Patients" or "My Doctors" lists to work
         try:
+            from flask import current_app
             from app.utils.supabase_client import get_supabase_admin_client
-            supabase = get_supabase_admin_client()
             
-            # Upsert connection to avoid duplicates
             connection_data = {
                 'doctor_id': key_pair.doctor_id,
                 'patient_id': key_pair.patient_id,
-                # 'status': 'active' # If table has status
             }
-            # We use upsert if we have a unique constraint, or insert with ignore
-            # For now, simple insert. If it fails due to duplicates, we catch it.
-            supabase.table('doctor_patient_connections').insert(connection_data).execute()
+
+            if current_app.config.get("SUPABASE_URL") and current_app.config.get("SUPABASE_SERVICE_KEY"):
+                try:
+                    supabase = get_supabase_admin_client()
+                    supabase.table('doctor_patient_connections').insert(connection_data).execute()
+                except Exception as conn_err:
+                    print(f"Connection persistence warning: {conn_err}")
+            else:
+                pass
             
             audit_logger.log(
                 user_id="SYSTEM",
@@ -439,9 +443,9 @@ def scan_qr_code():
                 result=AuditResult.OK,
                 details="Connection record created"
             )
+            
         except Exception as conn_err:
             print(f"Connection persistence warning: {conn_err}")
-            # We don't fail the request if this fails (it might be a duplicate)
         
         return jsonify({
             'success': True,
