@@ -4,6 +4,26 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import { getAuditLogs, type AuditLog } from '../../services/auditService';
 
+// Helper function to format timestamp to local time
+const formatTimestampToLocal = (timestamp: string): string => {
+  if (!timestamp) return 'N/A';
+  try {
+    // Parse the UTC timestamp and convert to local time
+    const date = new Date(timestamp + (timestamp.includes('Z') || timestamp.includes('+') ? '' : 'Z'));
+    return date.toLocaleString('en-SG', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+  } catch {
+    return timestamp; // Return original if parsing fails
+  }
+};
+
 const AAuditLogsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [actionFilter, setActionFilter] = useState('all');
@@ -165,7 +185,7 @@ const AAuditLogsPage: React.FC = () => {
                   {filteredLogs.length > 0 ? (
                     filteredLogs.map((log) => (
                       <tr key={log.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-4 text-sm text-gray-900">{log.timestamp}</td>
+                        <td className="px-4 py-4 text-sm text-gray-900">{formatTimestampToLocal(log.timestamp)}</td>
                         <td className="px-4 py-4 text-sm text-gray-900">{log.user}</td>
                         <td className="px-4 py-4 text-sm text-gray-900">{log.action}</td>
                         <td className="px-4 py-4 text-sm text-gray-600 max-w-xs truncate">{log.target}</td>
