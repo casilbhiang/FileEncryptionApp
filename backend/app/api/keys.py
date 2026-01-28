@@ -1,7 +1,8 @@
 """
 API endpoints for encryption key management
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
+from app.utils.supabase_client import get_supabase_admin_client
 from app.crypto.encryption import EncryptionManager
 from app.crypto.qr_generator import QRCodeGenerator
 from app.models.encryption_models import KeyPair
@@ -417,10 +418,7 @@ def scan_qr_code():
 
         # Persist Connection in Supabase
         # This allows the "My Patients" or "My Doctors" lists to work
-        try:
-            from flask import current_app
-            from app.utils.supabase_client import get_supabase_admin_client
-            
+        try:            
             connection_data = {
                 'doctor_id': key_pair.doctor_id,
                 'patient_id': key_pair.patient_id,
