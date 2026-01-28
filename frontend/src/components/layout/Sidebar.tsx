@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, FileText, Upload, Share2, Users, UserPlus, Key, LogOut, Menu, X, Bell, FolderOpen, RefreshCw } from 'lucide-react';
+import { Home, FileText, Upload, Share2, Users, UserPlus, Key, LogOut, Menu, X, Bell, FolderOpen } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import simncryptLogo from '../../images/simncrypt.jpg';
 import { useNotifications } from '../../contexts/NotificationContext';
