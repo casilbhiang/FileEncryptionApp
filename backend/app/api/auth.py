@@ -348,7 +348,6 @@ def login():
 
         # Verify password by comparing hashes
         stored_password_hash = user.get('password_hash')
-
         if not stored_password_hash:
             return jsonify({
                 'success': False,
@@ -378,7 +377,43 @@ def login():
                 'message': 'Invalid credentials'
             }), 401
 
-        # Password is correct! Generate OTP code
+        # ====== CRITICAL CHANGE: Admin vs Non-Admin Flow ======
+        
+        # Password is correct!
+        
+        # Check if user is admin
+        if user['role'] == 'admin':
+            # For admin, DON'T send OTP yet - biometric comes first
+            print(f"\n{'='*60}")
+            print(f"*** ADMIN LOGIN DETECTED ***")
+            print(f"*** User: {user['email']} ***")
+            print(f"*** OTP will be sent AFTER biometric verification ***")
+            print(f"{'='*60}\n")
+            sys.stdout.flush()
+            
+            # Store minimal user data temporarily (without OTP)
+            # This will be retrieved after biometric verification
+            return jsonify({
+                'success': True,
+                'message': 'Login successful. Please complete biometric verification.',
+                'requires_biometric': True,  # Flag for frontend
+                'email': user['email'],
+                'role': user['role'],
+                'is_first_login': user.get('password_reset_required', False),
+                'user': {
+                    'id': user['id'],
+                    'user_id': user['user_id'],
+                    'email': user['email'],
+                    'full_name': user['full_name'],
+                    'role': user['role'],
+                    'is_first_login': user.get('password_reset_required', False)
+                },
+                'token': secrets.token_urlsafe(32)  # Temporary token for biometric verification
+            }), 200
+
+        # ====== For non-admin users, proceed with normal OTP flow ======
+        
+        # Generate OTP code
         otp_code = generate_otp()
 
         # Store OTP with expiration (10 minutes)
@@ -406,10 +441,6 @@ def login():
 
         if not email_sent:
             print("WARNING: Email failed to send. Proceeding for manual OTP entry (Dev Mode).")
-            # return jsonify({
-            #    'success': False,
-            #    'message': 'Failed to send OTP email. Please check server logs or SMTP settings.'
-            # }), 500
 
         # Log login attempt in audit table
         try:
@@ -449,6 +480,98 @@ def login():
             'success': False,
             'message': 'An error occurred during login',
             'error': str(e) if __debug__ else None
+        }), 500
+        
+@auth_bp.route('/admin/send-otp', methods=['POST'])
+def admin_send_otp():
+    """
+    Send OTP to admin after biometric verification
+    POST /api/auth/admin/send-otp
+    Body: { "email": "admin@example.com", "user_id": "JYADMADM-67H" }
+    """
+    try:
+        data = request.get_json()
+        email = data.get('email')
+        user_id = data.get('user_id')
+        
+        if not email or not user_id:
+            return jsonify({
+                'success': False,
+                'message': 'Email and user ID are required'
+            }), 400
+        
+        # Get Supabase admin client
+        supabase = get_supabase_admin_client()
+        
+        # Verify this is actually an admin user
+        response = supabase.table('users').select('*').eq('email', email).eq('user_id', user_id).eq('role', 'admin').execute()
+        
+        if not response.data or len(response.data) == 0:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid admin user'
+            }), 403
+        
+        user = response.data[0]
+        
+        # Check if user is active
+        if not user.get('is_active', False):
+            return jsonify({
+                'success': False,
+                'message': 'Account is deactivated'
+            }), 403
+        
+        # Generate OTP code
+        otp_code = generate_otp()
+        
+        # Store OTP with expiration (10 minutes)
+        otp_key = f"{user['id']}_{user['email']}"
+        otp_storage[otp_key] = {
+            'code': otp_code,
+            'expires_at': datetime.now() + timedelta(minutes=10),
+            'user': user
+        }
+        
+        # Send OTP via email
+        email_sent = send_otp_email(
+            recipient_email=user['email'],
+            otp_code=otp_code,
+            user_name=user.get('full_name')
+        )
+        
+        # Print to terminal for debugging
+        print("\n" + "="*60)
+        print(f"*** OTP CODE FOR {user['email']} (Admin - Post Biometric) ***")
+        print(f"*** Code: {otp_code} ***")
+        print(f"*** Email sent: {email_sent} ***")
+        print("="*60 + "\n")
+        sys.stdout.flush()
+        
+        # Log OTP sent
+        try:
+            supabase.rpc('log_simple_auth_event', {
+                'p_user_id': user['id'],
+                'p_event_type': 'otp_sent',
+                'p_email': user['email'],
+                'p_metadata': {'action': 'admin_post_biometric'}
+            }).execute()
+        except Exception as e:
+            print(f"Failed to log auth event: {e}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'OTP sent successfully',
+            # Remove this in production
+            'otp_code': otp_code
+        }), 200
+        
+    except Exception as e:
+        print(f"Admin OTP error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': 'Failed to send OTP'
         }), 500
 
 @auth_bp.route('/verify-code', methods=['POST'])

@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
-import { Loader2, RefreshCw, Eye, Download, User, FileText, Share2, Inbox, CheckCircle } from 'lucide-react';
+import { Loader2, RefreshCw, Eye, FileText, Share2, Inbox, CheckCircle } from 'lucide-react';
 import { getMyFiles, type FileItem, formatFileSize } from '../../services/Files';
 
 const DHomePage: React.FC = () => {
@@ -18,7 +18,45 @@ const DHomePage: React.FC = () => {
   });
 
   // Fetch data when component loads
+  // Fetch data when component loads
   useEffect(() => {
+    // Try multiple ways to get the user name
+    let displayName = 'Doctor'; // default fallback
+    
+    // Method 1: Try getting from 'user' JSON object
+    const userDataStr = localStorage.getItem('user');
+    if (userDataStr) {
+      try {
+        const userData = JSON.parse(userDataStr);
+        if (userData.name) {
+          displayName = userData.name;
+        }
+      } catch (e) {
+        console.error('Error parsing user data:', e);
+      }
+    }
+    
+    // Method 2: Try direct keys as backup
+    if (displayName === 'Doctor') {
+      const directName = localStorage.getItem('full_name') || 
+                        localStorage.getItem('user_name') || 
+                        localStorage.getItem('name');
+      if (directName) {
+        displayName = directName;
+      }
+    }
+    
+    // Method 3: Extract from email as last resort
+    if (displayName === 'Doctor') {
+      const email = localStorage.getItem('user_email') || localStorage.getItem('email');
+      if (email) {
+        displayName = email.split('@')[0];
+      }
+    }
+    
+    console.log('Final display name:', displayName); // Debug log
+    setUserName(displayName);
+    
     fetchRecentFiles();
   }, []);
 
@@ -37,12 +75,7 @@ const DHomePage: React.FC = () => {
         return;
       }
 
-      // Try to get user name from localStorage
-      const storedName = localStorage.getItem('user_name') || localStorage.getItem('email') || 'Doctor';
-      setUserName(storedName);
-
       // Call the same endpoint as MyFiles page with recent files filter
-      // Using page=1, limit=10 for recent files
       const response = await getMyFiles(
         userUuid, 
         '', // No search query
@@ -85,21 +118,18 @@ const DHomePage: React.FC = () => {
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     
     if (diffHours < 24) {
-      // Today
       return `Today at ${date.toLocaleTimeString('en-US', { 
         hour: '2-digit', 
         minute: '2-digit',
         hour12: true 
       })}`;
     } else if (diffHours < 48) {
-      // Yesterday
       return `Yesterday at ${date.toLocaleTimeString('en-US', { 
         hour: '2-digit', 
         minute: '2-digit',
         hour12: true 
       })}`;
     } else {
-      // Older dates
       return date.toLocaleDateString('en-US', { 
         month: 'short', 
         day: 'numeric',
@@ -120,10 +150,6 @@ const DHomePage: React.FC = () => {
 
   // Quick action functions
   const handleViewAllFiles = () => {
-    window.location.href = '/doctor/my-files';
-  };
-
-  const handleViewShared = () => {
     window.location.href = '/doctor/my-files';
   };
 
@@ -156,11 +182,6 @@ const DHomePage: React.FC = () => {
                   <RefreshCw className="w-5 h-5 text-blue-600" />
                 )}
               </button>
-              
-              {/* User profile placeholder */}
-              <div className="p-2 bg-gray-100 rounded-lg border">
-                <User className="w-5 h-5 text-gray-600" />
-              </div>
             </div>
           </div>
           
@@ -242,12 +263,6 @@ const DHomePage: React.FC = () => {
               >
                 View All Files
               </button>
-              <button 
-                onClick={handleViewShared}
-                className="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
-              >
-                View Shared
-              </button>
             </div>
           </div>
 
@@ -264,7 +279,7 @@ const DHomePage: React.FC = () => {
           )}
 
           {/* No user logged in */}
-          {!loading && !localStorage.getItem('user_id') && (
+          {!loading && !localStorage.getItem('user_uuid') && (
             <div className="text-center py-8">
               <div className="text-gray-500 mb-2 text-lg">Please log in to view your files</div>
               <p className="text-gray-400">
@@ -274,7 +289,7 @@ const DHomePage: React.FC = () => {
           )}
 
           {/* User logged in but no files */}
-          {!loading && localStorage.getItem('user_id') && recentFiles.length === 0 && !error && (
+          {!loading && localStorage.getItem('user_uuid') && recentFiles.length === 0 && !error && (
             <div className="text-center py-8">
               <div className="text-gray-500 mb-2 text-lg">No files found</div>
               <p className="text-gray-400 mb-4">
@@ -313,32 +328,8 @@ const DHomePage: React.FC = () => {
                       <span>{formatDate(file.uploaded_at)}</span>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <button 
-                      onClick={() => window.location.href = `/doctor/my-files`}
-                      className="px-3 py-1.5 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
-                    >
-                      View
-                    </button>
-                    <div className="w-8 h-8 flex items-center justify-center">
-                      <Download className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
-                    </div>
-                  </div>
                 </div>
               ))}
-            </div>
-          )}
-
-          {/* Show "View More" if there are more files */}
-          {!loading && recentFiles.length > 3 && (
-            <div className="mt-6 text-center">
-              <button 
-                onClick={handleViewAllFiles}
-                className="text-blue-600 hover:text-blue-800 font-medium"
-              >
-                View all {recentFiles.length} files →
-              </button>
             </div>
           )}
         </div>

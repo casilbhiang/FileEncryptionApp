@@ -8,7 +8,6 @@ import {
   Loader2, 
   Upload, 
   Share2, 
-  Eye, 
   ChevronLeft, 
   ChevronRight,
   Lock,
@@ -17,10 +16,8 @@ import {
 } from 'lucide-react';
 import { getMyFiles, deleteFile, downloadFile, downloadAndDecryptFile, type FileItem } from '../../services/Files';
 import { getStoredEncryptionKey } from '../../services/Encryption';
-
 // REPLACE the custom hook with NotificationContext
 import { useNotifications } from '../../contexts/NotificationContext';
-
 const MyFiles: React.FC = () => {
   const location = useLocation();
   const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
@@ -580,7 +577,7 @@ const MyFiles: React.FC = () => {
                   </div>
                   
                   <div className="border-t pt-3">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                       <div className="flex items-start gap-2 p-2 bg-gray-50 rounded">
                         <Upload className="w-4 h-4 text-gray-400 mt-0.5" />
                         <div>
@@ -596,15 +593,6 @@ const MyFiles: React.FC = () => {
                           <div className="text-gray-500 font-medium mb-1">Shared At</div>
                           <div className="text-gray-700 font-mono text-xs">
                             {file.shared_at ? formatDetailedTimestamp(file.shared_at) : 'Not shared'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2 p-2 bg-gray-50 rounded">
-                        <Eye className="w-4 h-4 text-gray-400 mt-0.5" />
-                        <div>
-                          <div className="text-gray-500 font-medium mb-1">Last Accessed</div>
-                          <div className="text-gray-700 font-mono text-xs">
-                            {file.last_accessed_at ? formatDetailedTimestamp(file.last_accessed_at) : 'Never accessed'}
                           </div>
                         </div>
                       </div>
@@ -739,5 +727,4 @@ const MyFiles: React.FC = () => {
     </div>
   );
 };
-
 export default MyFiles;

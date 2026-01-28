@@ -1,5 +1,4 @@
 'use client';
-
 import React, { useState } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import { ChevronDown } from 'lucide-react';
@@ -31,30 +30,127 @@ const ACreateUserPage: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Get today's date in YYYY-MM-DD format for max date validation
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
+  // Email validation
+  const isValidEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // NRIC validation - Format: A1234567B (Letter + 7 digits + Letter)
+  const isValidNRIC = (nric: string) => {
+    // Remove any spaces and convert to uppercase
+    const cleanNric = nric.trim().toUpperCase();
+    
+    // Check format: 1 letter + 7 digits + 1 letter (total 9 characters)
+    const nricRegex = /^[A-Z]\d{7}[A-Z]$/;
+    
+    return nricRegex.test(cleanNric);
+  };
+
+  // Format NRIC input - only allow valid characters
+  const formatNRICInput = (value: string) => {
+    // Remove all non-alphanumeric characters
+    let cleaned = value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    
+    // Limit to 9 characters
+    if (cleaned.length > 9) {
+      cleaned = cleaned.substring(0, 9);
+    }
+    
+    return cleaned;
+  };
+
+  // Height validation (in cm, typical range 50-250)
+  const isValidHeight = (height: string) => {
+    if (!height) return true; // Allow empty
+    const num = parseFloat(height);
+    return !isNaN(num) && num > 0 && num <= 300;
+  };
+
+  // Weight validation (in kg, typical range 1-500)
+  const isValidWeight = (weight: string) => {
+    if (!weight) return true; // Allow empty
+    const num = parseFloat(weight);
+    return !isNaN(num) && num > 0 && num <= 700;
+  };
+
   const handleCreateUser = async () => {
     setError('');
     setSuccess('');
 
     // Validation
-    if (!formData.fullName) {
+    if (!formData.fullName.trim()) {
       setError('Please enter full name');
       return;
     }
-    if (!formData.email) {
+
+    if (!formData.email.trim()) {
       setError('Please enter email address');
       return;
     }
-    if (!formData.nric) {
+
+    if (!isValidEmail(formData.email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    if (!formData.nric.trim()) {
       setError('Please enter NRIC');
       return;
     }
+
+    // NRIC format validation
+    if (!isValidNRIC(formData.nric)) {
+      setError('Invalid NRIC format. Must be 1 letter + 7 digits + 1 letter (e.g., S1234567A)');
+      return;
+    }
+
     if (!formData.dateOfBirth) {
       setError('Please enter date of birth');
       return;
     }
+
+    // Check if date is not in the future
+    const selectedDate = new Date(formData.dateOfBirth);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (selectedDate > today) {
+      setError('Date of birth cannot be in the future');
+      return;
+    }
+
     if (!selectedRole) {
       setError('Please select a user role');
       return;
+    }
+
+    // Patient-specific validations
+    if (selectedRole === 'Patient') {
+      if (healthProfile.age) {
+        const ageValue = parseInt(healthProfile.age);
+        
+        if (isNaN(ageValue) || ageValue < 0 || ageValue > 150) {
+          setError('Age must be between 0 and 150 years');
+          return;
+        }
+      }
+
+      if (healthProfile.height && !isValidHeight(healthProfile.height)) {
+        setError('Please enter a valid height (in cm, max 300)');
+        return;
+      }
+
+      if (healthProfile.weight && !isValidWeight(healthProfile.weight)) {
+        setError('Please enter a valid weight (in kg, max 700)');
+        return;
+      }
     }
 
     // Clear old generated credentials
@@ -68,7 +164,7 @@ const ACreateUserPage: React.FC = () => {
 
     try {
       const API_URL = import.meta.env.VITE_API_URL;
-
+      
       if (!API_URL) {
         setError('API URL not configured');
         setIsLoading(false);
@@ -171,7 +267,7 @@ const ACreateUserPage: React.FC = () => {
             {/* Full Name */}
             <div>
               <label className="block text-sm font-semibold text-gray-900 mb-2">
-                Full Nric Name
+                Full NRIC Name
               </label>
               <input
                 type="text"
@@ -209,7 +305,7 @@ const ACreateUserPage: React.FC = () => {
               </label>
               <input
                 type="email"
-                placeholder="enter email address"
+                placeholder="example@email.com"
                 value={formData.email}
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -223,11 +319,27 @@ const ACreateUserPage: React.FC = () => {
               </label>
               <input
                 type="text"
-                placeholder="enter NRIC"
+                placeholder="S1234567A"
+                maxLength={9}
                 value={formData.nric}
-                onChange={(e) => setFormData(prev => ({ ...prev, nric: e.target.value.toUpperCase() }))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => {
+                  const formatted = formatNRICInput(e.target.value);
+                  setFormData(prev => ({ ...prev, nric: formatted }));
+                }}
+                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 ${
+                  formData.nric && !isValidNRIC(formData.nric) 
+                    ? 'border-red-300 focus:ring-red-500' 
+                    : 'border-gray-300 focus:ring-blue-500'
+                }`}
               />
+              <p className="text-xs text-gray-500 mt-1">
+                Format: 1 letter + 7 digits + 1 letter (e.g., S1234567A)
+              </p>
+              {formData.nric && !isValidNRIC(formData.nric) && (
+                <p className="text-xs text-red-500 mt-1">
+                  Invalid NRIC format
+                </p>
+              )}
             </div>
 
             {/* Date of Birth */}
@@ -237,46 +349,56 @@ const ACreateUserPage: React.FC = () => {
               </label>
               <input
                 type="date"
+                max={getTodayDate()}
                 value={formData.dateOfBirth}
                 onChange={(e) => setFormData(prev => ({ ...prev, dateOfBirth: e.target.value }))}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-
           </div>
+
           {/* Generate UserID & Password Section */}
           <div className="bg-gray-50 rounded-lg p-6 mb-6">
-            <h3 className="font-bold text-gray-900 mb-4">Generate UserID & Password</h3>
+            <h3 className="font-bold text-gray-900 mb-4">Generated Credentials</h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  User Id
+                  User ID
                 </label>
                 <input
                   type="text"
                   value={formData.userId}
                   readOnly
+                  placeholder="Will be generated after creation"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white"
                 />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Password
+                  Temporary Password
                 </label>
                 <input
                   type="text"
                   value={formData.password}
                   readOnly
+                  placeholder="Will be generated after creation"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white"
                 />
               </div>
             </div>
+            {formData.userId && formData.password && (
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800 font-medium">
+                  ⚠️ Important: Please save these credentials and share them securely with the user. The password will not be shown again.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Health Profile Section (Only for Patient) */}
           {selectedRole === 'Patient' && (
             <div className="bg-teal-50 rounded-lg p-6">
-              <h3 className="font-bold text-gray-900 mb-4">Health Profile</h3>
+              <h3 className="font-bold text-gray-900 mb-4">Health Profile (Optional)</h3>
               
               {/* Basic Health Info */}
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
@@ -284,50 +406,73 @@ const ACreateUserPage: React.FC = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Age</label>
                   <input
                     type="number"
-                    placeholder="enter age"
+                    min="0"
+                    max="150"
+                    placeholder="e.g. 25"
                     value={healthProfile.age}
-                    onChange={(e) => setHealthProfile(prev => ({ ...prev, age: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === '' || parseInt(value) >= 0) {
+                        setHealthProfile(prev => ({ ...prev, age: value }));
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Sex</label>
-                  <input
-                    type="text"
-                    placeholder="enter sex"
+                  <select
                     value={healthProfile.sex}
                     onChange={(e) => setHealthProfile(prev => ({ ...prev, sex: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Blood Type</label>
-                  <input
-                    type="text"
-                    placeholder="enter blood type"
+                  <select
                     value={healthProfile.bloodType}
                     onChange={(e) => setHealthProfile(prev => ({ ...prev, bloodType: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select</option>
+                    <option value="A+">A+</option>
+                    <option value="A-">A-</option>
+                    <option value="B+">B+</option>
+                    <option value="B-">B-</option>
+                    <option value="AB+">AB+</option>
+                    <option value="AB-">AB-</option>
+                    <option value="O+">O+</option>
+                    <option value="O-">O-</option>
+                  </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Height</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Height (cm)</label>
                   <input
-                    type="text"
-                    placeholder="enter height"
+                    type="number"
+                    min="0"
+                    max="300"
+                    step="0.1"
+                    placeholder="e.g. 170.3"
                     value={healthProfile.height}
                     onChange={(e) => setHealthProfile(prev => ({ ...prev, height: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Weight</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Weight (kg)</label>
                   <input
-                    type="text"
-                    placeholder="enter weight"
+                    type="number"
+                    min="0"
+                    max="700"
+                    step="0.1"
+                    placeholder="e.g. 70.5"
                     value={healthProfile.weight}
                     onChange={(e) => setHealthProfile(prev => ({ ...prev, weight: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -338,32 +483,30 @@ const ACreateUserPage: React.FC = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Allergies</label>
                   <input
                     type="text"
-                    placeholder="enter allergies"
+                    placeholder="e.g. Penicillin, Peanuts (comma-separated)"
                     value={healthProfile.allergies}
                     onChange={(e) => setHealthProfile(prev => ({ ...prev, allergies: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Chronic Conditions</label>
                   <input
                     type="text"
-                    placeholder="enter chronic conditions"
+                    placeholder="e.g. Diabetes, Hypertension (comma-separated)"
                     value={healthProfile.chronicConditions}
                     onChange={(e) => setHealthProfile(prev => ({ ...prev, chronicConditions: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Vaccinations</label>
                   <input
                     type="text"
-                    placeholder="enter vaccinations"
+                    placeholder="e.g. COVID-19 2021, Influenza 2023 (comma-separated)"
                     value={healthProfile.vaccinations}
                     onChange={(e) => setHealthProfile(prev => ({ ...prev, vaccinations: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>

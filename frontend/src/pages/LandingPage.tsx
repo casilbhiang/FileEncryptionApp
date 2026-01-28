@@ -1,5 +1,4 @@
 'use client';
-
 import React from 'react';
 import {
   ArrowRight,
@@ -14,7 +13,6 @@ import {
   Users,
 } from 'lucide-react';
 import TopBar from '../components/layout/TopBar';
-
 const LandingPage: React.FC = () => {
   const features = [
     {
@@ -39,7 +37,6 @@ const LandingPage: React.FC = () => {
       color: 'from-purple-500 to-pink-500',
     },
   ];
-
   const advancedFeatures = [
     {
       icon: Users,
@@ -60,7 +57,6 @@ const LandingPage: React.FC = () => {
         'No complex setup. Just select → upload for doctors, and view → decrypt for patients. Security shouldn\'t be complicated.',
     },
   ];
-
   const workflowSteps = [
     {
       icon: KeyRound,
@@ -91,7 +87,6 @@ const LandingPage: React.FC = () => {
       color: 'from-teal-400 to-green-400',
     },
   ];
-
   const additionalWorkflow = [
     {
       icon: FileText,
@@ -108,7 +103,6 @@ const LandingPage: React.FC = () => {
       color: 'from-teal-500 to-cyan-500',
     },
   ];
-
   const registrationSteps = [
     {
       number: 1,
@@ -141,7 +135,6 @@ const LandingPage: React.FC = () => {
       description: 'Your account is now fully set up! You can securely upload, access, and share encrypted medical records.',
     },
   ];
-
   const clinics = [
     {
       name: 'Downtown Medical Clinic',
@@ -162,7 +155,6 @@ const LandingPage: React.FC = () => {
       hours: 'Mon-Fri: 10AM-7PM, Sat: 10AM-2PM',
     },
   ];
-
   const scrollToSection = (sectionId: string) => {
     // If it's 'register', navigate to login page instead
     if (sectionId === 'register') {
@@ -173,14 +165,12 @@ const LandingPage: React.FC = () => {
     const element = document.getElementById(sectionId);
     element?.scrollIntoView({ behavior: 'smooth' });
   };
-
   return (
     <div className="min-h-screen bg-white">
       {/* TopBar Component */}
       <TopBar 
         onNavClick={scrollToSection}
       />
-
       {/* SECTION 1: HERO / HOME */}
       <section id="hero" className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
@@ -196,7 +186,6 @@ const LandingPage: React.FC = () => {
               <p className="text-lg text-gray-600 mb-8 leading-relaxed">
                 MediSecure is a healthcare file encryption platform that enables small clinics in Singapore to securely store and share medical records between doctors and patients. All files are encrypted on your device before upload—ensuring complete privacy and compliance with PDPA.
               </p>
-
               <div className="flex flex-col sm:flex-row gap-4 mb-8">
                 <button
                   onClick={() => scrollToSection('register')}
@@ -212,7 +201,6 @@ const LandingPage: React.FC = () => {
                   Learn More
                 </button>
               </div>
-
               {/* Stats */}
               <div className="grid grid-cols-3 gap-6">
                 <div>
@@ -229,7 +217,6 @@ const LandingPage: React.FC = () => {
                 </div>
               </div>
             </div>
-
             {/* Right Image */}
             <div className="relative hidden md:block">
               <div className="bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl p-8 h-96 flex items-center justify-center">
@@ -245,7 +232,6 @@ const LandingPage: React.FC = () => {
           </div>
         </div>
       </section>
-
       {/* SECTION 2: FEATURES */}
       <section id="features" className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
         <div className="max-w-7xl mx-auto">
@@ -257,7 +243,6 @@ const LandingPage: React.FC = () => {
               Built specifically for Singapore's healthcare providers with security, compliance, and simplicity at its core.
             </p>
           </div>
-
           <div className="grid md:grid-cols-3 gap-8 mb-12">
             {features.map((feature, index) => {
               const Icon = feature.icon;
@@ -279,7 +264,6 @@ const LandingPage: React.FC = () => {
               );
             })}
           </div>
-
           {/* Advanced Features */}
           <div className="grid md:grid-cols-3 gap-8">
             {advancedFeatures.map((feature, index) => {
@@ -302,7 +286,6 @@ const LandingPage: React.FC = () => {
           </div>
         </div>
       </section>
-
       {/* SECTION 3: HOW IT WORKS */}
       <section id="how-it-works" className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-blue-600 to-purple-600">
         <div className="max-w-7xl mx-auto">
@@ -312,7 +295,6 @@ const LandingPage: React.FC = () => {
               End-to-end encryption made simple for healthcare professionals and patients
             </p>
           </div>
-
           {/* Main Workflow */}
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
             {workflowSteps.map((step, index) => {
@@ -322,7 +304,7 @@ const LandingPage: React.FC = () => {
                   <div
                     className={`bg-gradient-to-br ${step.color} rounded-xl p-8 h-full text-white`}
                   >
-                    <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center mb-4">
+                    <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-4">
                       <Icon className="w-6 h-6" />
                     </div>
                     <h3 className="text-xl font-semibold mb-3">{step.title}</h3>
@@ -339,7 +321,6 @@ const LandingPage: React.FC = () => {
               );
             })}
           </div>
-
           {/* Additional Features */}
           <div className="grid md:grid-cols-2 gap-6">
             {additionalWorkflow.map((step, index) => {
@@ -349,7 +330,7 @@ const LandingPage: React.FC = () => {
                   key={index}
                   className={`bg-gradient-to-br ${step.color} rounded-xl p-8 text-white`}
                 >
-                  <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center mb-4">
+                  <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-4">
                     <Icon className="w-6 h-6" />
                   </div>
                   <h3 className="text-xl font-semibold mb-3">{step.title}</h3>
@@ -360,7 +341,6 @@ const LandingPage: React.FC = () => {
           </div>
         </div>
       </section>
-
       {/* SECTION 4: REGISTRATION */}
       <section
         id="register"
@@ -376,7 +356,6 @@ const LandingPage: React.FC = () => {
               Registration is done in-person at your clinic to ensure secure identity verification and proper encryption key distribution.
             </p>
           </div>
-
           {/* Registration Steps */}
           <div className="max-w-5xl mx-auto mb-12">
             <h3 className="text-2xl font-bold text-gray-900 mb-8 text-center">
@@ -399,13 +378,11 @@ const LandingPage: React.FC = () => {
               ))}
             </div>
           </div>
-
           {/* Partner Clinics */}
           <div className="max-w-5xl mx-auto">
             <h3 className="text-2xl font-bold text-gray-900 mb-8 text-center">
               Partner Clinics
             </h3>
-
             <div className="grid md:grid-cols-3 gap-6">
               {clinics.map((clinic, index) => (
                 <div
@@ -415,8 +392,7 @@ const LandingPage: React.FC = () => {
                   <h4 className="text-lg font-semibold text-gray-900 mb-4">
                     {clinic.name}
                   </h4>
-
-                  <div className="space-y-3 mb-6">
+                  <div className="space-y-3">
                     <div className="flex gap-3">
                       <MapPin className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                       <p className="text-sm text-gray-600">{clinic.address}</p>
@@ -439,17 +415,12 @@ const LandingPage: React.FC = () => {
                       <p className="text-sm text-gray-600">{clinic.hours}</p>
                     </div>
                   </div>
-
-                  <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm transition">
-                    Visit Clinic
-                  </button>
                 </div>
               ))}
             </div>
           </div>
         </div>
       </section>
-
       {/* CTA SECTION */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-blue-600 to-purple-600">
         <div className="max-w-4xl mx-auto text-center">
@@ -459,7 +430,6 @@ const LandingPage: React.FC = () => {
           <p className="text-xl text-blue-100 mb-8">
             Join healthcare providers and patients across Singapore who trust MediSecure for secure, compliant medical file management.
           </p>
-
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
               onClick={() => scrollToSection('register')}
@@ -470,7 +440,6 @@ const LandingPage: React.FC = () => {
           </div>
         </div>
       </section>
-
       {/* FOOTER */}
       <footer className="bg-gray-900 text-gray-300 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
@@ -485,7 +454,6 @@ const LandingPage: React.FC = () => {
               </div>
               <p className="text-sm">Secure medical records for Singapore.</p>
             </div>
-
             {/* Product */}
             <div>
               <h4 className="font-semibold text-white mb-4">Product</h4>
@@ -509,7 +477,6 @@ const LandingPage: React.FC = () => {
               </ul>
             </div>
           </div>
-
           <div className="border-t border-gray-800 pt-8">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
               <p className="text-sm">
@@ -525,5 +492,4 @@ const LandingPage: React.FC = () => {
     </div>
   );
 };
-
 export default LandingPage;
