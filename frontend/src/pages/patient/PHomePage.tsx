@@ -1,13 +1,14 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
-import { Loader2, RefreshCw, Eye, FileText, Share2, Inbox, CheckCircle } from 'lucide-react';
+import { Loader2, RefreshCw, Eye, Download, FileText, Share2, Inbox, CheckCircle } from 'lucide-react';
 import { getMyFiles, type FileItem, formatFileSize } from '../../services/Files';
+import { storage } from '../../utils/storage';
 
 const PHomePage: React.FC = () => {
-  const userRole = 'patient'; 
-  
-  const [userName, setUserName] = useState<string>('Patient');
+  const userRole = 'patient';
+
+  const [userName, setUserName] = useState<string>(storage.getItem('user_name') || 'Patient');
   const [recentFiles, setRecentFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
@@ -19,40 +20,6 @@ const PHomePage: React.FC = () => {
 
   // Fetch data when component loads
   useEffect(() => {
-    // Get user name from localStorage - try multiple possible keys
-    let displayName = 'Patient'; // default fallback
-    
-    // Method 1: Try getting from 'full_name' direct key
-    const fullName = localStorage.getItem('full_name');
-    
-    if (fullName) {
-      displayName = fullName;
-    } else {
-      // Method 2: Try getting from 'user' JSON object
-      const userDataStr = localStorage.getItem('user');
-      
-      if (userDataStr) {
-        try {
-          const userData = JSON.parse(userDataStr);
-          if (userData.name) {
-            displayName = userData.name;
-          }
-        } catch (e) {
-          console.error('Error parsing user data:', e);
-        }
-      }
-    }
-    
-    // Method 3: Extract from email as last resort
-    if (displayName === 'Patient') {
-      const email = localStorage.getItem('user_email') || localStorage.getItem('email');
-      if (email) {
-        displayName = email.split('@')[0];
-      }
-    }
-    
-    setUserName(displayName);
-    
     fetchRecentFiles();
   }, []);
 
@@ -61,20 +28,24 @@ const PHomePage: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      
+
       // Get user ID from localStorage
-      const userUuid = localStorage.getItem('user_uuid');
-      
+      const userUuid = storage.getItem('user_uuid');
+
       if (!userUuid) {
         setError('Please log in to view your files.');
         setLoading(false);
         return;
       }
 
+      // Try to get user name from localStorage
+      const storedName = storage.getItem('user_name') || storage.getItem('email') || 'Patient';
+      setUserName(storedName);
+
       // Call the same endpoint as MyFiles page with recent files filter
       // Using page=1, limit=10 for recent files
       const response = await getMyFiles(
-        userUuid, 
+        userUuid,
         '', // No search query
         'uploaded_at', // Sort by newest first
         'desc',
@@ -82,10 +53,10 @@ const PHomePage: React.FC = () => {
         1, // Page 1
         10 // Limit to 10 most recent
       );
-      
+
       setRecentFiles(response.files);
       updateStats(response.files);
-      
+
     } catch (error: any) {
       console.error('Error fetching recent files:', error);
       setError(error.message || 'Cannot connect to server. Make sure the backend is running.');
@@ -99,7 +70,7 @@ const PHomePage: React.FC = () => {
     const total = files.length;
     const shared = files.filter(f => f.is_owned && f.shared_count && f.shared_count > 0).length;
     const received = files.filter(f => !f.is_owned).length;
-    
+
     setStats({
       totalFiles: total,
       sharedFiles: shared,
@@ -113,29 +84,29 @@ const PHomePage: React.FC = () => {
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    
+
     if (diffHours < 24) {
       // Today
-      return `Today at ${date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
+      return `Today at ${date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
         minute: '2-digit',
-        hour12: true 
+        hour12: true
       })}`;
     } else if (diffHours < 48) {
       // Yesterday
-      return `Yesterday at ${date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
+      return `Yesterday at ${date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
         minute: '2-digit',
-        hour12: true 
+        hour12: true
       })}`;
     } else {
       // Older dates
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-        hour12: true 
+        hour12: true
       });
     }
   };
@@ -153,6 +124,7 @@ const PHomePage: React.FC = () => {
     window.location.href = '/patient/my-files';
   };
 
+
   return (
     <div className="min-h-screen bg-gray-100 flex">
       {/* Sidebar */}
@@ -167,10 +139,10 @@ const PHomePage: React.FC = () => {
               <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">Welcome Back, {userName}</h1>
               <p className="text-gray-600 mt-2">Your health data is securely encrypted and protected.</p>
             </div>
-            
+
             <div className="flex items-center gap-3">
               {/* Refresh button */}
-              <button 
+              <button
                 onClick={handleRefresh}
                 disabled={loading}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-all disabled:opacity-50"
@@ -184,7 +156,7 @@ const PHomePage: React.FC = () => {
               </button>
             </div>
           </div>
-          
+
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
             <div className="bg-gray-50 p-4 rounded-lg border shadow-sm">
@@ -198,7 +170,7 @@ const PHomePage: React.FC = () => {
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-gray-50 p-4 rounded-lg border shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
@@ -210,7 +182,7 @@ const PHomePage: React.FC = () => {
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-gray-50 p-4 rounded-lg border shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
@@ -223,7 +195,7 @@ const PHomePage: React.FC = () => {
               </div>
             </div>
           </div>
-          
+
           {/* Error message */}
           {error && (
             <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -233,8 +205,8 @@ const PHomePage: React.FC = () => {
                 </div>
                 <span className="text-red-600">{error}</span>
               </div>
-              <button 
-                onClick={handleRefresh} 
+              <button
+                onClick={handleRefresh}
                 className="mt-2 text-blue-600 hover:text-blue-800 underline text-sm"
               >
                 Try again
@@ -255,9 +227,9 @@ const PHomePage: React.FC = () => {
                 <p className="text-sm text-gray-500">Your latest file uploads and shares</p>
               </div>
             </div>
-            
+
             <div className="flex gap-3">
-              <button 
+              <button
                 onClick={handleViewAllFiles}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
               >
@@ -279,7 +251,7 @@ const PHomePage: React.FC = () => {
           )}
 
           {/* No user logged in */}
-          {!loading && !localStorage.getItem('user_uuid') && (
+          {!loading && !storage.getItem('user_id') && (
             <div className="text-center py-8">
               <div className="text-gray-500 mb-2 text-lg">Please log in to view your files</div>
               <p className="text-gray-400">
@@ -289,13 +261,13 @@ const PHomePage: React.FC = () => {
           )}
 
           {/* User logged in but no files */}
-          {!loading && localStorage.getItem('user_uuid') && recentFiles.length === 0 && !error && (
+          {!loading && storage.getItem('user_id') && recentFiles.length === 0 && !error && (
             <div className="text-center py-8">
               <div className="text-gray-500 mb-2 text-lg">No files found</div>
               <p className="text-gray-400 mb-4">
                 Upload your first file to get started
               </p>
-              <button 
+              <button
                 onClick={handleViewAllFiles}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
@@ -328,8 +300,26 @@ const PHomePage: React.FC = () => {
                       <span>{formatDate(file.uploaded_at)}</span>
                     </div>
                   </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 flex items-center justify-center">
+                      <Download className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
+                    </div>
+                  </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Show "View More" if there are more files */}
+          {!loading && recentFiles.length > 3 && (
+            <div className="mt-6 text-center">
+              <button
+                onClick={handleViewAllFiles}
+                className="text-blue-600 hover:text-blue-800 font-medium"
+              >
+                View all {recentFiles.length} files →
+              </button>
             </div>
           )}
         </div>

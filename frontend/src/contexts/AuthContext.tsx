@@ -1,5 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { storage } from '../utils/storage';
 
 interface User {
     id: string;
@@ -28,8 +29,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     useEffect(() => {
         // Check for stored auth data on mount
-        const storedUser = localStorage.getItem('user');
-        const storedToken = localStorage.getItem('token');
+        const storedUser = storage.getItem('user');
+        const storedToken = storage.getItem('token');
 
         if (storedUser && storedToken) {
             try {
@@ -37,8 +38,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 setToken(storedToken);
             } catch (error) {
                 console.error('Failed to parse stored user data:', error);
-                localStorage.removeItem('user');
-                localStorage.removeItem('token');
+                storage.removeItem('user');
+                storage.removeItem('token');
             }
         }
         setIsLoading(false);
@@ -47,18 +48,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const login = (userData: User, newToken: string) => {
         setUser(userData);
         setToken(newToken);
-        localStorage.setItem('user', JSON.stringify(userData));
-        localStorage.setItem('token', newToken);
+        storage.setItem('user', JSON.stringify(userData));
+        storage.setItem('token', newToken);
     };
 
     const logout = () => {
         setUser(null);
         setToken(null);
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
+        storage.removeItem('user');
+        storage.removeItem('token');
         // Clear encryption keys as well for security
-        localStorage.removeItem('encrypted_private_key');
-        localStorage.removeItem('public_key');
+        storage.removeItem('encrypted_private_key');
+        storage.removeItem('public_key');
     };
 
     return (

@@ -4,6 +4,7 @@ import { Home, FileText, Upload, Share2, Users, UserPlus, Key, LogOut, Menu, X, 
 import type { LucideIcon } from 'lucide-react';
 import simncryptLogo from '../../images/simncrypt.jpg';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { storage } from '../../utils/storage';
 
 interface NavItem {
   id: string;
@@ -22,33 +23,8 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // ✅ Use the notification context
-  const { 
-    notifications, 
-    markAsRead, 
-    markAllAsRead, 
-    clearNotification, 
-    fetchNotifications
-  } = useNotifications();
-
-
-  // ADD: Get current user UUID for filtering notifications
-  const getCurrentUserUuid = (): string => {
-    const userUuid = localStorage.getItem('user_uuid');
-    return userUuid || '';
-  };
-
-  // Use both
-  const currentUserUuid = getCurrentUserUuid();          // For filtering: 'ca3f1487-...'
-
-  // ✅ FIXED: Filter notifications for current user AND only show file_received notifications
-  const userNotifications = notifications.filter(n => 
-    (n.user_id === 'all' || n.user_id === currentUserUuid) &&
-    n.notification_type === 'file_received'
-  );
-
-  // ✅ FIXED: Calculate unread count for only file_received notifications
-  const userUnreadCount = userNotifications.filter(n => !n.is_read).length;
+  // Use notification context
+  const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotification } = useNotifications();
 
   // Helper to format time
   const formatTime = (timestamp: string) => {
@@ -65,8 +41,6 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
     if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
     return date.toLocaleDateString();
   };
-
-
 
   // Role-specific navigation items
   const navigationItems: Record<string, NavItem[]> = {
@@ -93,6 +67,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
       { id: 'audit-logs', label: 'Audit Logs', icon: FileText, path: '/admin/audit-logs' },
       { id: 'key-logs', label: 'Key Logs', icon: Key, path: '/admin/key-logs' },
       { id: 'file-logs', label: 'File Logs', icon: FolderOpen, path: '/admin/file-logs' },
+      //{ id: 'cloud-storage', label: 'Cloud Storage', icon: Cloud, path: '/admin/cloud-storage' },
     ],
   };
 
@@ -115,7 +90,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          user_id: localStorage.getItem('user_id'),
+          user_id: storage.getItem('user_id'),
         }),
       });
     } catch (error) {
@@ -123,7 +98,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
       // Continue with logout even if API call fails
     } finally {
       // Clear all local storage data
-      localStorage.clear();
+      storage.clear();
       // Clear session storage as well
       sessionStorage.clear();
       // Navigate to login page
@@ -171,9 +146,9 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
           <div className="fixed top-20 left-4 lg:left-72 w-80 lg:w-96 bg-white rounded-lg shadow-2xl z-50 max-h-96 overflow-hidden flex flex-col border border-gray-200">
             {/* Header */}
             <div className="p-4 border-b bg-gray-50 flex items-center justify-between">
-              <h3 className="font-bold text-lg">Notifications</h3>
+              <h3 className="font-bold text-lg">Recent Upload</h3>
               <div className="flex items-center gap-2">
-                {userUnreadCount > 0 && (
+                {unreadCount > 0 && (
                   <button
                     onClick={markAllAsRead}
                     className="text-xs text-blue-600 hover:text-blue-700 font-medium"
@@ -181,17 +156,22 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
                     Mark all read
                   </button>
                 )}
+                <button
+                  onClick={() => setShowNotifications(false)}
+                  className="p-1 hover:bg-gray-200 rounded"
+                >
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
               </div>
             </div>
             {/* Notifications List */}
             <div className="overflow-y-auto flex-1">
-              {userNotifications.length > 0 ? (
-                userNotifications.map((notif) => (
+              {notifications.length > 0 ? (
+                notifications.map((notif) => (
                   <div
                     key={notif.id}
-                    className={`p-4 border-b hover:bg-gray-50 cursor-pointer transition ${
-                      !notif.is_read ? 'bg-cyan-50' : 'bg-white'
-                    }`}
+                    className={`p-4 border-b hover:bg-gray-50 cursor-pointer transition ${!notif.is_read ? 'bg-cyan-50' : 'bg-white'
+                      }`}
                     onClick={() => markAsRead(notif.id)}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -221,15 +201,6 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
                 <div className="p-8 text-center text-gray-500">
                   <Bell className="w-12 h-12 text-gray-300 mx-auto mb-2" />
                   <p>No notifications</p>
-                  <p className="text-sm text-gray-400 mt-1">
-                    You have no notifications.
-                  </p>
-                  <button
-                    onClick={() => fetchNotifications(false)}
-                    className="mt-3 px-4 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
-                  >
-                    Refresh
-                  </button>
                 </div>
               )}
             </div>
@@ -259,17 +230,13 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
             </div>
             {/* Notification Bell */}
             <button
-              onClick={() => {
-                fetchNotifications(false);
-                setShowNotifications(!showNotifications);
-              }}
-              className="p-2 hover:bg-gray-100 rounded-lg relative transition group"
-              title="Click to view received files"
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="p-2 hover:bg-gray-100 rounded-lg relative transition"
             >
-              <Bell className="w-6 h-6 text-gray-700 group-hover:text-gray-900" />
-              {userUnreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
-                  {userUnreadCount > 9 ? '9+' : userUnreadCount}
+              <Bell className="w-6 h-6 text-gray-700" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                  {unreadCount}
                 </span>
               )}
             </button>
@@ -292,11 +259,10 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
               <button
                 key={item.id}
                 onClick={() => handleNavigate(item.path)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium mb-2 transition ${
-                  isActive
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'hover:bg-gray-100 text-gray-700'
-                }`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium mb-2 transition ${isActive
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'hover:bg-gray-100 text-gray-700'
+                  }`}
               >
                 <Icon className="w-5 h-5" />
                 {item.label}
@@ -304,8 +270,6 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
             );
           })}
         </nav>
-
-
 
         {/* Logout Button - Always visible at bottom */}
         <div className="p-4 border-t flex-shrink-0">

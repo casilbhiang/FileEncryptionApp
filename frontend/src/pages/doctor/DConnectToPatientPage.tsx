@@ -5,19 +5,19 @@ import Sidebar from '../../components/layout/Sidebar';
 import { QrCode, Camera, AlertTriangle, CheckCircle, User, Key } from 'lucide-react';
 import QRScanner from '../../components/QRScanner';
 import { verifyScannedQR, getUserConnections, getKeyPair } from '../../services/keyService';
-import { hasEncryptionKey, clearEncryptionKey, storeEncryptionKey, importKeyFromBase64 } from '../../services/Encryption';
+import { hasEncryptionKey, storeEncryptionKey, importKeyFromBase64 } from '../../services/Encryption';
+import { storage } from '../../utils/storage';
 
 const DConnectToPatientPage: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
-  const [connectionDetails, setConnectionDetails] = useState<any>(null);
+  const [connections, setConnections] = useState<any[]>([]); // Changed from single object to array
   const [error, setError] = useState<string | null>(null);
 
   const [keyMissing, setKeyMissing] = useState(false);
 
-  // Mock doctor ID - in production this would come from auth context
   // Get doctor ID from localStorage
-  const doctorId = localStorage.getItem('user_id');
+  const doctorId = storage.getItem('user_id');
 
   // Load existing connections on mount
 
@@ -31,41 +31,46 @@ const DConnectToPatientPage: React.FC = () => {
 
         // 1. Check Backend Connection
         const result = await getUserConnections(doctorId);
-        let activeConnection = null;
+        let activeConnections: any[] = [];
 
         if (result.success && result.connections && result.connections.length > 0) {
-          activeConnection = result.connections.find((c: any) => c.status === 'Active');
+          // Filter for ALL active connections
+          activeConnections = result.connections.filter((c: any) => c.status === 'Active');
         }
 
-        // 2. Check Local Key Presence
-        const hasKey = hasEncryptionKey(doctorId);
+        // 2. Check Local Key Presence for EACH connection
+        setConnections(activeConnections);
 
-        if (activeConnection) {
-          setConnectionDetails(activeConnection);
+        if (activeConnections.length > 0) {
           setIsConnected(true);
 
+          const hasKey = hasEncryptionKey(doctorId);
+
           if (!hasKey) {
-            // Ghost Connection detected: Try to restore key from backend
-            console.log('Ghost connection detected. Attempting to restore key from backend...');
-            try {
-              const keyResult = await getKeyPair(activeConnection.key_id, doctorId);
-              if (keyResult.success && keyResult.key_pair && keyResult.key_pair.encryption_key) {
-                // Import and store the key
-                const key = await importKeyFromBase64(keyResult.key_pair.encryption_key);
-                await storeEncryptionKey(key, doctorId);
-                console.log('Key successfully restored from backend!');
-                setKeyMissing(false);
-              } else {
-                console.warn('Failed to restore key: Key not returned by backend');
-                setKeyMissing(true);
+
+            let restoredCount = 0;
+            for (const conn of activeConnections) {
+              try {
+                const keyResult = await getKeyPair(conn.key_id, doctorId);
+                if (keyResult.success && keyResult.key_pair?.encryption_key) {
+                  const key = await importKeyFromBase64(keyResult.key_pair.encryption_key);
+                  await storeEncryptionKey(key, doctorId);
+                  restoredCount++;
+                }
+              } catch (e) {
+                console.warn(`Failed to restore key for ${conn.key_id}`, e);
               }
-            } catch (restoreErr) {
-              console.error('Failed to restore key:', restoreErr);
+            }
+
+            if (restoredCount > 0) {
+              setKeyMissing(false);
+            } else {
               setKeyMissing(true);
             }
           } else {
             setKeyMissing(false);
           }
+
         } else {
           setIsConnected(false);
           setKeyMissing(false);
@@ -79,19 +84,36 @@ const DConnectToPatientPage: React.FC = () => {
     loadConnections();
   }, [doctorId]);
 
-  const handleDisconnect = () => {
-    if (!doctorId) return;
+  const handleDisconnect = async (keyId: string) => {
+    if (!doctorId || !keyId) return;
+
+    if (!confirm('Are you sure you want to disconnect this patient? This will remove the secure connection.')) {
+      return;
+    }
 
     try {
-      // 1. Clear Local Key ONLY (Preserve Backend Pairing)
-      clearEncryptionKey(doctorId);
+      // 1. Call Backend to delete KeyPair and Connection
+      const { deleteKeyPair } = await import('../../services/keyService');
+      await deleteKeyPair(keyId);
 
-      // 2. Update UI to "Session Closed" state
-      setKeyMissing(true);
+      // 2. Clear Local Key (Optional, if we want to be thorough we can try to find and remove logic, 
+      // but since keys are just overrides in localStorage, maybe we don't need to do anything complex locally
+      // if we rely on backend mainly. But "clearEncryptionKey" clears ALL keys for the user?
+      // Let's check clearEncryptionKey implementation if possible. 
+      // Assuming for now we just remove from UI list)
 
-      console.log('Local session disconnected');
-    } catch (err) {
+      // 3. Update UI
+      setConnections(prev => prev.filter(c => c.key_id !== keyId));
+
+      // If no more connections, update main state
+      if (connections.length <= 1) {
+        setIsConnected(false);
+      }
+
+      console.log('Connection disconnected');
+    } catch (err: any) {
       console.error('Failed to disconnect:', err);
+      alert(`Failed to disconnect: ${err.message}`);
     }
   };
 
@@ -133,7 +155,13 @@ const DConnectToPatientPage: React.FC = () => {
       // Verify the scanned QR code
       const result = await verifyScannedQR(decodedText);
 
-      setConnectionDetails(result.connection);
+      // Add to list if not exists
+      setConnections(prev => {
+        const exists = prev.some(c => c.key_id === result.connection.key_id);
+        if (exists) return prev;
+        return [...prev, result.connection];
+      });
+
       setIsConnected(true);
       setError(null);
     } catch (err: any) {
@@ -272,50 +300,59 @@ const DConnectToPatientPage: React.FC = () => {
         </div>
 
         {/* Connected Patient Info & Disconnect */}
-        {isConnected && connectionDetails && (
-          <div className="bg-white rounded-lg p-6 mt-6 max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Connected Patient</h2>
-              <button
-                onClick={handleDisconnect}
-                className="text-red-600 hover:text-red-800 text-sm font-semibold underline px-2 py-1"
-              >
-                Disconnect
-              </button>
-            </div>
+        {isConnected && connections.length > 0 && (
+          <div className="space-y-4 mt-6">
+            <h2 className="text-xl font-bold">Connected Patients ({connections.length})</h2>
 
-            <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                  <User className="w-6 h-6 text-green-600" />
+            {connections.map((connection, index) => (
+              <div
+                key={connection.key_id || index}
+                className="bg-white rounded-lg p-6 animate-in fade-in slide-in-from-bottom-4 duration-500"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">Patient Connection #{index + 1}</h3>
+                  <button
+                    onClick={() => handleDisconnect(connection.key_id)}
+                    className="text-red-600 hover:text-red-800 text-sm font-semibold underline px-2 py-1"
+                  >
+                    Disconnect
+                  </button>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Patient ID: {connectionDetails.patient_id}</h3>
-                  <p className="text-sm text-gray-600">Key ID: {connectionDetails.key_id}</p>
+
+                <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                      <User className="w-6 h-6 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Patient ID: {connection.patient_id}</h3>
+                      <p className="text-sm text-gray-600">Key ID: {connection.key_id}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                      Active
+                    </span>
+                    {connection.expires_at && (
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded
+                            ${(() => {
+                          const days = Math.ceil((new Date(connection.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                          if (days < 0) return 'bg-red-100 text-red-700';
+                          if (days < 7) return 'bg-orange-100 text-orange-700';
+                          return 'bg-gray-100 text-gray-600';
+                        })()}
+                        `}>
+                        {(() => {
+                          const days = Math.ceil((new Date(connection.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                          if (days < 0) return 'Expired';
+                          return `Key Expires in ${days} days`;
+                        })()}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-2">
-                <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-                  Active
-                </span>
-                {connectionDetails.expires_at && (
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded
-                        ${(() => {
-                      const days = Math.ceil((new Date(connectionDetails.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                      if (days < 0) return 'bg-red-100 text-red-700';
-                      if (days < 7) return 'bg-orange-100 text-orange-700';
-                      return 'bg-gray-100 text-gray-600';
-                    })()}
-                    `}>
-                    {(() => {
-                      const days = Math.ceil((new Date(connectionDetails.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                      if (days < 0) return 'Expired';
-                      return `Key Expires in ${days} days`;
-                    })()}
-                  </span>
-                )}
-              </div>
-            </div>
+            ))}
           </div>
         )}
       </div >

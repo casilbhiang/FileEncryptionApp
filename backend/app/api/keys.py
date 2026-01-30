@@ -1,14 +1,13 @@
 """
 API endpoints for encryption key management
 """
-from flask import Blueprint, request, jsonify, current_app
-from app.utils.supabase_client import get_supabase_admin_client
+from flask import Blueprint, request, jsonify
 from app.crypto.encryption import EncryptionManager
 from app.crypto.qr_generator import QRCodeGenerator
 from app.models.encryption_models import KeyPair
 from app.models.storage import key_pair_store
 from app.utils.audit import audit_logger, AuditAction, AuditResult
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import json
 
 keys_bp = Blueprint('keys', __name__)
@@ -26,6 +25,20 @@ def generate_key_pair():
         
         if not doctor_id or not patient_id:
             return jsonify({'error': 'doctor_id and patient_id are required'}), 400
+            
+        # Verify doctor and patient exist in users table
+        from app.utils.supabase_client import get_supabase_admin_client
+        supabase = get_supabase_admin_client()
+        
+        # Check doctor
+        doc_res = supabase.table('users').select('user_id').eq('user_id', doctor_id).execute()
+        if not doc_res.data or len(doc_res.data) == 0:
+             return jsonify({'error': f'Doctor with ID {doctor_id} not found'}), 404
+             
+        # Check patient
+        pat_res = supabase.table('users').select('user_id').eq('user_id', patient_id).execute()
+        if not pat_res.data or len(pat_res.data) == 0:
+             return jsonify({'error': f'Patient with ID {patient_id} not found'}), 404
         
         # Check if key pair already exists
         existing = key_pair_store.get_by_users(doctor_id, patient_id)
@@ -188,75 +201,40 @@ def update_key_status(key_id):
 
 @keys_bp.route('/<key_id>', methods=['DELETE'])
 def delete_key_pair(key_id):
-    """Delete a key pair, the associated connection, and revoke file shares"""
+    """Delete a key pair"""
     try:
         # Get key pair info before deleting
         key_pair = key_pair_store.get(key_id)
         if not key_pair:
             return jsonify({'error': 'Key pair not found'}), 404
-
-        doctor_id = key_pair.doctor_id
-        patient_id = key_pair.patient_id
-
-        # Delete the key pair from database (hard delete)
-        success = key_pair_store.delete(key_id)
-        print(f"Key pair {key_id} deleted from database: {success}")
-
-        # Delete the doctor-patient connection
+        
+        # Delete the connection record from doctor_patient_connections
         try:
+            from app.utils.supabase_client import get_supabase_admin_client
             supabase = get_supabase_admin_client()
-            supabase.table('doctor_patient_connections')\
-                .delete()\
-                .eq('doctor_id', doctor_id)\
-                .eq('patient_id', patient_id)\
-                .execute()
-            print(f"Deleted connection between {doctor_id} and {patient_id}")
+            supabase.table('doctor_patient_connections').delete().match({
+                'doctor_id': key_pair.doctor_id,
+                'patient_id': key_pair.patient_id
+            }).execute()
         except Exception as conn_err:
-            print(f"Warning: Failed to delete connection: {conn_err}")
+             print(f"Warning: Failed to delete connection record: {conn_err}")
 
-        # Revoke all file shares between this doctor and patient
-        try:
-            supabase = get_supabase_admin_client()
-
-            # Revoke shares from doctor to patient
-            supabase.table('file_shares')\
-                .update({
-                    'share_status': 'revoked',
-                    'revoked_at': datetime.now(timezone.utc).isoformat()
-                })\
-                .eq('shared_by', doctor_id)\
-                .eq('shared_with', patient_id)\
-                .eq('share_status', 'active')\
-                .execute()
-
-            # Revoke shares from patient to doctor
-            supabase.table('file_shares')\
-                .update({
-                    'share_status': 'revoked',
-                    'revoked_at': datetime.now(timezone.utc).isoformat()
-                })\
-                .eq('shared_by', patient_id)\
-                .eq('shared_with', doctor_id)\
-                .eq('share_status', 'active')\
-                .execute()
-
-            print(f"Revoked file shares between {doctor_id} and {patient_id}")
-        except Exception as share_err:
-            print(f"Warning: Failed to revoke file shares: {share_err}")
-
+        # Delete the key pair
+        success = key_pair_store.delete(key_id)
+        
         # Log audit event
         audit_logger.log(
             user_id="ADMIN",
             user_name="System Admin",
             action=AuditAction.KEY_DELETE,
-            target=f"{doctor_id} → {patient_id} ({key_id})",
+            target=f"{key_pair.doctor_id} → {key_pair.patient_id} ({key_id})",
             result=AuditResult.OK,
-            details=f"Deleted key pair {key_id}, connection, and revoked file shares"
+            details=f"Deleted key pair {key_id}"
         )
-
+        
         return jsonify({
             'success': True,
-            'message': 'Key pair, connection, and file shares deleted successfully'
+            'message': 'Connection deleted successfully'
         }), 200
         
     except Exception as e:
@@ -464,21 +442,19 @@ def scan_qr_code():
 
         # Persist Connection in Supabase
         # This allows the "My Patients" or "My Doctors" lists to work
-        try:            
+        try:
+            from app.utils.supabase_client import get_supabase_admin_client
+            supabase = get_supabase_admin_client()
+            
+            # Upsert connection to avoid duplicates
             connection_data = {
                 'doctor_id': key_pair.doctor_id,
                 'patient_id': key_pair.patient_id,
-                'connection_status': 'active',
+                # 'status': 'active' # If table has status
             }
-
-            if current_app.config.get("SUPABASE_URL") and current_app.config.get("SUPABASE_SERVICE_KEY"):
-                try:
-                    supabase = get_supabase_admin_client()
-                    supabase.table('doctor_patient_connections').insert(connection_data).execute()
-                except Exception as conn_err:
-                    print(f"Connection persistence warning: {conn_err}")
-            else:
-                pass
+            # We use upsert if we have a unique constraint, or insert with ignore
+            # For now, simple insert. If it fails due to duplicates, we catch it.
+            supabase.table('doctor_patient_connections').insert(connection_data).execute()
             
             audit_logger.log(
                 user_id="SYSTEM",
@@ -488,9 +464,9 @@ def scan_qr_code():
                 result=AuditResult.OK,
                 details="Connection record created"
             )
-            
         except Exception as conn_err:
             print(f"Connection persistence warning: {conn_err}")
+            # We don't fail the request if this fails (it might be a duplicate)
         
         return jsonify({
             'success': True,

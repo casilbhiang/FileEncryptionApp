@@ -15,6 +15,7 @@ import type { FileItem } from '../../services/Files';
 
 // ADD: Import NotificationContext for sidebar bell notifications
 import { useNotifications } from '../../contexts/NotificationContext';
+import { storage } from '../../utils/storage';
 
 // Define User interface matching your backend
 interface User {
@@ -27,7 +28,7 @@ interface User {
 
 interface CurrentUser {
   id: string;
-  uuid: string; 
+  uuid: string;
   role: string;
   email: string;
   name: string;
@@ -36,23 +37,23 @@ interface CurrentUser {
 const ShareFiles: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  
+
   // Get user role from URL
   const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
-  
+
   // ADD: Initialize notification context for sidebar bell only
   const { addNotification } = useNotifications();
-  
-  // Get current user from localStorage
+
+  // Get current user from storage
   const getCurrentUser = (): CurrentUser | null => {
     try {
       // Try to get from 'user' object
-      const userData = localStorage.getItem('user');
+      const userData = storage.getItem('user');
       if (userData) {
         const user = JSON.parse(userData);
         const id = user.id || user.userId;
         const uuid = user.uuid || user.userUuid;
-        
+
         // Only return if we have both id AND uuid
         if (id && uuid) {
           return {
@@ -64,13 +65,13 @@ const ShareFiles: React.FC = () => {
           };
         }
       }
-      
+
       // Fallback to separate keys
-      const userId = localStorage.getItem('user_id');
-      const userUuid = localStorage.getItem('user_uuid');
-      const userRoleFromStorage = localStorage.getItem('user_role');
-      const userEmail = localStorage.getItem('user_email');
-      
+      const userId = storage.getItem('user_id');
+      const userUuid = storage.getItem('user_uuid');
+      const userRoleFromStorage = storage.getItem('user_role');
+      const userEmail = storage.getItem('user_email');
+
       // Only return if we have BOTH userId and userUuid
       if (userId && userUuid) {
         return {
@@ -81,14 +82,14 @@ const ShareFiles: React.FC = () => {
           name: `User ${userId}`
         };
       }
-      
+
     } catch (error) {
-      console.error('Error getting user from localStorage:', error);
+      console.error('Error getting user from storage:', error);
     }
-    
+
     return null;
   };
-  
+
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [selectedRecipient, setSelectedRecipient] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
@@ -103,7 +104,7 @@ const ShareFiles: React.FC = () => {
     initializing: true
   });
   const [shareResult, setShareResult] = useState<{ success: boolean; message: string; share_id?: string } | null>(null);
-  const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [debugInfo, setDebugInfo] = useState<string>('');
 
   // Get current user on component mount
@@ -113,7 +114,7 @@ const ShareFiles: React.FC = () => {
       console.log('Setting current user:', user);
       setCurrentUser(user);
     } else {
-      console.log('No user found in localStorage');
+      console.log('No user found in storage');
     }
     setLoading(prev => ({ ...prev, initializing: false }));
   }, []);
@@ -135,13 +136,13 @@ const ShareFiles: React.FC = () => {
 
   const fetchUserFiles = async () => {
     if (!currentUser?.uuid) return;
-    
+
     setLoading(prev => ({ ...prev, files: true }));
     setErrors(prev => ({ ...prev, files: '' }));
-    
+
     try {
       console.log('Fetching files for user:', currentUser.id);
-      
+
       const result = await getMyFiles(
         currentUser.uuid,
         '', // search
@@ -151,38 +152,38 @@ const ShareFiles: React.FC = () => {
         1, // page
         100 // limit
       );
-      
+
       console.log('Files API result:', result);
-      
+
       const files = result.files || [];
       console.log('Number of files received:', files.length);
-      
+
       // Get user-owned files (filter out shared files received from others)
       const userOwnedFiles = files.filter(file => {
         // Check if file is owned by current user
-        const isOwnedByCurrentUser = 
-          file.is_owned === true || 
+        const isOwnedByCurrentUser =
+          file.is_owned === true ||
           file.owner_id === currentUser.id ||
           !file.shared_by;
-        
+
         return isOwnedByCurrentUser;
       });
-      
+
       console.log('User-owned files found:', userOwnedFiles.length);
       setAvailableFiles(userOwnedFiles);
-      
+
       if (userOwnedFiles.length === 0) {
-        setErrors(prev => ({ 
-          ...prev, 
-          files: 'No files available to share. Please upload files first.' 
+        setErrors(prev => ({
+          ...prev,
+          files: 'No files available to share. Please upload files first.'
         }));
       }
-      
+
     } catch (error) {
       console.error('Error fetching files:', error);
-      setErrors(prev => ({ 
-        ...prev, 
-        files: 'Error loading files. Please try again.' 
+      setErrors(prev => ({
+        ...prev,
+        files: 'Error loading files. Please try again.'
       }));
     } finally {
       setLoading(prev => ({ ...prev, files: false }));
@@ -191,46 +192,46 @@ const ShareFiles: React.FC = () => {
 
   const fetchAvailableUsers = async () => {
     if (!currentUser?.uuid) return;
-    
+
     setLoading(prev => ({ ...prev, users: true }));
     setErrors(prev => ({ ...prev, users: '' }));
     setDebugInfo('');
-    
+
     try {
       console.log('Fetching available users for user ID:', currentUser.id);
       console.log('Endpoint: http://localhost:5000/api/shares/available-users');
-      
+
       // Call the getAvailableUsers function from your service
       const result = await getAvailableUsers(currentUser.id);
-      
+
       console.log('Available users API result:', result);
-      
+
       if (result.success) {
         const users = Array.isArray(result.data) ? result.data : [];
         setAvailableUsers(users);
         setDebugInfo(`Loaded ${users.length} users from API`);
         console.log('Available users loaded:', users);
-        
+
         if (users.length === 0) {
-          setErrors(prev => ({ 
-            ...prev, 
-            users: 'No recipients found. Make sure other users are registered in the system.' 
+          setErrors(prev => ({
+            ...prev,
+            users: 'No recipients found. Make sure other users are registered in the system.'
           }));
         }
       } else {
         console.error('API returned error:', result.error);
         setDebugInfo(`API error: ${result.error}`);
-        setErrors(prev => ({ 
-          ...prev, 
-          users: result.error || 'Failed to load recipients. Please try again.' 
+        setErrors(prev => ({
+          ...prev,
+          users: result.error || 'Failed to load recipients. Please try again.'
         }));
       }
     } catch (error) {
       console.error('Error fetching available users:', error);
       setDebugInfo(`Network error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      setErrors(prev => ({ 
-        ...prev, 
-        users: 'Network error. Please check if the backend server is running.' 
+      setErrors(prev => ({
+        ...prev,
+        users: 'Network error. Please check if the backend server is running.'
       }));
     } finally {
       setLoading(prev => ({ ...prev, users: false }));
@@ -249,9 +250,9 @@ const ShareFiles: React.FC = () => {
         const sharedFileIds = Array.isArray(result.data) ? result.data : [];
         setFilesSharedWithRecipient(sharedFileIds);
         console.log(`Files already shared with ${recipientId}:`, sharedFileIds);
-        
+
         // Also update the selected files to remove any that are already shared
-        setSelectedFiles(prev => 
+        setSelectedFiles(prev =>
           prev.filter(fileId => !sharedFileIds.includes(fileId))
         );
       } else {
@@ -275,16 +276,16 @@ const ShareFiles: React.FC = () => {
   };
 
   const validateForm = (): boolean => {
-    const newErrors: {[key: string]: string} = {};
-    
+    const newErrors: { [key: string]: string } = {};
+
     if (!selectedRecipient) {
       newErrors.recipient = 'Please select a recipient';
     }
-    
+
     if (selectedFiles.length === 0) {
       newErrors.files = 'Please select at least one file to share';
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -298,19 +299,19 @@ const ShareFiles: React.FC = () => {
       });
       return;
     }
-    
+
     if (!validateForm()) {
       return;
     }
-    
+
     setLoading(prev => ({ ...prev, sharing: true }));
     setShareResult(null);
-    
+
     try {
       // Find the recipient's UUID
       const recipientUser = availableUsers.find(u => u.id === selectedRecipient);
       const recipientStringId = recipientUser?.user_id || recipientUser?.email || selectedRecipient;
-      
+
       if (!recipientUser) {
         setShareResult({
           success: false,
@@ -319,7 +320,7 @@ const ShareFiles: React.FC = () => {
         setLoading(prev => ({ ...prev, sharing: false }));
         return;
       }
-      
+
       // Need to get recipient UUID - update User interface first
       const shareParams: ShareFileParams = {
         file_id: selectedFiles[0],
@@ -333,23 +334,23 @@ const ShareFiles: React.FC = () => {
       console.log('Selected recipient ID:', selectedRecipient);
       console.log('Available users:', availableUsers);
       console.log('Selected recipient details:', availableUsers.find(u => u.id === selectedRecipient));
-    
+
       console.log('Sharing file with params:', shareParams);
-    
+
       const result = await shareFile(shareParams);
-      
+
       console.log('Share result:', result);
-      
+
       if (result.success) {
         const recipientName = availableUsers.find(u => u.id === selectedRecipient)?.name || 'Recipient';
         const sharerName = currentUser?.name || 'You';
-        
+
         // Get the first file name (since you're sharing one file at a time)
         const sharedFileName = selectedFiles.map(fileId => {
           const file = availableFiles.find(f => f.id === fileId);
           return file?.name || 'Unknown file';
         })[0] || 'file';
-        
+
         // ADD: Sidebar bell notification for successful share (FOR SHARER)
         addNotification({
           user_id: currentUser.id,
@@ -371,7 +372,7 @@ const ShareFiles: React.FC = () => {
           },
           showAsToast: true // Show toast for sharer
         });
-        
+
         // 🔥 NEW: ADD NOTIFICATION FOR RECIPIENT
         addNotification({
           user_id: recipientStringId, // Recipient's user ID
@@ -393,22 +394,22 @@ const ShareFiles: React.FC = () => {
           },
           showAsToast: false // Don't show toast for recipient
         });
-        
+
         setShareResult({
           success: true,
           // 🔥 UPDATED: Also update success message
           message: `"${sharedFileName}" shared successfully with ${recipientName} (ID: ${selectedRecipient})!`,
           share_id: result.data?.share_id
         });
-        
+
         // Reset form
         setSelectedFiles([]);
         setSelectedRecipient('');
         setShowFileDropdown(false);
-        
+
         // Refresh files list to update available files
         setTimeout(() => fetchUserFiles(), 1000);
-        
+
       } else {
         // ADD: Sidebar bell notification for share error
         addNotification({
@@ -425,7 +426,7 @@ const ShareFiles: React.FC = () => {
           },
           showAsToast: false // Only in sidebar, no toast popup
         });
-        
+
         setShareResult({
           success: false,
           message: result.error || 'Failed to share file. Please try again.'
@@ -433,7 +434,7 @@ const ShareFiles: React.FC = () => {
       }
     } catch (error) {
       console.error('Error sharing:', error);
-      
+
       // ADD: Sidebar bell notification for network error
       addNotification({
         user_id: currentUser?.id || 'unknown',
@@ -446,7 +447,7 @@ const ShareFiles: React.FC = () => {
         },
         showAsToast: false // Only in sidebar, no toast popup
       });
-      
+
       setShareResult({
         success: false,
         message: 'Network error. Please check your connection and try again.'
@@ -530,12 +531,12 @@ const ShareFiles: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-blue-700 text-sm">
-                <strong>User:</strong> {currentUser.name} | 
-                <strong> ID:</strong> {currentUser.id} | 
+                <strong>User:</strong> {currentUser.name} |
+                <strong> ID:</strong> {currentUser.id} |
                 <strong> Role:</strong> {currentUser.role}
               </p>
               <p className="text-xs text-blue-600 mt-1">
-                <strong>Files:</strong> {availableFiles.length} available | 
+                <strong>Files:</strong> {availableFiles.length} available |
                 <strong> Recipients:</strong> {availableUsers.length} available
               </p>
               {debugInfo && (
@@ -581,21 +582,20 @@ const ShareFiles: React.FC = () => {
                   }
                 }}
                 disabled={loading.users || availableUsers.length === 0}
-                className={`w-full px-4 py-3 bg-gray-50 border rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white ${
-                  errors.recipient ? 'border-red-300' : 'border-gray-300'
-                } ${(loading.users || availableUsers.length === 0) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`w-full px-4 py-3 bg-gray-50 border rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white ${errors.recipient ? 'border-red-300' : 'border-gray-300'
+                  } ${(loading.users || availableUsers.length === 0) ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <option value="">
-                  {loading.users 
-                    ? 'Loading recipients...' 
+                  {loading.users
+                    ? 'Loading recipients...'
                     : availableUsers.length === 0
-                    ? 'No recipients available'
-                    : `Select a ${userRole === 'doctor' ? 'patient' : 'doctor'}`
+                      ? 'No recipients available'
+                      : `Select a ${userRole === 'doctor' ? 'patient' : 'doctor'}`
                   }
                 </option>
                 {availableUsers.map((recipient) => (
                   <option key={recipient.id} value={recipient.id}>
-                    {recipient.name} 
+                    {recipient.name}
                     {recipient.email ? ` (${recipient.email})` : ''}
                     {recipient.role ? ` - ${recipient.role}` : ''}
                   </option>
@@ -622,14 +622,14 @@ const ShareFiles: React.FC = () => {
               </div>
             )}
           </div>
-          
+
           {/* Choose Files */}
           <div className="mb-8">
             <label className="block text-sm font-semibold text-gray-900 mb-2">
               Select Files to Share
               <span className="text-red-500 ml-1">*</span>
             </label>
-            
+
             {/* File Selection Button */}
             <div className="mb-4">
               {/* Show different UI based on whether recipient is selected */}
@@ -638,18 +638,17 @@ const ShareFiles: React.FC = () => {
                   <button
                     onClick={() => setShowFileDropdown(!showFileDropdown)}
                     disabled={loading.files || filterableFiles.length === 0}
-                    className={`w-full px-4 py-3 bg-gray-50 border rounded-lg text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.files ? 'border-red-300' : 'border-gray-300'
-                    } ${(loading.files || filterableFiles.length === 0) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`w-full px-4 py-3 bg-gray-50 border rounded-lg text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.files ? 'border-red-300' : 'border-gray-300'
+                      } ${(loading.files || filterableFiles.length === 0) ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <span className="text-gray-600">
-                      {loading.files 
-                        ? 'Loading your files...' 
+                      {loading.files
+                        ? 'Loading your files...'
                         : selectedFiles.length > 0
                           ? `${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''} selected`
                           : filterableFiles.length === 0
-                          ? 'No files available to share with this recipient'
-                          : 'Click to select files'
+                            ? 'No files available to share with this recipient'
+                            : 'Click to select files'
                       }
                     </span>
                     {loading.files ? (
@@ -658,7 +657,7 @@ const ShareFiles: React.FC = () => {
                       <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${showFileDropdown ? 'rotate-180' : ''}`} />
                     )}
                   </button>
-                  
+
                   {errors.files && (
                     <p className="mt-1 text-sm text-red-600">{errors.files}</p>
                   )}
@@ -671,16 +670,14 @@ const ShareFiles: React.FC = () => {
                           {filterableFiles.map((file) => (
                             <div
                               key={file.id}
-                              className={`flex items-start gap-3 px-3 py-2.5 hover:bg-blue-50 cursor-pointer rounded-md ${
-                                selectedFiles.includes(file.id) ? 'bg-blue-50 border border-blue-100' : ''
-                              }`}
+                              className={`flex items-start gap-3 px-3 py-2.5 hover:bg-blue-50 cursor-pointer rounded-md ${selectedFiles.includes(file.id) ? 'bg-blue-50 border border-blue-100' : ''
+                                }`}
                               onClick={() => handleFileToggle(file.id)}
                             >
-                              <div className={`w-5 h-5 border rounded flex items-center justify-center mt-0.5 ${
-                                selectedFiles.includes(file.id) 
-                                  ? 'bg-blue-600 border-blue-600 text-white' 
-                                  : 'border-gray-300'
-                              }`}>
+                              <div className={`w-5 h-5 border rounded flex items-center justify-center mt-0.5 ${selectedFiles.includes(file.id)
+                                ? 'bg-blue-600 border-blue-600 text-white'
+                                : 'border-gray-300'
+                                }`}>
                                 {selectedFiles.includes(file.id) && '✓'}
                               </div>
                               <div className="flex-1">
@@ -763,7 +760,7 @@ const ShareFiles: React.FC = () => {
                       </div>
                     </div>
                   )}
-                  
+
                   {/* No files message */}
                   {!loading.files && filterableFiles.length === 0 && filesSharedWithRecipient.length === 0 && (
                     <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -826,11 +823,10 @@ const ShareFiles: React.FC = () => {
 
           {/* Success/Error Message */}
           {shareResult && (
-            <div className={`mt-6 p-4 rounded-lg flex items-start gap-3 ${
-              shareResult.success 
-                ? 'bg-green-50 border border-green-200' 
-                : 'bg-red-50 border border-red-200'
-            }`}>
+            <div className={`mt-6 p-4 rounded-lg flex items-start gap-3 ${shareResult.success
+              ? 'bg-green-50 border border-green-200'
+              : 'bg-red-50 border border-red-200'
+              }`}>
               {shareResult.success ? (
                 <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
               ) : (
