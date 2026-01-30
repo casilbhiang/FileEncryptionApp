@@ -468,6 +468,7 @@ def scan_qr_code():
             connection_data = {
                 'doctor_id': key_pair.doctor_id,
                 'patient_id': key_pair.patient_id,
+                'connection_status': 'active',
             }
 
             if current_app.config.get("SUPABASE_URL") and current_app.config.get("SUPABASE_SERVICE_KEY"):

@@ -44,10 +44,12 @@ const AAuditLogsPage: React.FC = () => {
       setError(null);
       const response = await getAuditLogs();
       // Filter OUT Key and Pairing events (they have their own tab)
-      const auditOnlyLogs = response.logs.filter(log =>
-        !log.action.toUpperCase().includes('KEY') &&
-        !log.action.toUpperCase().includes('PAIRING')
-      );
+      // But keep KEY_DELETE so it shows in audit logs
+      const auditOnlyLogs = response.logs.filter(log => {
+        const action = log.action.toUpperCase();
+        if (action === 'KEY_DELETE') return true;
+        return !action.includes('KEY') && !action.includes('PAIRING');
+      });
       setLogs(auditOnlyLogs);
     } catch (err) {
       console.error('Failed to load audit logs:', err);

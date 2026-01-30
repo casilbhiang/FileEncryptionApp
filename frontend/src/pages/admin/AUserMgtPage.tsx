@@ -115,9 +115,25 @@ const AUserMgtPage: React.FC = () => {
     setShowEditDialog(true);
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (selectedUser) {
-      setUsers(prevUsers => prevUsers.filter(user => user.id !== selectedUser.id));
+      try {
+        const API_URL = import.meta.env.VITE_API_URL;
+        const response = await fetch(`${API_URL}/api/auth/users/${selectedUser.id}`, {
+          method: 'DELETE',
+        });
+        const data = await response.json();
+
+        if (response.ok) {
+          setUsers(prevUsers => prevUsers.filter(user => user.id !== selectedUser.id));
+        } else {
+          console.error('Failed to delete user:', data.message);
+          setError(data.message || 'Failed to delete user');
+        }
+      } catch (err: any) {
+        console.error('Error deleting user:', err);
+        setError(err.message || 'Failed to delete user');
+      }
     }
     setShowDeleteDialog(false);
     setSelectedUser(null);
