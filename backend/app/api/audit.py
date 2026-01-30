@@ -18,6 +18,7 @@ def get_audit_logs():
         search_query = request.args.get('search')
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 10))
+        exclude_keys = request.args.get('exclude_keys', 'false').lower() == 'true'
 
         supabase = get_supabase_admin_client()
 
@@ -156,6 +157,14 @@ def get_audit_logs():
                     continue
 
             formatted_logs.append(formatted_log)
+
+        # Filter out KEY/PAIRING events if requested (audit logs page excludes these)
+        if exclude_keys:
+            formatted_logs = [
+                log for log in formatted_logs
+                if log['action'].upper() == 'KEY_DELETE' or
+                ('KEY' not in log['action'].upper() and 'PAIRING' not in log['action'].upper())
+            ]
 
         # Sort all logs by timestamp (newest first)
         formatted_logs.sort(key=lambda x: x['timestamp'], reverse=True)
