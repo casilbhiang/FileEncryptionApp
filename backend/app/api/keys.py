@@ -25,6 +25,20 @@ def generate_key_pair():
         
         if not doctor_id or not patient_id:
             return jsonify({'error': 'doctor_id and patient_id are required'}), 400
+            
+        # Verify doctor and patient exist in users table
+        from app.utils.supabase_client import get_supabase_admin_client
+        supabase = get_supabase_admin_client()
+        
+        # Check doctor
+        doc_res = supabase.table('users').select('user_id').eq('user_id', doctor_id).execute()
+        if not doc_res.data or len(doc_res.data) == 0:
+             return jsonify({'error': f'Doctor with ID {doctor_id} not found'}), 404
+             
+        # Check patient
+        pat_res = supabase.table('users').select('user_id').eq('user_id', patient_id).execute()
+        if not pat_res.data or len(pat_res.data) == 0:
+             return jsonify({'error': f'Patient with ID {patient_id} not found'}), 404
         
         # Check if key pair already exists
         existing = key_pair_store.get_by_users(doctor_id, patient_id)
