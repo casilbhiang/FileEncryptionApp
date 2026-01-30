@@ -24,7 +24,7 @@ const formatTimestampToLocal = (timestamp: string): string => {
   }
 };
 
-const LOGS_PER_PAGE = 10;
+const LOGS_PER_PAGE = 15;
 
 const AAuditLogsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,16 +62,10 @@ const AAuditLogsPage: React.FC = () => {
         resultFilter !== 'all' ? resultFilter : undefined,
         searchQuery || undefined,
         currentPage,
-        LOGS_PER_PAGE
+        LOGS_PER_PAGE,
+        true // exclude KEY/PAIRING events (they have their own tab)
       );
-      // Filter OUT Key and Pairing events (they have their own tab)
-      // But keep KEY_DELETE so it shows in audit logs
-      const auditOnlyLogs = response.logs.filter(log => {
-        const action = log.action.toUpperCase();
-        if (action === 'KEY_DELETE') return true;
-        return !action.includes('KEY') && !action.includes('PAIRING');
-      });
-      setLogs(auditOnlyLogs);
+      setLogs(response.logs);
       setTotalPages(response.total_pages || 1);
       setTotalLogs(response.total || 0);
     } catch (err) {
