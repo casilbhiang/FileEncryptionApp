@@ -312,7 +312,7 @@ const DConnectToPatientPage: React.FC = () => {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold">Patient Connection #{index + 1}</h3>
                   <button
-                    onClick={() => handleDisconnect(connection.patient_id)}
+                    onClick={() => handleDisconnect(connection.key_id)}
                     className="text-red-600 hover:text-red-800 text-sm font-semibold underline px-2 py-1"
                   >
                     Disconnect
