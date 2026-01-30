@@ -20,13 +20,12 @@ const AKeyLogsPage: React.FC = () => {
         try {
             setLoading(true);
             setError(null);
-            const response = await getAuditLogs();
-            // Filter for Key and Pairing events only
-            const keyLogs = response.logs.filter(log =>
-                log.action.toUpperCase().includes('KEY') ||
-                log.action.toUpperCase().includes('PAIRING')
+            const response = await getAuditLogs(
+                undefined, undefined, undefined,
+                undefined, undefined, undefined,
+                false, true // keysOnly=true: only KEY/PAIRING events
             );
-            setLogs(keyLogs);
+            setLogs(response.logs);
         } catch (err) {
             console.error('Failed to load key logs:', err);
             setError(err instanceof Error ? err.message : 'Failed to load key logs');
