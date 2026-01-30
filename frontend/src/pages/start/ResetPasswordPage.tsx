@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, CheckCircle } from 'lucide-react';
 import simncryptLogo from '../../images/simncrypt.jpg';
+import { storage } from '../../utils/storage';
 
 interface LocationState {
   userId?: string;
@@ -16,7 +17,7 @@ const ResetPasswordPage: React.FC = () => {
   const location = useLocation();
   const state = location.state as LocationState;
 
-  const userId = state?.userId || localStorage.getItem('user_id') || 'user';
+  const userId = state?.userId || storage.getItem('user_id') || 'user';
   //const role = state?.role || localStorage.getItem('user_role') || 'patient';
   //const email = state?.email || localStorage.getItem('user_email') || '';
 
@@ -132,7 +133,7 @@ const ResetPasswordPage: React.FC = () => {
         // 4. 🔑 IMPORTANT: Set user.is_first_login = False
         // 5. Return success response
         // ============================================
-        
+
         const response = await fetch(`${API_URL}/api/auth/reset-password`, {
           method: 'POST',
           headers: {
@@ -154,38 +155,38 @@ const ResetPasswordPage: React.FC = () => {
         }
 
         setSuccess('Password reset successfully! Redirecting to login...');
-        
+
         setTimeout(() => {
-          localStorage.removeItem('user_id');
-          localStorage.removeItem('user_role');
-          localStorage.removeItem('user_email');
-          localStorage.removeItem('is_first_login');
+          storage.removeItem('user_id');
+          storage.removeItem('user_role');
+          storage.removeItem('user_email');
+          storage.removeItem('is_first_login');
           navigate('/login', { replace: true });
         }, 2000);
       } else {
         // Demo mode
         console.log('Demo mode: Password reset for user:', userId);
-        
+
         setSuccess('Password reset successfully! Redirecting to login...');
-        
+
         setTimeout(() => {
-          localStorage.removeItem('user_id');
-          localStorage.removeItem('user_role');
-          localStorage.removeItem('user_email');
-          localStorage.removeItem('is_first_login');
+          storage.removeItem('user_id');
+          storage.removeItem('user_role');
+          storage.removeItem('user_email');
+          storage.removeItem('is_first_login');
           navigate('/login', { replace: true });
         }, 2000);
       }
     } catch (err) {
       console.error('Reset password error:', err);
-      
+
       setSuccess('Password reset successfully! Redirecting to login...');
-      
+
       setTimeout(() => {
-        localStorage.removeItem('user_id');
-        localStorage.removeItem('user_role');
-        localStorage.removeItem('user_email');
-        localStorage.removeItem('is_first_login');
+        storage.removeItem('user_id');
+        storage.removeItem('user_role');
+        storage.removeItem('user_email');
+        storage.removeItem('is_first_login');
         navigate('/login', { replace: true });
       }, 2000);
     } finally {
@@ -200,7 +201,7 @@ const ResetPasswordPage: React.FC = () => {
           {/* Left Side - Logo Display */}
           <div className="hidden md:flex flex-col items-center justify-center text-center px-4">
             <div>
-              <img 
+              <img
                 src={simncryptLogo}
                 alt="SIM NCRYPT"
                 className="h-96 w-96 mx-auto rounded-3xl object-contain shadow-2xl"
@@ -212,7 +213,7 @@ const ResetPasswordPage: React.FC = () => {
           <div className="w-full">
             <div className="bg-gradient-to-br from-blue-600 to-purple-600 rounded-3xl p-8 md:p-12 shadow-2xl">
               <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">Reset Your Password</h1>
-              
+
               {/* Password Requirements */}
               <div className="mb-8">
                 <p className="text-white text-sm font-semibold mb-2">Password Must Include:</p>
@@ -367,14 +368,14 @@ const ResetPasswordPage: React.FC = () => {
               {/* Help Section */}
               <div className="mt-8 pt-6 border-t border-white border-opacity-20 text-center">
                 <p className="text-white text-sm">
-                  Need help? Email to clinic admin fyp2502@gmail.com 
+                  Need help? Email to clinic admin fyp2502@gmail.com
                 </p>
               </div>
             </div>
 
             {/* Mobile Logo */}
             <div className="md:hidden text-center mt-8">
-              <img 
+              <img
                 src={simncryptLogo}
                 alt="SIM NCRYPT"
                 className="h-12 w-12 mx-auto rounded-lg object-cover mb-3"

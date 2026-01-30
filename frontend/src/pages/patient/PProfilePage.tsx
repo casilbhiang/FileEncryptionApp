@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
 import { ArrowLeft, User } from 'lucide-react';
+import { storage } from '../../utils/storage';
 
 interface PatientHealthData {
   name: string;
@@ -33,10 +34,10 @@ const PProfilePage: React.FC = () => {
   const fetchPatientProfile = async () => {
     try {
       setLoading(true);
-      
+
       // Get the patient's own user_id from localStorage
-      const userId = localStorage.getItem('user_id');
-      
+      const userId = storage.getItem('user_id');
+
       if (!userId) {
         setError('Please login again to view your profile');
         setLoading(false);
@@ -117,13 +118,13 @@ const PProfilePage: React.FC = () => {
             <p className="mt-1">{error || 'Failed to load profile'}</p>
             <div className="mt-4">
               <p className="text-sm mb-2">Debug Info:</p>
-              <p className="text-xs">User ID: {localStorage.getItem('user_id') || 'Not found'}</p>
-              <p className="text-xs">Endpoint: {API_URL}/api/auth/patients/{localStorage.getItem('user_id') || 'USER_ID'}/profile</p>
+              <p className="text-xs">User ID: {storage.getItem('user_id') || 'Not found'}</p>
+              <p className="text-xs">Endpoint: {API_URL}/api/auth/patients/{storage.getItem('user_id') || 'USER_ID'}/profile</p>
             </div>
             <div className="mt-4">
               <button
                 onClick={() => {
-                  localStorage.clear();
+                  storage.clear();
                   navigate('/login');
                 }}
                 className="text-blue-600 hover:text-blue-800 underline text-sm"
@@ -151,7 +152,7 @@ const PProfilePage: React.FC = () => {
 
         {/* Patient Health Profile Card */}
         <div className="mb-4">
-          
+
           {/* Patient Header Card - Same Purple Color as Doctor's View */}
           <div className="bg-purple-100 rounded-lg p-6 mb-6">
             <div className="flex items-center">
