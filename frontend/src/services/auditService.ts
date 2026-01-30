@@ -18,22 +18,30 @@ export interface AuditLogsResponse {
     success: boolean;
     logs: AuditLog[];
     count: number;
+    total: number;
+    page: number;
+    per_page: number;
+    total_pages: number;
 }
 
 /**
- * Get audit logs with optional filters
+ * Get audit logs with optional filters and pagination
  */
 export async function getAuditLogs(
     userId?: string,
     action?: string,
     result?: string,
-    search?: string
+    search?: string,
+    page?: number,
+    perPage?: number
 ): Promise<AuditLogsResponse> {
     const params = new URLSearchParams();
     if (userId) params.append('user_id', userId);
     if (action) params.append('action', action);
     if (result) params.append('result', result);
     if (search) params.append('search', search);
+    if (page) params.append('page', page.toString());
+    if (perPage) params.append('per_page', perPage.toString());
 
     const url = `${API_BASE_URL}/api/audit/logs${params.toString() ? '?' + params.toString() : ''}`;
     const response = await fetch(url);

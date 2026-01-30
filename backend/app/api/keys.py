@@ -8,7 +8,7 @@ from app.crypto.qr_generator import QRCodeGenerator
 from app.models.encryption_models import KeyPair
 from app.models.storage import key_pair_store
 from app.utils.audit import audit_logger, AuditAction, AuditResult
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 
 keys_bp = Blueprint('keys', __name__)
@@ -188,29 +188,75 @@ def update_key_status(key_id):
 
 @keys_bp.route('/<key_id>', methods=['DELETE'])
 def delete_key_pair(key_id):
-    """Delete a key pair"""
+    """Delete a key pair, the associated connection, and revoke file shares"""
     try:
         # Get key pair info before deleting
         key_pair = key_pair_store.get(key_id)
         if not key_pair:
             return jsonify({'error': 'Key pair not found'}), 404
-        
-        # Delete the key pair
+
+        doctor_id = key_pair.doctor_id
+        patient_id = key_pair.patient_id
+
+        # Delete the key pair from database (hard delete)
         success = key_pair_store.delete(key_id)
-        
+        print(f"Key pair {key_id} deleted from database: {success}")
+
+        # Delete the doctor-patient connection
+        try:
+            supabase = get_supabase_admin_client()
+            supabase.table('doctor_patient_connections')\
+                .delete()\
+                .eq('doctor_id', doctor_id)\
+                .eq('patient_id', patient_id)\
+                .execute()
+            print(f"Deleted connection between {doctor_id} and {patient_id}")
+        except Exception as conn_err:
+            print(f"Warning: Failed to delete connection: {conn_err}")
+
+        # Revoke all file shares between this doctor and patient
+        try:
+            supabase = get_supabase_admin_client()
+
+            # Revoke shares from doctor to patient
+            supabase.table('file_shares')\
+                .update({
+                    'share_status': 'revoked',
+                    'revoked_at': datetime.now(timezone.utc).isoformat()
+                })\
+                .eq('shared_by', doctor_id)\
+                .eq('shared_with', patient_id)\
+                .eq('share_status', 'active')\
+                .execute()
+
+            # Revoke shares from patient to doctor
+            supabase.table('file_shares')\
+                .update({
+                    'share_status': 'revoked',
+                    'revoked_at': datetime.now(timezone.utc).isoformat()
+                })\
+                .eq('shared_by', patient_id)\
+                .eq('shared_with', doctor_id)\
+                .eq('share_status', 'active')\
+                .execute()
+
+            print(f"Revoked file shares between {doctor_id} and {patient_id}")
+        except Exception as share_err:
+            print(f"Warning: Failed to revoke file shares: {share_err}")
+
         # Log audit event
         audit_logger.log(
             user_id="ADMIN",
             user_name="System Admin",
             action=AuditAction.KEY_DELETE,
-            target=f"{key_pair.doctor_id} → {key_pair.patient_id} ({key_id})",
+            target=f"{doctor_id} → {patient_id} ({key_id})",
             result=AuditResult.OK,
-            details=f"Deleted key pair {key_id}"
+            details=f"Deleted key pair {key_id}, connection, and revoked file shares"
         )
-        
+
         return jsonify({
             'success': True,
-            'message': 'Key pair deleted successfully'
+            'message': 'Key pair, connection, and file shares deleted successfully'
         }), 200
         
     except Exception as e:
@@ -422,6 +468,7 @@ def scan_qr_code():
             connection_data = {
                 'doctor_id': key_pair.doctor_id,
                 'patient_id': key_pair.patient_id,
+                'connection_status': 'active',
             }
 
             if current_app.config.get("SUPABASE_URL") and current_app.config.get("SUPABASE_SERVICE_KEY"):

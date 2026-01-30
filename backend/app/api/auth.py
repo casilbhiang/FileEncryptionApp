@@ -5,6 +5,7 @@ Handles login, OTP verification, password reset, etc.
 from flask import Blueprint, request, jsonify
 from app.utils.supabase_client import get_supabase_admin_client
 from app.utils.email_sender import send_otp_email
+from app.utils.audit import audit_logger, AuditAction, AuditResult
 import secrets
 import hashlib
 import sys
@@ -1071,4 +1072,69 @@ def get_patient_profile(user_id):
         return jsonify({
             'success': False,
             'message': 'An error occurred while fetching patient profile'
+        }), 500
+
+
+# ====== Delete User (Admin) ======
+@auth_bp.route('/users/<user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    """
+    Delete a user account (deactivate)
+    DELETE /api/auth/users/:user_id
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get user info for audit log
+        user_response = supabase.table('users').select('*').eq('user_id', user_id).execute()
+
+        if not user_response.data:
+            audit_logger.log(
+                user_id="ADMIN",
+                user_name="Admin",
+                action=AuditAction.USER_DELETE,
+                target=user_id,
+                result=AuditResult.FAILED,
+                details=f"User {user_id} not found"
+            )
+            return jsonify({'success': False, 'message': 'User not found'}), 404
+
+        user = user_response.data[0]
+        user_name = user.get('full_name', user_id)
+
+        # Deactivate the user (soft delete)
+        supabase.table('users')\
+            .update({'is_active': False})\
+            .eq('user_id', user_id)\
+            .execute()
+
+        audit_logger.log(
+            user_id="ADMIN",
+            user_name="Admin",
+            action=AuditAction.USER_DELETE,
+            target=f"{user_name} ({user_id})",
+            result=AuditResult.OK,
+            details=f"User {user_name} (ID: {user_id}, Role: {user.get('role')}) deleted"
+        )
+
+        return jsonify({
+            'success': True,
+            'message': f'User {user_name} has been deleted'
+        }), 200
+
+    except Exception as e:
+        print(f"Delete user error: {e}")
+        import traceback
+        traceback.print_exc()
+        audit_logger.log(
+            user_id="ADMIN",
+            user_name="Admin",
+            action=AuditAction.USER_DELETE,
+            target=user_id,
+            result=AuditResult.FAILED,
+            details=f"Error deleting user: {str(e)}"
+        )
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while deleting user'
         }), 500

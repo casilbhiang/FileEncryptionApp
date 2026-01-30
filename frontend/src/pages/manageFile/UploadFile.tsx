@@ -202,7 +202,7 @@ const UploadFilePage: React.FC = () => {
         
         // STEP 3: Confirm Upload
         try {
-          await fetch(`http://localhost:5000/api/files/confirm/${uploadedFileId}`, {
+          await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/files/confirm/${uploadedFileId}`, {
             method: 'POST',
           });
           console.log('Upload confirmed:', uploadedFileId);

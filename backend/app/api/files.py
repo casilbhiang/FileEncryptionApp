@@ -10,6 +10,7 @@ import io
 import base64
 from app.models.storage import key_pair_store
 from app.crypto.encryption import EncryptionManager
+from app.utils.audit import audit_logger, AuditAction, AuditResult
 from config import Config
 
 # Configuration
@@ -442,15 +443,30 @@ def delete_file(file_id):
         if not user_id:
              return jsonify({'error': 'User ID is required'}), 400
         
+        # Get file info for audit log
+        file_info = supabase.table('encrypted_files')\
+            .select('original_filename')\
+            .eq('id', file_id)\
+            .execute()
+        file_name = file_info.data[0]['original_filename'] if file_info.data else file_id
+
         result = supabase.table('encrypted_files')\
             .update({'is_deleted': True})\
             .eq('id', file_id)\
             .eq('userid', user_id)\
             .execute()
-        
+
         if result.data:
             print(f"File {file_id} deleted successfully")
-        
+            audit_logger.log(
+                user_id=user_id,
+                user_name=user_id,
+                action=AuditAction.FILE_DELETE,
+                target=file_name,
+                result=AuditResult.OK,
+                details=f"File {file_name} deleted (ID: {file_id})"
+            )
+
         return jsonify({'message': 'File deleted successfully'}), 200
     
     except Exception as e:
@@ -871,6 +887,15 @@ def delete_outdated_files():
 
                     deleted_count += 1
                     print(f"Deleted file: {file_id}")
+
+                    audit_logger.log(
+                        user_id="ADMIN",
+                        user_name="Admin",
+                        action=AuditAction.FILE_DELETE,
+                        target=f"File {file_id}",
+                        result=AuditResult.OK,
+                        details=f"Outdated file deleted (ID: {file_id})"
+                    )
                 else:
                     errors.append(f"File {file_id} not found")
 

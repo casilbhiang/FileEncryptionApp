@@ -4,7 +4,13 @@
       "Bash(grep:*)",
       "Bash(del database_setup.sql add_compound_userid.sql migrate_to_compound_userids.sql update_existing_users_manual.sql migrate_compound_userids_safe.sql fix_audit_logging.sql insert_existing_patient_profiles.sql create_patient_profiles_table.sql create_patient_profiles_table_simple.sql create_patient_profiles_table_fixed.sql insert_existing_patient_profiles_fixed.sql check_connections_table.sql fix_connections_table_column.sql add_user_creation_audit_logs.sql backfill_user_creation_simple.sql verify_user_creation_logs.sql create_user_creation_trigger.sql)",
       "Bash(git fetch:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd .python-version to use Python 3.11 on Render\n\nFixes build failures due to Python 3.13 compatibility issues with cryptography and Pillow packages.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(python -m py_compile:*)"
     ]
   }
 }

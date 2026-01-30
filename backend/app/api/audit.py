@@ -16,6 +16,8 @@ def get_audit_logs():
         action = request.args.get('action')
         result = request.args.get('result')
         search_query = request.args.get('search')
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 10))
 
         supabase = get_supabase_admin_client()
 
@@ -158,10 +160,22 @@ def get_audit_logs():
         # Sort all logs by timestamp (newest first)
         formatted_logs.sort(key=lambda x: x['timestamp'], reverse=True)
 
+        # Pagination
+        total_logs = len(formatted_logs)
+        total_pages = max(1, (total_logs + per_page - 1) // per_page)
+        page = min(page, total_pages)
+        start = (page - 1) * per_page
+        end = start + per_page
+        paginated_logs = formatted_logs[start:end]
+
         return jsonify({
             'success': True,
-            'logs': formatted_logs,
-            'count': len(formatted_logs)
+            'logs': paginated_logs,
+            'count': len(paginated_logs),
+            'total': total_logs,
+            'page': page,
+            'per_page': per_page,
+            'total_pages': total_pages
         }), 200
 
     except Exception as e:
