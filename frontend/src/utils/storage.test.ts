@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { storage } from './storage';
 import Cookies from 'js-cookie';
 
@@ -49,11 +49,13 @@ describe('storage utility', () => {
         // We can cheat: we know storage.setItem(key, 'secret') calls Cookies.set(key, encrypted).
         // Let's grab that encrypted value.
 
+
         // 1. Call setItem to generate encrypted string
         storage.setItem(key, 'secret-data');
-        const encryptedValue = vi.mocked(Cookies.set).mock.calls[0][1];
+        const encryptedValue = vi.mocked(Cookies.set).mock.calls[0][1] as string;
 
         // 2. Mock Cookies.get to return that encrypted string
+        // @ts-ignore
         vi.mocked(Cookies.get).mockReturnValue(encryptedValue);
 
         // 3. Call getItem
@@ -63,12 +65,14 @@ describe('storage utility', () => {
     });
 
     it('should return null if item does not exist', () => {
+        // @ts-ignore
         vi.mocked(Cookies.get).mockReturnValue(undefined);
         expect(storage.getItem('non-existent')).toBeNull();
     });
 
     it('should remove item', () => {
         storage.removeItem('key-to-remove');
+        // @ts-ignore
         expect(Cookies.remove).toHaveBeenCalledWith('key-to-remove', undefined);
     });
 });

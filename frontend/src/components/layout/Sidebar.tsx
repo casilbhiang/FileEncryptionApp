@@ -170,7 +170,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
                 notifications.map((notif) => (
                   <div
                     key={notif.id}
-                    className={`p-4 border-b hover:bg-gray-50 cursor-pointer transition ${!notif.read ? 'bg-cyan-50' : 'bg-white'
+                    className={`p-4 border-b hover:bg-gray-50 cursor-pointer transition ${!notif.is_read ? 'bg-cyan-50' : 'bg-white'
                       }`}
                     onClick={() => markAsRead(notif.id)}
                   >
@@ -178,7 +178,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
                       <div className="flex-1 min-w-0">
                         <h4 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
                           {notif.title}
-                          {!notif.read && (
+                          {!notif.is_read && (
                             <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
                           )}
                         </h4>
