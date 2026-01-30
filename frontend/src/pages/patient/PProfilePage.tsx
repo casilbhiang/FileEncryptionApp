@@ -147,7 +147,7 @@ const PProfilePage: React.FC = () => {
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
         {/* Header with Back Button Only - No Edit Button */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl lg:text-3xl font-bold">MY HEALTH PROFILE</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold">My Health Profile</h1>
         </div>
 
         {/* Patient Health Profile Card */}

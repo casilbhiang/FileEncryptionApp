@@ -2,13 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { storage } from './storage';
 import Cookies from 'js-cookie';
 
-// Mock CryptoJS to have predictable output or just rely on the real one?
-// Real one is better for integration testing the util.
-// js-cookie needs to be mocked if we are not in a browser env, 
-// BUT jsdom should handle document.cookie.
-// However, js-cookie might need setup.
-// Let's mock js-cookie to be safe and test the wrapper logic.
-
 vi.mock('js-cookie', () => {
     return {
         default: {

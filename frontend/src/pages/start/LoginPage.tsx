@@ -81,6 +81,7 @@ const LoginPage: React.FC = () => {
 
       storage.setItem('user_role', data.user.role);
       storage.setItem('user_id', data.user.user_id);
+      storage.setItem('user_name', data.user.full_name);
       storage.setItem('user_uuid', data.user.id);
       storage.setItem('user_email', email);
       storage.setItem('is_first_login', data.user.is_first_login ? 'true' : 'false');

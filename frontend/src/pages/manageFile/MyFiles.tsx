@@ -8,7 +8,6 @@ import {
   Loader2,
   Upload,
   Share2,
-  Eye,
   ChevronLeft,
   ChevronRight,
   Lock,
@@ -123,17 +122,36 @@ const MyFiles: React.FC = () => {
 
   const getFileSourceInfo = (file: FileItem) => {
     const shareType = getShareType(file);
+    const userId = localStorage.getItem('user_id');
 
+    // For files shared WITH me, show who shared it
     if (shareType === 'shared-with-me' && file.shared_by_name) {
       return `Shared by: ${file.shared_by_name}`;
     }
 
-    if (file.owner_name && file.owner_id !== userId) {
-      return `Owner: ${file.owner_name}`;
+    // For files I OWN but shared with others, show who I shared with
+    if (shareType === 'shared-by-me') {
+      // Use type assertion to satisfy TypeScript
+      const fileWithSharedNames = file as FileItem & { shared_with_names?: string[] };
+
+      if (fileWithSharedNames.shared_with_names && fileWithSharedNames.shared_with_names.length > 0) {
+        if (fileWithSharedNames.shared_with_names.length === 1) {
+          return `Shared with: ${fileWithSharedNames.shared_with_names[0]}`;
+        } else {
+          return `Shared with: ${fileWithSharedNames.shared_with_names.join(', ')}`;
+        }
+      }
+
+      // Fallback: show count if names aren't available
+      const fileWithCount = file as FileItem & { shared_count?: number };
+      if (fileWithCount.shared_count && fileWithCount.shared_count > 0) {
+        return `Shared with ${fileWithCount.shared_count} ${fileWithCount.shared_count === 1 ? 'person' : 'people'}`;
+      }
     }
 
-    if (shareType === 'shared-by-me' && file.shared_count && file.shared_count > 0) {
-      return `Shared with ${file.shared_count} ${file.shared_count === 1 ? 'person' : 'people'}`;
+    const fileWithOwnerName = file as FileItem & { owner_name?: string };
+    if (fileWithOwnerName.owner_name && file.owner_id !== userId) {
+      return `Owner: ${fileWithOwnerName.owner_name}`;
     }
 
     if (shareType === 'owned') {
@@ -401,7 +419,7 @@ const MyFiles: React.FC = () => {
       <Sidebar userRole={userRole} currentPage="my-files" />
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
         <div className="mb-6">
-          <h1 className="text-2xl lg:text-3xl font-bold mb-2">MY FILES</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold mb-2">My Files</h1>
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 text-red-600 rounded text-sm">
@@ -510,7 +528,7 @@ const MyFiles: React.FC = () => {
                   </div>
 
                   <div className="border-t pt-3">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                       <div className="flex items-start gap-2 p-2 bg-gray-50 rounded">
                         <Upload className="w-4 h-4 text-gray-400 mt-0.5" />
                         <div>
@@ -529,15 +547,7 @@ const MyFiles: React.FC = () => {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-start gap-2 p-2 bg-gray-50 rounded">
-                        <Eye className="w-4 h-4 text-gray-400 mt-0.5" />
-                        <div>
-                          <div className="text-gray-500 font-medium mb-1">Last Accessed</div>
-                          <div className="text-gray-700 font-mono text-xs">
-                            {file.last_accessed_at ? formatDetailedTimestamp(file.last_accessed_at) : 'Never accessed'}
-                          </div>
-                        </div>
-                      </div>
+
                     </div>
                   </div>
                 </div>

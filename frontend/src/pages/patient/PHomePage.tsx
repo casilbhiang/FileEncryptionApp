@@ -1,14 +1,14 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
-import { Loader2, RefreshCw, Eye, Download, User, FileText, Share2, Inbox, CheckCircle } from 'lucide-react';
+import { Loader2, RefreshCw, Eye, Download, FileText, Share2, Inbox, CheckCircle } from 'lucide-react';
 import { getMyFiles, type FileItem, formatFileSize } from '../../services/Files';
 import { storage } from '../../utils/storage';
 
 const PHomePage: React.FC = () => {
   const userRole = 'patient';
 
-  const [userName, setUserName] = useState<string>('Patient');
+  const [userName, setUserName] = useState<string>(storage.getItem('user_name') || 'Patient');
   const [recentFiles, setRecentFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
@@ -124,9 +124,6 @@ const PHomePage: React.FC = () => {
     window.location.href = '/patient/my-files';
   };
 
-  const handleViewShared = () => {
-    window.location.href = '/patient/my-files';
-  };
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
@@ -157,11 +154,6 @@ const PHomePage: React.FC = () => {
                   <RefreshCw className="w-5 h-5 text-blue-600" />
                 )}
               </button>
-
-              {/* User profile placeholder */}
-              <div className="p-2 bg-gray-100 rounded-lg border">
-                <User className="w-5 h-5 text-gray-600" />
-              </div>
             </div>
           </div>
 
@@ -243,12 +235,6 @@ const PHomePage: React.FC = () => {
               >
                 View All Files
               </button>
-              <button
-                onClick={handleViewShared}
-                className="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
-              >
-                View Shared
-              </button>
             </div>
           </div>
 
@@ -316,12 +302,6 @@ const PHomePage: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => window.location.href = `/patient/my-files`}
-                      className="px-3 py-1.5 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
-                    >
-                      View
-                    </button>
                     <div className="w-8 h-8 flex items-center justify-center">
                       <Download className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
                     </div>
