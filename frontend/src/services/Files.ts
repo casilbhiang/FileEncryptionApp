@@ -1,4 +1,3 @@
-// services/Files.ts - MERGED VERSION
 
 const API_BASE_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/files`;
 
@@ -10,6 +9,7 @@ export interface FileShare {
 }
 
 // Enhanced FileItem interface combining both versions
+// services/Files.ts - PROPER VERSION
 export interface FileItem {
   id: string;
   name: string;
@@ -18,19 +18,35 @@ export interface FileItem {
   file_extension?: string;
   owner_id: string; 
   owner_uuid?: string;
+  
+  // Ownership and sharing status
   is_owned?: boolean;
   is_shared?: boolean;
+  
+  // For files shared WITH you
   shared_by?: string;
-  shared_by_uuid?: string;
   shared_by_name?: string;
+  shared_by_uuid?: string;
+  
+  // For files you've shared
+  shared_with_names?: string[];  // This should exist
+  shared_count?: number;
+  
+  // Timestamps
   shared_at?: string;
   last_accessed_at?: string;
-  shares?: FileShare[]; 
-  shared_count?: number;
-  owner_name?: string; 
+  
+  // Owner information
+  owner_name?: string;
   owner_role?: string;
+  
+  // Additional file info
   file_size?: number;
+  
+  // Legacy/optional
+  shares?: FileShare[];
 }
+
 
 export interface UploadResponse {
   message: string;
@@ -139,7 +155,7 @@ export const getMyFiles = async (
   params.append('user_uuid', userId);
   if (search) params.append('search', search);
   if (sortField) params.append('sort', sortField);
-  if(sortOrder) params.append('order', sortOrder);
+  if (sortOrder) params.append('order', sortOrder);
   if (filter) params.append('filter', filter);
   if (page) params.append('page', page.toString());
   if (limit) params.append('limit', limit.toString());
@@ -153,6 +169,15 @@ export const getMyFiles = async (
 
   const data = await response.json();
   
+  // DEBUG: Log what we're receiving
+  console.log('=== BACKEND RESPONSE STRUCTURE ===');
+  console.log('Full response keys:', Object.keys(data));
+  console.log('Files array length:', data.files?.length);
+  if (data.files && data.files.length > 0) {
+    console.log('First file object:', data.files[0]);
+    console.log('First file keys:', Object.keys(data.files[0]));
+  }
+  
   // Handle different response formats
   if (data.success && data.data) {
     // New format with pagination
@@ -162,19 +187,27 @@ export const getMyFiles = async (
       pagination: data.pagination
     };
   } else if (data.files) {
-    // Old format
+    // Old format - THIS IS WHAT YOUR BACKEND RETURNS (from files.py line 338)
+    // The backend returns { files: [...], total: X, page: Y, ... }
     return {
-      files: data.files,
-      total: data.total || data.files.length
+      files: data.files as FileItem[], // Cast to ensure TypeScript knows the structure
+      total: data.total || data.files.length,
+      pagination: data.pagination || {
+        page: data.page || 1,
+        limit: data.limit || limit || 20,
+        total: data.total || data.files.length,
+        pages: data.total_pages || Math.ceil((data.total || data.files.length) / (data.limit || limit || 20))
+      }
     };
   } else {
     // Fallback
     return {
-      files: data,
+      files: data as FileItem[],
       total: data.length
     };
   }
 };
+
 
 /* Format file size for display */
 export const formatFileSize = (bytes: number): string => {

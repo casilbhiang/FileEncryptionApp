@@ -159,3 +159,41 @@ export const getFileShares = async (fileId: string, userId: string) => {
     return { success: false, error: 'Network error' };
   }
 };
+
+// Get files already shared with a specific recipient
+export const getFilesSharedWithRecipient = async (
+  sharedBy: string,
+  sharedWith: string
+) => {
+  try {
+    // Direct API call to get files shared with this specific recipient
+    const response = await fetch(
+      `${SHARES_API}/shared-with/${sharedWith}?shared_by=${sharedBy}`
+    );
+    
+    if (response.ok) {
+      const data = await response.json();
+      const fileIds = Array.isArray(data.file_ids) ? data.file_ids : [];
+      return { success: true, data: fileIds };
+    } else {
+      // Fallback to the existing method if the endpoint doesn't exist
+      const fallbackResponse = await fetch(
+        `${SHARES_API}/my-shares?user_id=${sharedBy}&limit=100`
+      );
+      const data = await fallbackResponse.json();
+      
+      if (fallbackResponse.ok) {
+        const shares = Array.isArray(data.shares) ? data.shares : [];
+        const fileIds = shares
+          .filter((share: any) => share.shared_with === sharedWith)
+          .map((share: any) => share.file_id);
+        return { success: true, data: fileIds };
+      } else {
+        return { success: false, error: data.error || 'Failed to fetch shared files' };
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching files shared with recipient:', error);
+    return { success: false, error: 'Network error' };
+  }
+};

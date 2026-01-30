@@ -163,20 +163,23 @@ def get_my_files():
         if not user_uuid:
             return jsonify({'error': 'User UUID is required'}), 400
         
-        # Get user's text ID from UUID
+        # Get user's text ID from UUID - ONLY select columns that exist
         user_text_id_query = supabase.table('users')\
-            .select('user_id')\
+            .select('user_id, full_name')\
             .eq('id', user_uuid)\
             .execute()
         
         if not user_text_id_query.data:
             return jsonify({'error': 'User not found'}), 404
         
-        user_text_id = user_text_id_query.data[0]['user_id']
+        current_user_id = user_text_id_query.data[0]['user_id']
+        # Use full_name if it exists, otherwise use user_id
+        current_user_name = user_text_id_query.data[0].get('full_name') or current_user_id
         
         print(f"=== GET MY FILES DEBUG ===")
         print(f"User UUID: {user_uuid}")
-        print(f"User Text ID: {user_text_id}")
+        print(f"User Text ID: {current_user_id}")
+        print(f"Current User Name: {current_user_name}")
         
         # Get query parameters
         search_query = request.args.get('search', '').strip().lower()
@@ -187,25 +190,41 @@ def get_my_files():
         limit = min(int(request.args.get('limit', 20)), 100)
         start_idx = (page - 1) * limit
         
-        # Helper: Get user name (cached)
+        # Helper: Get user name - only use full_name column
         user_name_cache = {}
         def get_user_name(uid):
             if uid in user_name_cache:
                 return user_name_cache[uid]
+            
+            # If it's the current user, use their name from the initial query
+            if uid == current_user_id:
+                user_name_cache[uid] = current_user_name
+                return current_user_name
+            
             try:
+                # Only select full_name (and user_id for reference)
                 result = supabase.table('users')\
-                    .select('full_name, name')\
+                    .select('user_id, full_name')\
                     .eq('user_id', uid)\
                     .execute()
+                
                 if result.data:
                     user_data = result.data[0]
-                    name = user_data.get('full_name') or user_data.get('name') or uid
+                    full_name = user_data.get('full_name')
+                    
+                    # Use full_name if it exists and is not empty
+                    if full_name and str(full_name).strip():
+                        display_name = str(full_name).strip()
+                    else:
+                        display_name = uid
                 else:
-                    name = uid
-            except:
-                name = uid
-            user_name_cache[uid] = name
-            return name
+                    display_name = uid
+            except Exception as e:
+                print(f"Error fetching user name for {uid}: {e}")
+                display_name = uid
+            
+            user_name_cache[uid] = display_name
+            return display_name
         
         # Fetch owned files
         owned_files = []
@@ -223,7 +242,7 @@ def get_my_files():
         if owned_files:
             file_ids = [f['id'] for f in owned_files]
             shares_batch = supabase.table('file_shares')\
-                .select('file_id, shared_at')\
+                .select('file_id, shared_at, shared_with')\
                 .in_('file_id', file_ids)\
                 .eq('share_status', 'active')\
                 .execute()
@@ -240,7 +259,7 @@ def get_my_files():
         if filter_type in ['received', 'all']:
             shared_query = supabase.table('file_shares')\
                 .select('*, encrypted_files(*)')\
-                .eq('shared_with', user_text_id)\
+                .eq('shared_with', current_user_id)\
                 .eq('share_status', 'active')\
                 .execute()
             
@@ -261,6 +280,18 @@ def get_my_files():
             shared_count = len(shares_for_file)
             shared_at = max([s['shared_at'] for s in shares_for_file if s.get('shared_at')], default=None)
             
+            # Get names of people this file is shared with
+            shared_with_names = []
+            if shares_for_file:
+                for share in shares_for_file:
+                    if share.get('shared_with'):
+                        name = get_user_name(share['shared_with'])
+                        shared_with_names.append(name)
+            
+            # Get owner name
+            owner_id = f['owner_id']
+            owner_name = get_user_name(owner_id)
+            
             file_obj = {
                 'id': f['id'],
                 'name': f['original_filename'],
@@ -268,13 +299,15 @@ def get_my_files():
                 'uploaded_at': f['uploaded_at'],
                 'file_extension': f['file_extension'],
                 'is_owned': True,
-                'owner_id': f['owner_id'],
+                'owner_id': owner_id,
+                'owner_name': owner_name,
                 'owner_uuid': f['userid'],
-                'owner_name': get_user_name(f['owner_id']),
                 'last_accessed_at': f.get('last_accessed_at'),
                 'is_shared': shared_count > 0,
                 'shared_count': shared_count,
+                'shared_with_names': shared_with_names,
                 'shared_by': None,
+                'shared_by_name': None,
                 'shared_at': shared_at
             }
             
@@ -289,6 +322,14 @@ def get_my_files():
             f = item['file_data']
             share = item['share_data']
             
+            # Get owner name
+            owner_id = f['owner_id']
+            owner_name = get_user_name(owner_id)
+            
+            # Get shared_by name
+            shared_by_id = share['shared_by']
+            shared_by_name = get_user_name(shared_by_id)
+            
             files.append({
                 'id': f['id'],
                 'name': f['original_filename'],
@@ -296,17 +337,18 @@ def get_my_files():
                 'uploaded_at': f['uploaded_at'],
                 'file_extension': f['file_extension'],
                 'is_owned': False,
-                'owner_id': f['owner_id'],
+                'owner_id': owner_id,
+                'owner_name': owner_name,
                 'owner_uuid': f['userid'],
-                'owner_name': get_user_name(f['owner_id']),
                 'last_accessed_at': f.get('last_accessed_at'),
                 'is_shared': True,
                 'shared_count': 1,
-                'shared_by': share['shared_by'],
-                'shared_by_name': get_user_name(share['shared_by']),
+                'shared_by': shared_by_id,
+                'shared_by_name': shared_by_name,
                 'shared_at': share.get('shared_at'),
                 'share_id': share['id'],
-                'access_level': share['access_level']
+                'access_level': share['access_level'],
+                'shared_with_names': []  # Empty for received files
             })
         
         # Apply search filter
@@ -358,27 +400,9 @@ def get_my_files():
         error_details = traceback.format_exc()
         print(f"Get files error: {e}")
         print(f"Full traceback:\n{error_details}")
-        return jsonify({'error': f'{str(e)}', 'details': error_details}), 500
+        return jsonify({'error': f'{str(e)}', 'details': error_details}), 500    
+        
     
-# Helper function to get user name
-def get_user_name(user_id):
-    """
-    Get user's name from users table
-    """
-    try:
-        result = supabase.table('users')\
-            .select('full_name, name')\
-            .eq('user_id', user_id)\
-            .execute()
-        
-        if result.data:
-            user_data = result.data[0]
-            # Return full_name if exists, otherwise name, otherwise user_id
-            return user_data.get('full_name') or user_data.get('name') or user_id
-        
-        return user_id  # Fallback to user_id if not found
-    except:
-        return user_id  # Fallback to user_id on error
     
 # ===== Download File =====
 @files_bp.route('/download/<file_id>', methods=['GET'])
