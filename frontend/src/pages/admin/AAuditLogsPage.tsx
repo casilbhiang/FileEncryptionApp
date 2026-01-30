@@ -24,6 +24,8 @@ const formatTimestampToLocal = (timestamp: string): string => {
   }
 };
 
+const LOGS_PER_PAGE = 10;
+
 const AAuditLogsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [actionFilter, setActionFilter] = useState('all');
@@ -32,17 +34,36 @@ const AAuditLogsPage: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalLogs, setTotalLogs] = useState(0);
 
   // Load audit logs from API
   useEffect(() => {
     loadAuditLogs();
-  }, []);
+  }, [currentPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    if (currentPage === 1) {
+      loadAuditLogs();
+    } else {
+      setCurrentPage(1);
+    }
+  }, [searchQuery, actionFilter, resultFilter, dateFilter]);
 
   const loadAuditLogs = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await getAuditLogs();
+      const response = await getAuditLogs(
+        undefined,
+        actionFilter !== 'all' ? actionFilter : undefined,
+        resultFilter !== 'all' ? resultFilter : undefined,
+        searchQuery || undefined,
+        currentPage,
+        LOGS_PER_PAGE
+      );
       // Filter OUT Key and Pairing events (they have their own tab)
       // But keep KEY_DELETE so it shows in audit logs
       const auditOnlyLogs = response.logs.filter(log => {
@@ -51,6 +72,8 @@ const AAuditLogsPage: React.FC = () => {
         return !action.includes('KEY') && !action.includes('PAIRING');
       });
       setLogs(auditOnlyLogs);
+      setTotalPages(response.total_pages || 1);
+      setTotalLogs(response.total || 0);
     } catch (err) {
       console.error('Failed to load audit logs:', err);
       setError(err instanceof Error ? err.message : 'Failed to load audit logs');
@@ -59,30 +82,30 @@ const AAuditLogsPage: React.FC = () => {
     }
   };
 
-  // Get unique action types from logs
+  // Get unique action types from current page logs (for dropdown)
   const uniqueActions = Array.from(new Set(logs.map(log => log.action))).sort();
 
-  // Filter logs based on current filters
-  const filteredLogs = logs.filter((log) => {
-    // Search by user, action, target, details, or timestamp/date
-    // Use optional chaining and nullish coalescing to prevent errors
-    const searchLower = searchQuery.toLowerCase();
-    const matchesSearch = !searchQuery ||
-      (log.user || '').toLowerCase().includes(searchLower) ||
-      (log.action || '').toLowerCase().includes(searchLower) ||
-      (log.target || '').toLowerCase().includes(searchLower) ||
-      (log.details || '').toLowerCase().includes(searchLower) ||
-      (log.timestamp || '').toLowerCase().includes(searchLower);
+  // Date filter applied client-side on the current page
+  const filteredLogs = dateFilter
+    ? logs.filter(log => (log.timestamp || '').includes(dateFilter))
+    : logs;
 
-    const matchesAction = actionFilter === 'all' || log.action === actionFilter;
-    const matchesResult = resultFilter === 'all' || log.result === resultFilter.toUpperCase();
-
-    // Date filter - raw timestamp from API is in YYYY-MM-DD format
-    // dateFilter from date picker is also YYYY-MM-DD, so compare directly
-    const matchesDate = !dateFilter || (log.timestamp || '').includes(dateFilter);
-
-    return matchesSearch && matchesAction && matchesResult && matchesDate;
-  });
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('...');
+      for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+        pages.push(i);
+      }
+      if (currentPage < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+    return pages;
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
@@ -214,9 +237,44 @@ const AAuditLogsPage: React.FC = () => {
             )}
           </div>
 
-          {/* Results count */}
-          <div className="p-4 border-t bg-gray-50 text-sm text-gray-600">
-            Showing {filteredLogs.length} of {logs.length} audit logs
+          {/* Pagination */}
+          <div className="p-4 border-t bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <span className="text-sm text-gray-600">
+              Page {currentPage} of {totalPages} ({totalLogs} total logs)
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 text-sm border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition"
+              >
+                Previous
+              </button>
+              {getPageNumbers().map((page, idx) =>
+                typeof page === 'string' ? (
+                  <span key={`dots-${idx}`} className="px-2 py-1 text-sm text-gray-400">...</span>
+                ) : (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1 text-sm border rounded-lg transition ${
+                      currentPage === page
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'hover:bg-gray-100'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                )
+              )}
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 text-sm border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition"
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
       </div>
