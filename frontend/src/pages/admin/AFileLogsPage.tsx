@@ -26,6 +26,8 @@ interface OutdatedFile {
   file_extension: string;
 }
 
+const ITEMS_PER_PAGE = 6;
+
 const AFileLogsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [fileTypeFilter, setFileTypeFilter] = useState('all');
@@ -33,6 +35,7 @@ const AFileLogsPage: React.FC = () => {
   const [logs, setLogs] = useState<FileLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Outdated files state
   const [outdatedFiles, setOutdatedFiles] = useState<OutdatedFile[]>([]);
@@ -225,6 +228,32 @@ const AFileLogsPage: React.FC = () => {
     new Date(b.raw_timestamp).getTime() - new Date(a.raw_timestamp).getTime()
   );
 
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(sortedLogs.length / ITEMS_PER_PAGE));
+  const paginatedLogs = sortedLogs.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, fileTypeFilter, actionTypeFilter]);
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('...');
+      for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+        pages.push(i);
+      }
+      if (currentPage < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+    return pages;
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 flex">
       {/* Sidebar */}
@@ -361,8 +390,8 @@ const AFileLogsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {sortedLogs.length > 0 ? (
-                    sortedLogs.map((log) => (
+                  {paginatedLogs.length > 0 ? (
+                    paginatedLogs.map((log) => (
                       <tr key={log.id} className="hover:bg-gray-50">
                         <td className="px-4 py-4 text-sm text-gray-900">{log.timestamp}</td>
                         <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate" title={log.file_name}>
@@ -403,9 +432,44 @@ const AFileLogsPage: React.FC = () => {
             )}
           </div>
 
-          {/* Results count */}
-          <div className="p-4 border-t bg-gray-50 text-sm text-gray-600">
-            Showing {sortedLogs.length} of {logs.length} file operation logs
+          {/* Pagination */}
+          <div className="p-4 border-t bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <span className="text-sm text-gray-600">
+              Page {currentPage} of {totalPages} ({sortedLogs.length} total logs)
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 text-sm border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition"
+              >
+                Previous
+              </button>
+              {getPageNumbers().map((page, idx) =>
+                typeof page === 'string' ? (
+                  <span key={`dots-${idx}`} className="px-2 py-1 text-sm text-gray-400">...</span>
+                ) : (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1 text-sm border rounded-lg transition ${
+                      currentPage === page
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'hover:bg-gray-100'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                )
+              )}
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 text-sm border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition"
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
       </div>

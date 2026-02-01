@@ -13,11 +13,14 @@ interface User {
   inactiveDays?: number;
 }
 
+const ITEMS_PER_PAGE = 6;
+
 const AUserMgtPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('name');
+  const [currentPage, setCurrentPage] = useState(1);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -88,6 +91,32 @@ const AUserMgtPage: React.FC = () => {
       }
       return 0;
     });
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / ITEMS_PER_PAGE));
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, roleFilter, statusFilter, sortBy]);
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('...');
+      for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+        pages.push(i);
+      }
+      if (currentPage < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+    return pages;
+  };
 
   // Statistics
   const totalUsers = users.length;
@@ -324,8 +353,8 @@ const AUserMgtPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {filteredUsers.length > 0 ? (
-                      filteredUsers.map((user, index) => (
+                    {paginatedUsers.length > 0 ? (
+                      paginatedUsers.map((user, index) => (
                         <tr key={index} className="hover:bg-gray-50">
                           <td className="px-4 py-4 text-sm text-gray-900">{user.id}</td>
                           <td className="px-4 py-4 text-sm text-gray-900">{user.name}</td>
@@ -384,6 +413,46 @@ const AUserMgtPage: React.FC = () => {
                   </tbody>
                 </table>
               )}
+            </div>
+
+            {/* Pagination */}
+            <div className="p-4 border-t bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <span className="text-sm text-gray-600">
+                Page {currentPage} of {totalPages} ({filteredUsers.length} total users)
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 text-sm border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition"
+                >
+                  Previous
+                </button>
+                {getPageNumbers().map((page, idx) =>
+                  typeof page === 'string' ? (
+                    <span key={`dots-${idx}`} className="px-2 py-1 text-sm text-gray-400">...</span>
+                  ) : (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1 text-sm border rounded-lg transition ${
+                        currentPage === page
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'hover:bg-gray-100'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )
+                )}
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 text-sm border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </div>
         </div>
