@@ -35,7 +35,7 @@ const PProfilePage: React.FC = () => {
     try {
       setLoading(true);
 
-      // Get the patient's own user_id from localStorage
+      // Get the patient's own user_id from cookies
       const userId = storage.getItem('user_id');
 
       if (!userId) {
@@ -162,7 +162,7 @@ const PProfilePage: React.FC = () => {
               <div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-1">{patientData.name}</h3>
                 <p className="text-sm text-gray-700">{patientData.email}</p>
-                <p className="text-sm text-gray-700 mt-1">User ID: {localStorage.getItem('user_id')}</p>
+                <p className="text-sm text-gray-700 mt-1">User ID: {storage.getItem('user_id')}</p>
               </div>
             </div>
           </div>
