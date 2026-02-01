@@ -219,16 +219,16 @@ const AUserMgtPage: React.FC = () => {
         <Sidebar userRole="admin" currentPage="user-management" />
 
         {/* Main Content */}
-        <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
+        <div className="flex-1 min-w-0 p-4 lg:p-8 pt-16 lg:pt-8">
           {/* Header */}
-          <div className="flex items-start justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl lg:text-3xl font-bold mb-2">User Management</h1>
               <p className="text-gray-600">Create, View, Edit And Manage User Account</p>
             </div>
             <button
               onClick={() => window.location.href = '/admin/create-user'}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
+              className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition flex flex-col items-center justify-center"
             >
               Create User
               <div className="text-xs font-normal">Add new account</div>
@@ -356,10 +356,10 @@ const AUserMgtPage: React.FC = () => {
                     {paginatedUsers.length > 0 ? (
                       paginatedUsers.map((user, index) => (
                         <tr key={index} className="hover:bg-gray-50">
-                          <td className="px-4 py-4 text-sm text-gray-900">{user.id}</td>
-                          <td className="px-4 py-4 text-sm text-gray-900">{user.name}</td>
-                          <td className="px-4 py-4 text-sm text-gray-600">{user.email}</td>
-                          <td className="px-4 py-4">
+                          <td className="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{user.id}</td>
+                          <td className="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{user.name}</td>
+                          <td className="px-4 py-4 text-sm text-gray-600 whitespace-nowrap">{user.email}</td>
+                          <td className="px-4 py-4 whitespace-nowrap">
                             <span className={`px-3 py-1 rounded-full text-xs font-semibold ${user.role === 'Doctor' ? 'bg-blue-100 text-blue-700' :
                               user.role === 'Patient' ? 'bg-pink-100 text-pink-700' :
                                 'bg-purple-100 text-purple-700'
@@ -367,7 +367,7 @@ const AUserMgtPage: React.FC = () => {
                               {user.role}
                             </span>
                           </td>
-                          <td className="px-4 py-4">
+                          <td className="px-4 py-4 whitespace-nowrap">
                             {user.status === 'Active' ? (
                               <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -383,7 +383,7 @@ const AUserMgtPage: React.FC = () => {
                               </div>
                             )}
                           </td>
-                          <td className="px-4 py-4">
+                          <td className="px-4 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={() => handleEditClick(user)}
@@ -435,11 +435,10 @@ const AUserMgtPage: React.FC = () => {
                     <button
                       key={page}
                       onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1 text-sm border rounded-lg transition ${
-                        currentPage === page
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'hover:bg-gray-100'
-                      }`}
+                      className={`px-3 py-1 text-sm border rounded-lg transition ${currentPage === page
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'hover:bg-gray-100'
+                        }`}
                     >
                       {page}
                     </button>

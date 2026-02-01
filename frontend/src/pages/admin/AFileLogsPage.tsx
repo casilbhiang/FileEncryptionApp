@@ -260,7 +260,7 @@ const AFileLogsPage: React.FC = () => {
       <Sidebar userRole="admin" currentPage="file-logs" />
 
       {/* Main Content */}
-      <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
+      <div className="flex-1 min-w-0 p-4 lg:p-8 pt-16 lg:pt-8">
         {/* Header */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -279,11 +279,10 @@ const AFileLogsPage: React.FC = () => {
         </div>
 
         {/* Outdated Files Section - Always visible */}
-        <div className={`mb-6 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border ${
-          outdatedCount > 0
-            ? 'bg-amber-50 border-amber-200'
-            : 'bg-gray-50 border-gray-200'
-        }`}>
+        <div className={`mb-6 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border ${outdatedCount > 0
+          ? 'bg-amber-50 border-amber-200'
+          : 'bg-gray-50 border-gray-200'
+          }`}>
           <div className="flex items-center gap-3">
             <AlertTriangle className={`w-6 h-6 ${outdatedCount > 0 ? 'text-amber-600' : 'text-gray-400'}`} />
             <div>
@@ -300,11 +299,10 @@ const AFileLogsPage: React.FC = () => {
           </div>
           <button
             onClick={() => setShowOutdatedModal(true)}
-            className={`px-4 py-2 rounded-lg transition font-medium ${
-              outdatedCount > 0
-                ? 'bg-amber-600 text-white hover:bg-amber-700'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
+            className={`px-4 py-2 rounded-lg transition font-medium ${outdatedCount > 0
+              ? 'bg-amber-600 text-white hover:bg-amber-700'
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
           >
             {outdatedCount > 0 ? 'View & Delete' : 'View Details'}
           </button>
@@ -393,28 +391,26 @@ const AFileLogsPage: React.FC = () => {
                   {paginatedLogs.length > 0 ? (
                     paginatedLogs.map((log) => (
                       <tr key={log.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-4 text-sm text-gray-900">{log.timestamp}</td>
-                        <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate" title={log.file_name}>
+                        <td className="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{log.timestamp}</td>
+                        <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate whitespace-nowrap" title={log.file_name}>
                           {log.file_name}
                         </td>
-                        <td className="px-4 py-4 text-sm text-gray-900">
+                        <td className="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">
                           {log.owner_name} ({log.owner_id})
                         </td>
-                        <td className="px-4 py-4 text-sm text-gray-900">
-                          <span className={`inline-flex items-center gap-1 ${
-                            log.type === 'upload' ? 'text-blue-600' : 'text-purple-600'
-                          }`}>
+                        <td className="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">
+                          <span className={`inline-flex items-center gap-1 ${log.type === 'upload' ? 'text-blue-600' : 'text-purple-600'
+                            }`}>
                             {log.action}
                           </span>
                         </td>
-                        <td className="px-4 py-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            log.status === 'completed' || log.status === 'active'
-                              ? 'bg-green-100 text-green-700'
-                              : log.status === 'revoked'
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${log.status === 'completed' || log.status === 'active'
+                            ? 'bg-green-100 text-green-700'
+                            : log.status === 'revoked'
                               ? 'bg-red-100 text-red-700'
                               : 'bg-yellow-100 text-yellow-700'
-                          }`}>
+                            }`}>
                             {log.status}
                           </span>
                         </td>
@@ -452,11 +448,10 @@ const AFileLogsPage: React.FC = () => {
                   <button
                     key={page}
                     onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-1 text-sm border rounded-lg transition ${
-                      currentPage === page
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'hover:bg-gray-100'
-                    }`}
+                    className={`px-3 py-1 text-sm border rounded-lg transition ${currentPage === page
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'hover:bg-gray-100'
+                      }`}
                   >
                     {page}
                   </button>

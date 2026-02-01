@@ -231,16 +231,16 @@ const AKeyMgtPage: React.FC = () => {
         <Sidebar userRole="admin" currentPage="key-management" />
 
         {/* Main Content */}
-        <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
+        <div className="flex-1 min-w-0 p-4 lg:p-8 pt-16 lg:pt-8">
           {/* Header */}
-          <div className="flex items-start justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl lg:text-3xl font-bold mb-2">Key Management</h1>
               <p className="text-gray-600">Generate, Distribute, Rotate, And Revoke AES-GCM Encryption Keys Securely</p>
             </div>
             <button
               onClick={() => setShowGenerateDialog(true)}
-              className="px-6 py-3 bg-yellow-400 text-gray-900 rounded-lg font-semibold hover:bg-yellow-500 transition"
+              className="w-full sm:w-auto px-6 py-3 bg-yellow-400 text-gray-900 rounded-lg font-semibold hover:bg-yellow-500 transition flex flex-col items-center justify-center"
             >
               Generate Key Pair
               <div className="text-xs font-normal">Doctor ↔ Patient</div>
@@ -343,17 +343,17 @@ const AKeyMgtPage: React.FC = () => {
                           key={keyPair.id}
                           className={`hover:bg-gray-50 ${keyPair.status === 'Inactive' ? 'bg-red-50' : ''}`}
                         >
-                          <td className="px-4 py-4 text-sm font-medium text-gray-900">{keyPair.id}</td>
-                          <td className="px-4 py-4 text-sm text-gray-900">{keyPair.doctor}</td>
-                          <td className="px-4 py-4 text-sm text-gray-900">{keyPair.patient}</td>
-                          <td className="px-4 py-4 text-sm text-gray-600">
+                          <td className="px-4 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">{keyPair.id}</td>
+                          <td className="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{keyPair.doctor}</td>
+                          <td className="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{keyPair.patient}</td>
+                          <td className="px-4 py-4 text-sm text-gray-600 whitespace-nowrap">
                             {keyPair.created.includes('Just now') || keyPair.created.includes('minutes ago') ? (
                               <span className="text-green-600 font-medium">{keyPair.created}</span>
                             ) : (
                               keyPair.created
                             )}
                           </td>
-                          <td className="px-4 py-4 text-sm text-gray-600">
+                          <td className="px-4 py-4 text-sm text-gray-600 whitespace-nowrap">
                             {(() => {
                               if (!keyPair.rawExpires) return 'Never';
                               const diff = new Date(keyPair.rawExpires).getTime() - new Date().getTime();
@@ -432,11 +432,10 @@ const AKeyMgtPage: React.FC = () => {
                     <button
                       key={page}
                       onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1 text-sm border rounded-lg transition ${
-                        currentPage === page
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'hover:bg-gray-100'
-                      }`}
+                      className={`px-3 py-1 text-sm border rounded-lg transition ${currentPage === page
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'hover:bg-gray-100'
+                        }`}
                     >
                       {page}
                     </button>

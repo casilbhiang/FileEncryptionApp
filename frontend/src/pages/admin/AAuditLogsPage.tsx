@@ -107,7 +107,7 @@ const AAuditLogsPage: React.FC = () => {
       <Sidebar userRole="admin" currentPage="audit-logs" />
 
       {/* Main Content */}
-      <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
+      <div className="flex-1 min-w-0 p-4 lg:p-8 pt-16 lg:pt-8">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl lg:text-3xl font-bold mb-2">Audit Logs</h1>
@@ -205,11 +205,11 @@ const AAuditLogsPage: React.FC = () => {
                   {filteredLogs.length > 0 ? (
                     filteredLogs.map((log) => (
                       <tr key={log.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-4 text-sm text-gray-900">{formatTimestampToLocal(log.timestamp)}</td>
-                        <td className="px-4 py-4 text-sm text-gray-900">{log.user}</td>
-                        <td className="px-4 py-4 text-sm text-gray-900">{log.action}</td>
-                        <td className="px-4 py-4 text-sm text-gray-600 max-w-xs truncate">{log.target}</td>
-                        <td className="px-4 py-4">
+                        <td className="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{formatTimestampToLocal(log.timestamp)}</td>
+                        <td className="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{log.user}</td>
+                        <td className="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{log.action}</td>
+                        <td className="px-4 py-4 text-sm text-gray-600 max-w-xs truncate whitespace-nowrap">{log.target}</td>
+                        <td className="px-4 py-4 whitespace-nowrap">
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${log.result === 'OK'
                             ? 'bg-green-100 text-green-700'
                             : 'bg-red-100 text-red-700'
@@ -251,11 +251,10 @@ const AAuditLogsPage: React.FC = () => {
                   <button
                     key={page}
                     onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-1 text-sm border rounded-lg transition ${
-                      currentPage === page
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'hover:bg-gray-100'
-                    }`}
+                    className={`px-3 py-1 text-sm border rounded-lg transition ${currentPage === page
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'hover:bg-gray-100'
+                      }`}
                   >
                     {page}
                   </button>

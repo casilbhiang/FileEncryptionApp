@@ -79,9 +79,9 @@ const AKeyLogsPage: React.FC = () => {
             <Sidebar userRole="admin" currentPage="key-logs" />
 
             {/* Main Content */}
-            <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
+            <div className="flex-1 min-w-0 p-4 lg:p-8 pt-16 lg:pt-8">
                 {/* Header */}
-                <div className="mb-6 flex justify-between items-start">
+                <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div>
                         <h1 className="text-2xl lg:text-3xl font-bold mb-2 flex items-center gap-2">
                             <Key className="w-8 h-8 text-purple-600" />
@@ -91,7 +91,7 @@ const AKeyLogsPage: React.FC = () => {
                     </div>
                     <button
                         onClick={loadKeyLogs}
-                        className="p-2 bg-white rounded-full shadow hover:shadow-md transition"
+                        className="p-2 bg-white rounded-full shadow hover:shadow-md transition self-start sm:self-auto"
                         title="Refresh Logs"
                     >
                         <RefreshCw className={`w-5 h-5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
@@ -141,19 +141,19 @@ const AKeyLogsPage: React.FC = () => {
                                     {paginatedLogs.length > 0 ? (
                                         paginatedLogs.map((log) => (
                                             <tr key={log.id} className="hover:bg-gray-50">
-                                                <td className="px-4 py-4 text-sm text-gray-900">{log.timestamp}</td>
-                                                <td className="px-4 py-4 text-sm text-gray-900 font-medium">{log.user}</td>
-                                                <td className="px-4 py-4 text-sm">
+                                                <td className="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{log.timestamp}</td>
+                                                <td className="px-4 py-4 text-sm text-gray-900 font-medium whitespace-nowrap">{log.user}</td>
+                                                <td className="px-4 py-4 text-sm whitespace-nowrap">
                                                     <span className={`px-2 py-1 rounded text-xs font-semibold ${log.action.includes('GENERATE') ? 'bg-blue-100 text-blue-700' :
-                                                            log.action.includes('DELETE') ? 'bg-red-100 text-red-700' :
-                                                                log.action.includes('PAIRING') ? 'bg-purple-100 text-purple-700' :
-                                                                    'bg-gray-100 text-gray-700'
+                                                        log.action.includes('DELETE') ? 'bg-red-100 text-red-700' :
+                                                            log.action.includes('PAIRING') ? 'bg-purple-100 text-purple-700' :
+                                                                'bg-gray-100 text-gray-700'
                                                         }`}>
                                                         {log.action}
                                                     </span>
                                                 </td>
-                                                <td className="px-4 py-4 text-sm text-gray-600 font-mono text-xs">{log.target}</td>
-                                                <td className="px-4 py-4">
+                                                <td className="px-4 py-4 text-sm text-gray-600 font-mono text-xs whitespace-nowrap">{log.target}</td>
+                                                <td className="px-4 py-4 whitespace-nowrap">
                                                     <span className={`px-2 py-1 rounded-full text-xs font-semibold ${log.result === 'OK'
                                                         ? 'bg-green-100 text-green-700'
                                                         : 'bg-red-100 text-red-700'
@@ -195,11 +195,10 @@ const AKeyLogsPage: React.FC = () => {
                                     <button
                                         key={page}
                                         onClick={() => setCurrentPage(page)}
-                                        className={`px-3 py-1 text-sm border rounded-lg transition ${
-                                            currentPage === page
-                                                ? 'bg-blue-600 text-white border-blue-600'
-                                                : 'hover:bg-gray-100'
-                                        }`}
+                                        className={`px-3 py-1 text-sm border rounded-lg transition ${currentPage === page
+                                            ? 'bg-blue-600 text-white border-blue-600'
+                                            : 'hover:bg-gray-100'
+                                            }`}
                                     >
                                         {page}
                                     </button>
