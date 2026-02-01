@@ -24,7 +24,7 @@ const formatTimestampToLocal = (timestamp: string): string => {
   }
 };
 
-const LOGS_PER_PAGE = 15;
+const LOGS_PER_PAGE = 6;
 
 const AAuditLogsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
