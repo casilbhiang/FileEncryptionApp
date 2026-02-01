@@ -96,17 +96,16 @@ def create_user():
     """
     Create a new user account
     POST /api/auth/create-user
-    Body: { "full_name": "John Doe", "email": "john@example.com", "phone": "+65 1234 5678", "role": "patient", "nric": "S1234567A", "date_of_birth": "1990-01-01" }
+    Body: { "full_name": "John Doe", "email": "john@example.com", "role": "patient", "nric": "S1234567A", "date_of_birth": "1990-01-01" }
     """
     try:
         data = request.get_json()
         full_name = data.get('full_name')
         email = data.get('email')
-        phone = data.get('phone')
         role = data.get('role')
         nric = data.get('nric')
         date_of_birth = data.get('date_of_birth')
-        health_profile = data.get('health_profile')  # Optional, only for patients
+        health_profile = data.get('health_profile') 
 
         # Validation
         if not full_name or not email or not role:
@@ -246,7 +245,6 @@ def create_user():
                 'user_id': user_id,
                 'full_name': full_name,
                 'email': email,
-                'phone': phone,
                 'role': role.lower(),
                 'temporary_password': temp_password  # Return this once for admin to share with user
             }
@@ -1045,9 +1043,6 @@ def update_user(user_id):
             'updated_at': datetime.now().isoformat()
         }
         
-        if phone:
-            update_data['phone'] = phone
-
         # Update user
         response = supabase.table('users').update(update_data).eq('user_id', user_id).execute()
 

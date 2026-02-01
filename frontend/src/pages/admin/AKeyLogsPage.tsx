@@ -5,11 +5,14 @@ import Sidebar from '../../components/layout/Sidebar';
 import { getAuditLogs, type AuditLog } from '../../services/auditService';
 import { Key, RefreshCw } from 'lucide-react';
 
+const ITEMS_PER_PAGE = 6;
+
 const AKeyLogsPage: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
 
     // Load audit logs from API
     useEffect(() => {
@@ -44,15 +47,41 @@ const AKeyLogsPage: React.FC = () => {
         return matchesSearch;
     });
 
+    // Pagination
+    const totalPages = Math.max(1, Math.ceil(filteredLogs.length / ITEMS_PER_PAGE));
+    const paginatedLogs = filteredLogs.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery]);
+
+    // Generate page numbers to display
+    const getPageNumbers = () => {
+        const pages: (number | string)[] = [];
+        if (totalPages <= 7) {
+            for (let i = 1; i <= totalPages; i++) pages.push(i);
+        } else {
+            pages.push(1);
+            if (currentPage > 3) pages.push('...');
+            for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+                pages.push(i);
+            }
+            if (currentPage < totalPages - 2) pages.push('...');
+            pages.push(totalPages);
+        }
+        return pages;
+    };
+
     return (
         <div className="min-h-screen bg-gray-100 flex">
             {/* Sidebar */}
             <Sidebar userRole="admin" currentPage="key-logs" />
 
             {/* Main Content */}
-            <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
+            <div className="flex-1 min-w-0 p-4 lg:p-8 pt-16 lg:pt-8">
                 {/* Header */}
-                <div className="mb-6 flex justify-between items-start">
+                <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div>
                         <h1 className="text-2xl lg:text-3xl font-bold mb-2 flex items-center gap-2">
                             <Key className="w-8 h-8 text-purple-600" />
@@ -62,7 +91,7 @@ const AKeyLogsPage: React.FC = () => {
                     </div>
                     <button
                         onClick={loadKeyLogs}
-                        className="p-2 bg-white rounded-full shadow hover:shadow-md transition"
+                        className="p-2 bg-white rounded-full shadow hover:shadow-md transition self-start sm:self-auto"
                         title="Refresh Logs"
                     >
                         <RefreshCw className={`w-5 h-5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
@@ -109,22 +138,22 @@ const AKeyLogsPage: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
-                                    {filteredLogs.length > 0 ? (
-                                        filteredLogs.map((log) => (
+                                    {paginatedLogs.length > 0 ? (
+                                        paginatedLogs.map((log) => (
                                             <tr key={log.id} className="hover:bg-gray-50">
-                                                <td className="px-4 py-4 text-sm text-gray-900">{log.timestamp}</td>
-                                                <td className="px-4 py-4 text-sm text-gray-900 font-medium">{log.user}</td>
-                                                <td className="px-4 py-4 text-sm">
+                                                <td className="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{log.timestamp}</td>
+                                                <td className="px-4 py-4 text-sm text-gray-900 font-medium whitespace-nowrap">{log.user}</td>
+                                                <td className="px-4 py-4 text-sm whitespace-nowrap">
                                                     <span className={`px-2 py-1 rounded text-xs font-semibold ${log.action.includes('GENERATE') ? 'bg-blue-100 text-blue-700' :
-                                                            log.action.includes('DELETE') ? 'bg-red-100 text-red-700' :
-                                                                log.action.includes('PAIRING') ? 'bg-purple-100 text-purple-700' :
-                                                                    'bg-gray-100 text-gray-700'
+                                                        log.action.includes('DELETE') ? 'bg-red-100 text-red-700' :
+                                                            log.action.includes('PAIRING') ? 'bg-purple-100 text-purple-700' :
+                                                                'bg-gray-100 text-gray-700'
                                                         }`}>
                                                         {log.action}
                                                     </span>
                                                 </td>
-                                                <td className="px-4 py-4 text-sm text-gray-600 font-mono text-xs">{log.target}</td>
-                                                <td className="px-4 py-4">
+                                                <td className="px-4 py-4 text-sm text-gray-600 font-mono text-xs whitespace-nowrap">{log.target}</td>
+                                                <td className="px-4 py-4 whitespace-nowrap">
                                                     <span className={`px-2 py-1 rounded-full text-xs font-semibold ${log.result === 'OK'
                                                         ? 'bg-green-100 text-green-700'
                                                         : 'bg-red-100 text-red-700'
@@ -146,9 +175,43 @@ const AKeyLogsPage: React.FC = () => {
                         )}
                     </div>
 
-                    {/* Results count */}
-                    <div className="p-4 border-t bg-gray-50 text-sm text-gray-600">
-                        Showing {filteredLogs.length} events
+                    {/* Pagination */}
+                    <div className="p-4 border-t bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <span className="text-sm text-gray-600">
+                            Page {currentPage} of {totalPages} ({filteredLogs.length} total events)
+                        </span>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1 text-sm border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition"
+                            >
+                                Previous
+                            </button>
+                            {getPageNumbers().map((page, idx) =>
+                                typeof page === 'string' ? (
+                                    <span key={`dots-${idx}`} className="px-2 py-1 text-sm text-gray-400">...</span>
+                                ) : (
+                                    <button
+                                        key={page}
+                                        onClick={() => setCurrentPage(page)}
+                                        className={`px-3 py-1 text-sm border rounded-lg transition ${currentPage === page
+                                            ? 'bg-blue-600 text-white border-blue-600'
+                                            : 'hover:bg-gray-100'
+                                            }`}
+                                    >
+                                        {page}
+                                    </button>
+                                )
+                            )}
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1 text-sm border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition"
+                            >
+                                Next
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

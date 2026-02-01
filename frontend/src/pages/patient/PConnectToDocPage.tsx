@@ -1,5 +1,4 @@
 'use client';
-
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import { QrCode, Camera, AlertTriangle, CheckCircle, Stethoscope, Key } from 'lucide-react';
@@ -13,7 +12,6 @@ const PConnectToDocPage: React.FC = () => {
   const [showScanner, setShowScanner] = useState(false);
   const [connections, setConnections] = useState<any[]>([]); // Changed from single object to array
   const [error, setError] = useState<string | null>(null);
-
   const [keyMissing, setKeyMissing] = useState(false);
 
   // Get patient ID from localStorage
@@ -43,7 +41,6 @@ const PConnectToDocPage: React.FC = () => {
           setIsConnected(true);
 
           const hasKey = hasEncryptionKey(patientId);
-
           if (!hasKey) {
             // Ghost Connection detected: Try to restore key from backend
             console.log('Ghost connection detected. Attempting to restore key from backend...');
@@ -77,7 +74,6 @@ const PConnectToDocPage: React.FC = () => {
           setIsConnected(false);
           setKeyMissing(false);
         }
-
       } catch (err) {
         console.error('Failed to load connections:', err);
       }
@@ -201,7 +197,7 @@ const PConnectToDocPage: React.FC = () => {
         </div>
 
         {/* Connection Status Alert */}
-        <div className={`border-2 rounded-lg p-4 mb-6 max-w-2xl 
+        <div className={`border-2 rounded-lg p-4 mb-6 max-w-3xl 
             ${isFullyConnected ? 'bg-green-50 border-green-300' :
             isGhostConnection ? 'bg-orange-50 border-orange-300' :
               'bg-yellow-50 border-yellow-300'}`}>
@@ -221,7 +217,6 @@ const PConnectToDocPage: React.FC = () => {
                   isGhostConnection ? 'Session Key Required' :
                     'Not Connected to Any Doctor'}
               </p>
-
               {isGhostConnection && (
                 <p className="text-sm text-orange-700 mt-1">
                   You are paired with a doctor, but this browser session is missing the encryption key.
@@ -234,13 +229,13 @@ const PConnectToDocPage: React.FC = () => {
 
         {/* Error Message */}
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6 max-w-2xl">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6 max-w-3xl">
             <strong>Error:</strong> {error}
           </div>
         )}
 
         {/* How to Connect Section */}
-        <div className="bg-white rounded-lg p-6 lg:p-8 max-w-3xl">
+        <div className="bg-white rounded-lg p-6 lg:p-8 max-w-3xl mb-6">
           <h2 className="text-xl font-bold mb-6">How to Connect</h2>
 
           {/* Step 1 */}
@@ -309,58 +304,58 @@ const PConnectToDocPage: React.FC = () => {
 
         {/* Connected Doctor Info & Disconnect */}
         {isConnected && connections.length > 0 && (
-          <div className="space-y-4 mt-6">
-            <h2 className="text-xl font-bold">Connected Doctors ({connections.length})</h2>
-
-            {connections.map((connection, index) => (
-              <div
-                key={connection.key_id || index}
-                className="bg-white rounded-lg p-6 animate-in fade-in slide-in-from-bottom-4 duration-500"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">Doctor Connection #{index + 1}</h3>
-                  <button
-                    onClick={() => handleDisconnect(connection.key_id)}
-                    className="text-red-600 hover:text-red-800 text-sm font-semibold underline px-2 py-1"
-                  >
-                    Disconnect
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                      <Stethoscope className="w-6 h-6 text-green-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Doctor ID: {connection.doctor_id}</h3>
-                      <p className="text-sm text-gray-600">Key ID: {connection.key_id}</p>
-                    </div>
+          <div className="max-w-3xl">
+            <h2 className="text-xl font-bold mb-4">Connected Doctors ({connections.length})</h2>
+            <div className="space-y-4">
+              {connections.map((connection, index) => (
+                <div
+                  key={connection.key_id || index}
+                  className="bg-white rounded-lg p-6 lg:p-8 animate-in fade-in slide-in-from-bottom-4 duration-500"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold">Doctor Connection #{index + 1}</h3>
+                    <button
+                      onClick={() => handleDisconnect(connection.key_id)}
+                      className="text-red-600 hover:text-red-800 text-sm font-semibold underline px-2 py-1"
+                    >
+                      Disconnect
+                    </button>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-                      Active
-                    </span>
-                    {connection.expires_at && (
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded
-                            ${(() => {
-                          const days = Math.ceil((new Date(connection.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                          if (days < 0) return 'bg-red-100 text-red-700';
-                          if (days < 7) return 'bg-orange-100 text-orange-700';
-                          return 'bg-gray-100 text-gray-600';
-                        })()}
-                        `}>
-                        {(() => {
-                          const days = Math.ceil((new Date(connection.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                          if (days < 0) return 'Expired';
-                          return `Key Expires in ${days} days`;
-                        })()}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-green-50 border border-green-200 rounded-lg gap-4">
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <Stethoscope className="w-6 h-6 text-green-600" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-gray-900 truncate">Doctor ID: {connection.doctor_id}</h3>
+                        <p className="text-sm text-gray-600 truncate">Key ID: {connection.key_id}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                      <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                        Active
                       </span>
-                    )}
+                      {connection.expires_at && (
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded
+                              ${(() => {
+                            const days = Math.ceil((new Date(connection.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                            if (days < 0) return 'bg-red-100 text-red-700';
+                            if (days < 7) return 'bg-orange-100 text-orange-700';
+                            return 'bg-gray-100 text-gray-600';
+                          })()}
+                          `}>
+                          {(() => {
+                            const days = Math.ceil((new Date(connection.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                            if (days < 0) return 'Expired';
+                            return `Key Expires in ${days} days`;
+                          })()}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
       </div>

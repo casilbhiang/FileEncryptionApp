@@ -21,10 +21,13 @@ interface KeyPair {
   rawExpires: string | null;
 }
 
+const ITEMS_PER_PAGE = 6;
+
 const AKeyMgtPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('created');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showViewQRDialog, setShowViewQRDialog] = useState(false);
@@ -120,6 +123,32 @@ const AKeyMgtPage: React.FC = () => {
       return 0;
     });
 
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filteredKeyPairs.length / ITEMS_PER_PAGE));
+  const paginatedKeyPairs = filteredKeyPairs.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, sortBy, statusFilter]);
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('...');
+      for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+        pages.push(i);
+      }
+      if (currentPage < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+    return pages;
+  };
+
   // Statistics
   const totalKeys = keyPairs.length;
   // Count keys expiring in next 7 days
@@ -202,16 +231,16 @@ const AKeyMgtPage: React.FC = () => {
         <Sidebar userRole="admin" currentPage="key-management" />
 
         {/* Main Content */}
-        <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
+        <div className="flex-1 min-w-0 p-4 lg:p-8 pt-16 lg:pt-8">
           {/* Header */}
-          <div className="flex items-start justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl lg:text-3xl font-bold mb-2">Key Management</h1>
               <p className="text-gray-600">Generate, Distribute, Rotate, And Revoke AES-GCM Encryption Keys Securely</p>
             </div>
             <button
               onClick={() => setShowGenerateDialog(true)}
-              className="px-6 py-3 bg-yellow-400 text-gray-900 rounded-lg font-semibold hover:bg-yellow-500 transition"
+              className="w-full sm:w-auto px-6 py-3 bg-yellow-400 text-gray-900 rounded-lg font-semibold hover:bg-yellow-500 transition flex flex-col items-center justify-center"
             >
               Generate Key Pair
               <div className="text-xs font-normal">Doctor ↔ Patient</div>
@@ -308,23 +337,23 @@ const AKeyMgtPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {filteredKeyPairs.length > 0 ? (
-                      filteredKeyPairs.map((keyPair) => (
+                    {paginatedKeyPairs.length > 0 ? (
+                      paginatedKeyPairs.map((keyPair) => (
                         <tr
                           key={keyPair.id}
                           className={`hover:bg-gray-50 ${keyPair.status === 'Inactive' ? 'bg-red-50' : ''}`}
                         >
-                          <td className="px-4 py-4 text-sm font-medium text-gray-900">{keyPair.id}</td>
-                          <td className="px-4 py-4 text-sm text-gray-900">{keyPair.doctor}</td>
-                          <td className="px-4 py-4 text-sm text-gray-900">{keyPair.patient}</td>
-                          <td className="px-4 py-4 text-sm text-gray-600">
+                          <td className="px-4 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">{keyPair.id}</td>
+                          <td className="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{keyPair.doctor}</td>
+                          <td className="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{keyPair.patient}</td>
+                          <td className="px-4 py-4 text-sm text-gray-600 whitespace-nowrap">
                             {keyPair.created.includes('Just now') || keyPair.created.includes('minutes ago') ? (
                               <span className="text-green-600 font-medium">{keyPair.created}</span>
                             ) : (
                               keyPair.created
                             )}
                           </td>
-                          <td className="px-4 py-4 text-sm text-gray-600">
+                          <td className="px-4 py-4 text-sm text-gray-600 whitespace-nowrap">
                             {(() => {
                               if (!keyPair.rawExpires) return 'Never';
                               const diff = new Date(keyPair.rawExpires).getTime() - new Date().getTime();
@@ -381,6 +410,45 @@ const AKeyMgtPage: React.FC = () => {
                   </tbody>
                 </table>
               )}
+            </div>
+
+            {/* Pagination */}
+            <div className="p-4 border-t bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <span className="text-sm text-gray-600">
+                Page {currentPage} of {totalPages} ({filteredKeyPairs.length} total key pairs)
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 text-sm border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition"
+                >
+                  Previous
+                </button>
+                {getPageNumbers().map((page, idx) =>
+                  typeof page === 'string' ? (
+                    <span key={`dots-${idx}`} className="px-2 py-1 text-sm text-gray-400">...</span>
+                  ) : (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1 text-sm border rounded-lg transition ${currentPage === page
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'hover:bg-gray-100'
+                        }`}
+                    >
+                      {page}
+                    </button>
+                  )
+                )}
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 text-sm border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </div>
         </div>
