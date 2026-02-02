@@ -75,7 +75,7 @@ interface NotificationProviderProps {
 }
 
 export const NotificationProvider = ({ children }: NotificationProviderProps) => {
-  console.log('🚀 NotificationProvider rendering'); // Debug log
+  console.log(' NotificationProvider rendering'); // Debug log
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [activeToasts, setActiveToasts] = useState<Notification[]>([]);
@@ -127,7 +127,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
       const data = await resp.json();
       if (data && data.success && data.found && data.user && data.user.id) {
         storage.setItem('user_uuid', data.user.id);
-        console.log('✅ Resolved and cached user_uuid:', data.user.id);
+        console.log('Resolved and cached user_uuid:', data.user.id);
         return data.user.id;
       }
     } catch (err) {
@@ -179,7 +179,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
         persistToSidebar: notificationInput.persistToSidebar !== false, // Defaults to true
       };
 
-      console.log('📝 Adding notification:', {
+      console.log(' Adding notification:', {
         title: notificationInput.title,
         forUser: notificationInput.user_id,
         showAsToast: notificationInput.showAsToast,
@@ -257,28 +257,26 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
                 )
               );
 
-              console.log(`✅ Notification saved to backend: ${result.notification.id}`);
+              console.log(` Notification saved to backend: ${result.notification.id}`);
             }
           } else {
-            console.warn('⚠️ Could not save notification to backend, but showing locally');
+            console.warn(' Could not save notification to backend, but showing locally');
             // Keep the optimistic update even if backend fails
           }
         } catch (backendError) {
-          console.warn('⚠️ Backend notification save failed, showing locally only:', backendError);
+          console.warn(' Backend notification save failed, showing locally only:', backendError);
           // Keep the optimistic update
         }
       } else {
-        console.log(`ℹ️ Notification type '${notificationInput.type}' not persisted to database (local toast only)`);
+        console.log(` Notification type '${notificationInput.type}' not persisted to database (local toast only)`);
       }
 
     } catch (error) {
       console.error('Error in addNotification:', error);
-      // Remove the optimistic update if there was a critical error
-      // But we keep it since the user should see their own action
     }
   }, [getCurrentUserStringId, getAuthHeaders, API_URL]);
 
-  // ✅ FIXED: fetchNotifications with throttling and proper dependencies
+  // FIXED: fetchNotifications with throttling and proper dependencies
   const fetchNotifications = useCallback(async (showToasts: boolean = false) => {
     // Prevent multiple simultaneous fetches
     if (isFetchingRef.current) {
@@ -303,13 +301,13 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     }
 
     if (!userStringId) {
-      console.log('⚠️ No user ID, skipping fetch');
-      return;
+      console.log('No user ID, skipping fetch');
+      return
     }
 
-    console.log(`📡 [${new Date().toLocaleTimeString()}] Fetching notifications...`);
-    console.log(`📡 User string ID: ${userStringId}`);
-    console.log(`📡 User UUID: ${userUuid}`);
+    console.log(` [${new Date().toLocaleTimeString()}] Fetching notifications...`);
+    console.log(` User string ID: ${userStringId}`);
+    console.log(` User UUID: ${userUuid}`);
 
     isFetchingRef.current = true;
     lastFetchTimeRef.current = now;
@@ -324,17 +322,17 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
         }
       );
 
-      console.log(`📡 Response status: ${response.status}`);
+      console.log(` Response status: ${response.status}`);
 
       if (!response.ok) {
-        console.error(`❌ Fetch failed: ${response.statusText}`);
+        console.error(` Fetch failed: ${response.statusText}`);
         throw new Error(`Failed to fetch notifications: ${response.statusText}`);
       }
 
       const data = await response.json();
 
       if (data.success) {
-        console.log(`✅ Got ${data.notifications?.length || 0} notifications`);
+        console.log(` Got ${data.notifications?.length || 0} notifications`);
 
         const transformed: Notification[] = data.notifications.map((n: any) => ({
           id: n.id || '',
@@ -350,12 +348,12 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
           read_at: n.read_at || null,
         }));
 
-        console.log('🔍 Sample notification user_id (UUID):', transformed[0]?.user_id);
-        console.log('🔍 Current user UUID for comparison:', userUuid);
+        console.log(' Sample notification user_id (UUID):', transformed[0]?.user_id);
+        console.log(' Current user UUID for comparison:', userUuid);
 
         setNotifications(transformed);
 
-        // ✅ FIXED: Only show toasts for new notifications if explicitly requested (not on initial load)
+        // FIXED: Only show toasts for new notifications if explicitly requested (not on initial load)
         if (showToasts) {
           setActiveToasts(prevToasts => {
             const newNotifications = transformed.filter((n: Notification) =>
@@ -364,7 +362,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
             );
 
             if (newNotifications.length > 0) {
-              console.log(`🔔 Showing ${newNotifications.length} new toasts`);
+              console.log(`Showing ${newNotifications.length} new toasts`);
               const updated = [...newNotifications, ...prevToasts].slice(0, 3);
 
               // Auto-dismiss toasts after 5 seconds
@@ -384,7 +382,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
         hasInitialFetchRef.current = true;
       }
     } catch (err) {
-      console.error('❌ Error fetching notifications:', err);
+      console.error('Error fetching notifications:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch notifications');
     } finally {
       setIsLoading(false);
@@ -516,11 +514,11 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
   // Start auto-polling for real-time notifications
   const startPolling = useCallback(() => {
     if (pollingIntervalRef.current) {
-      console.log('⏱️ Polling already active');
+      console.log(' Polling already active');
       return; // Already polling
     }
 
-    console.log(`⏱️ Starting auto-polling every ${POLLING_INTERVAL}ms`);
+    console.log(` Starting auto-polling every ${POLLING_INTERVAL}ms`);
 
     // Fetch immediately, then set up interval
     fetchNotifications(false); // Fetch without showing toasts initially
@@ -533,7 +531,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
   // Stop auto-polling
   const stopPolling = useCallback(() => {
     if (pollingIntervalRef.current) {
-      console.log('⏱️ Stopping auto-polling');
+      console.log(' Stopping auto-polling');
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
@@ -623,7 +621,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
 
   // Debug effect to log current state
   useEffect(() => {
-    console.log('🔍 Notification state updated:');
+    console.log(' Notification state updated:');
     console.log('  Total notifications:', notifications.length);
     console.log('  Current user UUID:', getCurrentUserUuid());
     console.log('  Current user string ID:', getCurrentUserStringId());
@@ -635,9 +633,9 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     }
   }, [notifications, unreadCount, getCurrentUserUuid, getCurrentUserStringId]);
 
-  // ✅ FIXED: Initialize on mount with proper cleanup
+  // FIXED: Initialize on mount with proper cleanup
   useEffect(() => {
-    console.log('🔔 NotificationProvider useEffect running');
+    console.log(' NotificationProvider useEffect running');
 
     let isMounted = true;
     let timeoutId: NodeJS.Timeout;
@@ -645,7 +643,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     const performInitialFetch = async () => {
       const userStringId = getCurrentUserStringId();
       if (userStringId && isMounted && !hasInitialFetchRef.current) {
-        console.log('🔔 Performing initial fetch for user:', userStringId);
+        console.log(' Performing initial fetch for user:', userStringId);
         // Ensure we have the user's UUID cached for client-side filtering
         await ensureUserUuid();
         await fetchNotifications();
@@ -661,7 +659,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     timeoutId = setTimeout(performInitialFetch, 100);
 
     return () => {
-      console.log('🧹 NotificationProvider cleanup');
+      console.log(' NotificationProvider cleanup');
       isMounted = false;
       clearTimeout(timeoutId);
       stopPolling(); // Stop polling when component unmounts
