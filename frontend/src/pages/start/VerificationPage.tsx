@@ -54,23 +54,6 @@ const VerificationPage: React.FC = () => {
       const API_URL = import.meta.env.VITE_API_URL;
 
       if (API_URL) {
-        // ============================================
-        // TODO FOR BACKEND DEVELOPER
-        // ============================================
-        // Implement POST /api/auth/resend-code endpoint
-        // 
-        // Expected request body:
-        // {
-        //   "email": "user@example.com"
-        // }
-        //
-        // Response should return:
-        // {
-        //   "message": "Code sent successfully",
-        //   "success": true
-        // }
-        // ============================================
-
         const response = await fetch(`${API_URL}/api/auth/resend-code`, {
           method: 'POST',
           headers: {
@@ -124,33 +107,6 @@ const VerificationPage: React.FC = () => {
       const API_URL = import.meta.env.VITE_API_URL;
 
       if (API_URL) {
-        // ============================================
-        // 🔥 CRITICAL FOR BACKEND DEVELOPER 🔥
-        // ============================================
-        // Implement POST /api/auth/verify endpoint
-        //
-        // Expected request body:
-        // {
-        //   "code": "123456",
-        //   "email": "user@example.com"
-        // }
-        //
-        // 🔑 IMPORTANT: Response MUST include is_first_login field
-        //
-        // Response format:
-        // {
-        //   "message": "Verification successful",
-        //   "verified": true,
-        //   "is_first_login": true,    // 🔑 KEY FIELD
-        //   "role": "patient",
-        //   "token": "jwt_token_here"
-        // }
-        //
-        // 🎯 ROUTING LOGIC:
-        // - is_first_login = true  → User goes to /reset-password page
-        // - is_first_login = false → User goes to dashboard (/${role})
-        // ============================================
-
         const response = await fetch(`${API_URL}/api/auth/verify`, {
           method: 'POST',
           headers: {
@@ -185,7 +141,7 @@ const VerificationPage: React.FC = () => {
           }, data.token || '');
         }
 
-        // 🔑 KEY ROUTING LOGIC - Based on is_first_login flag from backend
+        //KEY ROUTING LOGIC - Based on is_first_login flag from backend
         setTimeout(() => {
           if (data.is_first_login === true || data.user?.is_first_login === true) {
             // First time login - User must reset temporary password
@@ -205,25 +161,21 @@ const VerificationPage: React.FC = () => {
           }
         }, 1500);
       } else {
-        // ============================================
-        // DEMO MODE - NO BACKEND
-        // Check is_first_login flag to decide where to go
-        // ============================================
-        console.log('🎮 DEMO MODE: No backend detected');
-        console.log('✅ Code accepted:', code);
+        console.log('DEMO MODE: No backend detected');
+        console.log('Code accepted:', code);
 
         setSuccess('Verification successful!');
         setCode('');
 
-        // 🔑 Check localStorage for first login flag
+        //  Check localStorage for first login flag
         const isFirstLogin = storage.getItem('is_first_login') === 'true';
 
-        console.log('📍 is_first_login flag:', isFirstLogin);
+        console.log('is_first_login flag:', isFirstLogin);
 
         setTimeout(() => {
           if (isFirstLogin) {
             // First-time user: Go to reset password page
-            console.log('🔄 First-time user → Redirecting to /reset-password');
+            console.log('First-time user → Redirecting to /reset-password');
             navigate('/reset-password', {
               replace: true,
               state: {
@@ -233,19 +185,14 @@ const VerificationPage: React.FC = () => {
             });
           } else {
             // Existing user: Go to dashboard
-            console.log('✅ Existing user → Redirecting to /' + role);
+            console.log('Existing user → Redirecting to /' + role);
             navigate(`/${role}`, { replace: true });
           }
         }, 1500);
       }
     } catch (err) {
       console.error('Verification error:', err);
-
-      // ============================================
-      // ERROR FALLBACK - DEMO MODE
-      // Check is_first_login flag to decide where to go
-      // ============================================
-      console.log('⚠️ Error occurred, using demo fallback');
+      console.log('Error occurred, using demo fallback');
 
       setSuccess('Verification successful!');
       setCode('');
@@ -255,7 +202,7 @@ const VerificationPage: React.FC = () => {
 
       setTimeout(() => {
         if (isFirstLogin) {
-          console.log('📍 FALLBACK: First-time user → /reset-password');
+          console.log('FALLBACK: First-time user → /reset-password');
           navigate('/reset-password', {
             replace: true,
             state: {
@@ -264,7 +211,7 @@ const VerificationPage: React.FC = () => {
             }
           });
         } else {
-          console.log('📍 FALLBACK: Existing user → /' + role);
+          console.log('FALLBACK: Existing user → /' + role);
           navigate(`/${role}`, { replace: true });
         }
       }, 1500);
