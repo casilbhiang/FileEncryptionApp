@@ -463,7 +463,6 @@ const UploadFilePage: React.FC = () => {
         )}
       </div>
 
-      {/* Alert Modal - Inline (No Emojis) */}
       {alertModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
