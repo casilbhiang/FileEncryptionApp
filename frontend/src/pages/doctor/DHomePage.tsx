@@ -29,7 +29,6 @@ const DHomePage: React.FC = () => {
       setLoading(true);
       setError('');
 
-      // Get user ID from localStorage
       const userUuid = storage.getItem('user_uuid');
 
       if (!userUuid) {
