@@ -17,9 +17,7 @@ const ResetPasswordPage: React.FC = () => {
   const location = useLocation();
   const state = location.state as LocationState;
 
-  const userId = state?.userId || storage.getItem('user_id') || 'user';
-  //const role = state?.role || localStorage.getItem('user_role') || 'patient';
-  //const email = state?.email || localStorage.getItem('user_email') || '';
+  const userId = state?.userId || storage.getItem('user_id') || 'user'
 
   const [formData, setFormData] = useState({
     oldPassword: '',
@@ -108,32 +106,6 @@ const ResetPasswordPage: React.FC = () => {
       const API_URL = import.meta.env.VITE_API_URL;
 
       if (API_URL) {
-        // ============================================
-        // TODO FOR BACKEND DEVELOPER
-        // ============================================
-        // Implement POST /api/auth/reset-password endpoint
-        //
-        // Expected request body:
-        // {
-        //   "user_id": "user_id",
-        //   "email": "user@example.com",
-        //   "new_password": "NewPassword123!"
-        // }
-        //
-        // Response on success:
-        // {
-        //   "message": "Password reset successfully",
-        //   "success": true
-        // }
-        //
-        // Backend logic:
-        // 1. Verify user exists
-        // 2. Hash new password with werkzeug
-        // 3. Update user.password_hash in database
-        // 4. 🔑 IMPORTANT: Set user.is_first_login = False
-        // 5. Return success response
-        // ============================================
-
         const response = await fetch(`${API_URL}/api/auth/reset-password`, {
           method: 'POST',
           headers: {
