@@ -54,10 +54,6 @@ const MyFiles: React.FC = () => {
     file: FileItem | null;
   }>({ isOpen: false, file: null });
   
-  // REMOVED: Local toast state and functions
-  // REMOVED: Import of CheckCircle, AlertCircle, Info
-  // REMOVED: showToast, showAlert, ToastNotification function
-  
   const getShareType = (file: FileItem): 'shared-by-me' | 'shared-with-me' | 'owned' | 'unknown' => {
     if (!userId) return 'unknown';
     
@@ -480,13 +476,11 @@ const getFileSourceInfo = (file: FileItem) => {
     fetchFiles();
   };
   
-  // REMOVED: ToastNotification component
   
   return (
     <div className="min-h-screen bg-gray-100 flex">
       <Sidebar userRole={userRole} currentPage="my-files" />
       <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
-        {/* REMOVED: <ToastNotification /> - Now handled globally by NotificationToast component */}
         
         <div className="mb-6">
           <h1 className="text-2xl lg:text-3xl font-bold mb-2">My Files</h1>
