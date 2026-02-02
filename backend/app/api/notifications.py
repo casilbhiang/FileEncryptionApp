@@ -33,7 +33,7 @@ def _create_notification_core(user_id, title, message, notification_type='info',
         Created notification dict or None if failed
     """
     try:
-        print(f"📝 [CORE] Creating {notification_type} notification for: {user_id}")
+        print(f" [CORE] Creating {notification_type} notification for: {user_id}")
         
         # Find user's UUID from users table
         # Try to find by user_id field first (string ID like 'patient1')
@@ -53,7 +53,7 @@ def _create_notification_core(user_id, title, message, notification_type='info',
                 .execute()
         
         if not user_result.data:
-            print(f"❌ [CORE] User not found: {user_id}")
+            print(f" [CORE] User not found: {user_id}")
             return None
         
         user_uuid = user_result.data[0]['id']
@@ -73,7 +73,7 @@ def _create_notification_core(user_id, title, message, notification_type='info',
             'read_at': datetime.utcnow().isoformat() + 'Z' if is_read else None
         }
         
-        print(f"📝 [CORE] Inserting into notifications table")
+        print(f" [CORE] Inserting into notifications table")
         result = supabase.table('notifications')\
             .insert(notification_data)\
             .execute()
@@ -88,7 +88,7 @@ def _create_notification_core(user_id, title, message, notification_type='info',
         return created_notification
         
     except Exception as e:
-        print(f"❌ [CORE] Error creating notification: {str(e)}")
+        print(f" [CORE] Error creating notification: {str(e)}")
         import traceback
         traceback.print_exc()
         return None
@@ -146,7 +146,7 @@ def create_share_notification(file_data, shared_by, shared_with, access_level='r
         # Use the core function to create notification
         notification = _create_notification_core(
             user_id=shared_with,  # Recipient's string ID
-            title='📁 File Shared With You',
+            title=' File Shared With You',
             message=f'{sender_name} shared "{file_data["original_filename"]}" with you',
             notification_type='file_shared',
             metadata={
