@@ -17,7 +17,6 @@ const DConnectToPatientPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [keyMissing, setKeyMissing] = useState(false);
 
-  // Get doctor ID from localStorage
   const doctorId = storage.getItem('user_id');
 
   // Load existing connections on mount
