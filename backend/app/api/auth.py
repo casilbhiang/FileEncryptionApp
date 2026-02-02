@@ -68,11 +68,11 @@ def generate_user_id(role: str, full_name: str, nric: str, supabase) -> str:
     base_id = f"{initials}{prefix}"
     user_id = f"{base_id}-{nric_suffix}"
 
-    # Check if this ID already exists (very unlikely but check anyway)
+    # Check if this ID already exists
     response = supabase.table('users').select('user_id').eq('user_id', user_id).execute()
 
     if response.data and len(response.data) > 0:
-        # ID exists (very rare), append a number
+        # ID exists, append a number
         counter = 2
         while True:
             new_user_id = f"{base_id}{counter}-{nric_suffix}"
@@ -404,11 +404,7 @@ def login():
 
         if not email_sent:
             print("WARNING: Email failed to send. Proceeding for manual OTP entry (Dev Mode).")
-            # return jsonify({
-            #    'success': False,
-            #    'message': 'Failed to send OTP email. Please check server logs or SMTP settings.'
-            # }), 500
-
+            
         # Log login attempt in audit table
         try:
             supabase.rpc('log_simple_auth_event', {
@@ -434,8 +430,6 @@ def login():
                 'role': user['role'],
                 'is_first_login': user.get('password_reset_required', False)
             },
-            # Remove this in production - only for testing
-            'otp_code': otp_code
         }), 200
 
     except Exception as e:
@@ -598,15 +592,7 @@ def resend_code():
             otp_code=otp_code,
             user_name=user.get('full_name')
         )
-
-        # Also print to terminal for debugging
-        print("\n" + "="*60)
-        print(f"*** RESEND OTP CODE FOR {email} ***")
-        print(f"*** Code: {otp_code} ***")
-        print(f"*** Email sent: {email_sent} ***")
-        print("="*60 + "\n")
-        sys.stdout.flush()
-
+        
         # Log OTP resend
         try:
             supabase = get_supabase_admin_client()
@@ -622,8 +608,6 @@ def resend_code():
         return jsonify({
             'success': True,
             'message': 'Code sent successfully',
-            # Remove this in production
-            'otp_code': otp_code
         }), 200
 
     except Exception as e:
@@ -653,10 +637,10 @@ def reset_password():
             }), 400
 
         # Validate new password strength
-        if len(new_password) < 8:
+        if len(new_password) < 12:
             return jsonify({
                 'success': False,
-                'message': 'New password must be at least 8 characters long'
+                'message': 'New password must be at least 12 characters long'
             }), 400
 
         # Get user from database
