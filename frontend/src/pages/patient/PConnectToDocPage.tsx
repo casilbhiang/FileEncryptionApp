@@ -14,7 +14,6 @@ const PConnectToDocPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [keyMissing, setKeyMissing] = useState(false);
 
-  // Get patient ID from localStorage
   const patientId = storage.getItem('user_id');
 
   // Load existing connections on mount
