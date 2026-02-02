@@ -116,7 +116,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
       {/* Mobile Menu Button - Fixed at top */}
       <button
         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        className="lg:hidden fixed top-4 left-4 z-[60] p-2 bg-white rounded-lg shadow-lg hover:bg-gray-100 transition"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-lg hover:bg-gray-100 transition"
         aria-label="Toggle menu"
       >
         {isMobileMenuOpen ? (
@@ -129,7 +129,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
       {/* Backdrop/Overlay for mobile menu */}
       {isMobileMenuOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-[55]"
+          className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
@@ -211,7 +211,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
       {/* Sidebar */}
       <div
         className={`
-          fixed lg:static inset-y-0 left-0 z-[60]
+          fixed lg:static inset-y-0 left-0 z-40
           w-64 bg-white shadow-lg flex flex-col
           transform transition-transform duration-300 ease-in-out
           h-screen overflow-hidden
@@ -229,6 +229,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
               </div>
             </div>
             {/* Notification Bell */}
+            {userRole !== 'admin' && (
             <button
               onClick={() => setShowNotifications(!showNotifications)}
               className="p-2 hover:bg-gray-100 rounded-lg relative transition"
@@ -240,7 +241,8 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
                 </span>
               )}
             </button>
-          </div>
+            )}
+            </div>
         </div>
 
         {/* User Badge */}

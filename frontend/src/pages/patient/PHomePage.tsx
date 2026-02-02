@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
-import { Loader2, RefreshCw, Eye, Download, FileText, Share2, Inbox, CheckCircle } from 'lucide-react';
+import { Loader2, RefreshCw, Eye, FileText, Share2, Inbox, CheckCircle } from 'lucide-react';
 import { getMyFiles, type FileItem, formatFileSize } from '../../services/Files';
 import { storage } from '../../utils/storage';
 
@@ -284,11 +284,6 @@ const PHomePage: React.FC = () => {
                   <div className="flex-1 mb-3 sm:mb-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-semibold text-lg text-gray-800">{file.name}</h3>
-                      {file.is_shared && (
-                        <span className="px-2 py-0.5 bg-cyan-100 text-cyan-800 rounded-full text-xs font-medium">
-                          Shared
-                        </span>
-                      )}
                     </div>
                     <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
                       <span>{formatFileSize(file.size || 0)}</span>
@@ -297,16 +292,10 @@ const PHomePage: React.FC = () => {
                         {file.is_owned ? 'Owned by you' : `Shared by ${file.shared_by || 'Unknown'}`}
                       </span>
                       <span>•</span>
-                      <span>{formatDate(file.uploaded_at)}</span>
+                      <span>{'Uploaded at: '+ formatDate(file.uploaded_at)}</span>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 flex items-center justify-center">
-                      <Download className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
-                    </div>
                   </div>
-                </div>
               ))}
             </div>
           )}

@@ -92,7 +92,7 @@ const ShareFiles: React.FC = () => {
 
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [selectedRecipient, setSelectedRecipient] = useState('');
-  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const [selectedFile, setSelectedFile] = useState<string>(''); // Single file selection
   const [showFileDropdown, setShowFileDropdown] = useState(false);
   const [availableFiles, setAvailableFiles] = useState<FileItem[]>([]);
   const [availableUsers, setAvailableUsers] = useState<User[]>([]);
@@ -128,9 +128,9 @@ const ShareFiles: React.FC = () => {
     }
   }, [currentUser]);
 
-  // Clear selected files when recipient changes
+  // Clear selected file when recipient changes
   useEffect(() => {
-    setSelectedFiles([]);
+    setSelectedFile('');
     setShowFileDropdown(false);
   }, [selectedRecipient]);
 
@@ -250,11 +250,6 @@ const ShareFiles: React.FC = () => {
         const sharedFileIds = Array.isArray(result.data) ? result.data : [];
         setFilesSharedWithRecipient(sharedFileIds);
         console.log(`Files already shared with ${recipientId}:`, sharedFileIds);
-
-        // Also update the selected files to remove any that are already shared
-        setSelectedFiles(prev =>
-          prev.filter(fileId => !sharedFileIds.includes(fileId))
-        );
       } else {
         console.warn('Failed to fetch shared files:', result.error);
         // On error, show empty list (no filtering)
@@ -266,12 +261,8 @@ const ShareFiles: React.FC = () => {
     }
   };
 
-  const handleFileToggle = (fileId: string) => {
-    setSelectedFiles(prev =>
-      prev.includes(fileId)
-        ? prev.filter(id => id !== fileId)
-        : [...prev, fileId]
-    );
+  const handleFileSelect = (fileId: string) => {
+    setSelectedFile(fileId === selectedFile ? '' : fileId); // Toggle single selection
     setErrors(prev => ({ ...prev, files: '' }));
   };
 
@@ -282,8 +273,8 @@ const ShareFiles: React.FC = () => {
       newErrors.recipient = 'Please select a recipient';
     }
 
-    if (selectedFiles.length === 0) {
-      newErrors.files = 'Please select at least one file to share';
+    if (!selectedFile) {
+      newErrors.files = 'Please select a file to share';
     }
 
     setErrors(newErrors);
@@ -323,7 +314,7 @@ const ShareFiles: React.FC = () => {
 
       // Need to get recipient UUID - update User interface first
       const shareParams: ShareFileParams = {
-        file_id: selectedFiles[0],
+        file_id: selectedFile, // Single file selection
         shared_by: currentUser.id,
         shared_by_uuid: currentUser.uuid,
         shared_with: recipientUser.id,  // This might need to be UUID
@@ -345,13 +336,10 @@ const ShareFiles: React.FC = () => {
         const recipientName = availableUsers.find(u => u.id === selectedRecipient)?.name || 'Recipient';
         const sharerName = currentUser?.name || 'You';
 
-        // Get the first file name (since you're sharing one file at a time)
-        const sharedFileName = selectedFiles.map(fileId => {
-          const file = availableFiles.find(f => f.id === fileId);
-          return file?.name || 'Unknown file';
-        })[0] || 'file';
+        // Get the selected file name
+        const sharedFileName = availableFiles.find(f => f.id === selectedFile)?.name || 'file';
 
-        // ADD: Sidebar bell notification for successful share (FOR SHARER)
+        // ADD: Toast-only notification for successful share (FOR SHARER - no sidebar)
         addNotification({
           user_id: currentUser.id,
           title: 'Files Shared',
@@ -362,18 +350,16 @@ const ShareFiles: React.FC = () => {
             recipientName: recipientName,
             recipientId: selectedRecipient,
             fileName: sharedFileName,
-            fileCount: selectedFiles.length,
-            fileNames: selectedFiles.map(fileId => {
-              const file = availableFiles.find(f => f.id === fileId);
-              return file?.name || 'Unknown file';
-            }),
+            fileCount: 1, // Single file
+            fileNames: [sharedFileName],
             action: 'share_success',
             share_id: result.data?.share_id
           },
-          showAsToast: true // Show toast for sharer
+          showAsToast: true, // Show toast for sharer
+          persistToSidebar: false // Toast-only, not in sidebar
         });
 
-        // 🔥 NEW: ADD NOTIFICATION FOR RECIPIENT
+        // 🔥 NEW: ADD NOTIFICATION FOR RECIPIENT (appears in sidebar)
         addNotification({
           user_id: recipientStringId, // Recipient's user ID
           title: 'Files Received',
@@ -384,15 +370,13 @@ const ShareFiles: React.FC = () => {
             sharerName: sharerName,
             sharerId: currentUser.id,
             fileName: sharedFileName,
-            fileCount: selectedFiles.length,
-            fileNames: selectedFiles.map(fileId => {
-              const file = availableFiles.find(f => f.id === fileId);
-              return file?.name || 'Unknown file';
-            }),
+            fileCount: 1, // Single file
+            fileNames: [sharedFileName],
             action: 'file_received',
             share_id: result.data?.share_id
           },
-          showAsToast: false // Don't show toast for recipient
+          showAsToast: false, // Don't show toast for recipient
+          persistToSidebar: true // Permanent in sidebar until manually deleted
         });
 
         setShareResult({
@@ -403,7 +387,7 @@ const ShareFiles: React.FC = () => {
         });
 
         // Reset form
-        setSelectedFiles([]);
+        setSelectedFile('');
         setSelectedRecipient('');
         setShowFileDropdown(false);
 
@@ -411,20 +395,21 @@ const ShareFiles: React.FC = () => {
         setTimeout(() => fetchUserFiles(), 1000);
 
       } else {
-        // ADD: Sidebar bell notification for share error
+        // ADD: Toast notification for share error (toast-only, not in sidebar)
         addNotification({
           user_id: currentUser.id,
           title: 'Share Failed',
-          message: `Failed to share file${selectedFiles.length > 1 ? 's' : ''} with ${recipientUser.name}`,
+          message: `Failed to share file with ${recipientUser.name}`,
           type: 'error',
           metadata: {
             recipientName: recipientUser.name,
             recipientId: selectedRecipient,
-            fileCount: selectedFiles.length,
+            fileCount: 1,
             action: 'share_error',
             error: result.error
           },
-          showAsToast: false // Only in sidebar, no toast popup
+          showAsToast: true,
+          persistToSidebar: false // Toast-only notification
         });
 
         setShareResult({
@@ -435,7 +420,7 @@ const ShareFiles: React.FC = () => {
     } catch (error) {
       console.error('Error sharing:', error);
 
-      // ADD: Sidebar bell notification for network error
+      // ADD: Toast notification for network error (toast-only, not in sidebar)
       addNotification({
         user_id: currentUser?.id || 'unknown',
         title: 'Network Error',
@@ -445,7 +430,8 @@ const ShareFiles: React.FC = () => {
           action: 'network_error',
           error: error instanceof Error ? error.message : 'Unknown error'
         },
-        showAsToast: false // Only in sidebar, no toast popup
+        showAsToast: true,
+        persistToSidebar: false // Toast-only notification
       });
 
       setShareResult({
@@ -623,10 +609,10 @@ const ShareFiles: React.FC = () => {
             )}
           </div>
 
-          {/* Choose Files */}
+          {/* Choose File */}
           <div className="mb-8">
             <label className="block text-sm font-semibold text-gray-900 mb-2">
-              Select Files to Share
+              Select a File to Share
               <span className="text-red-500 ml-1">*</span>
             </label>
 
@@ -644,11 +630,11 @@ const ShareFiles: React.FC = () => {
                     <span className="text-gray-600">
                       {loading.files
                         ? 'Loading your files...'
-                        : selectedFiles.length > 0
-                          ? `${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''} selected`
+                        : selectedFile
+                          ? availableFiles.find(f => f.id === selectedFile)?.name || 'File selected'
                           : filterableFiles.length === 0
                             ? 'No files available to share with this recipient'
-                            : 'Click to select files'
+                            : 'Click to select a file'
                       }
                     </span>
                     {loading.files ? (
@@ -662,7 +648,7 @@ const ShareFiles: React.FC = () => {
                     <p className="mt-1 text-sm text-red-600">{errors.files}</p>
                   )}
 
-                  {/* Files Dropdown List - Static positioning (pushes content down) */}
+                  {/* Files Dropdown List - Single selection with radio buttons */}
                   {showFileDropdown && !loading.files && filterableFiles.length > 0 && (
                     <div className="mt-2 border border-gray-300 rounded-lg bg-white shadow-sm max-h-80 overflow-y-auto">
                       <div className="p-2">
@@ -670,15 +656,15 @@ const ShareFiles: React.FC = () => {
                           {filterableFiles.map((file) => (
                             <div
                               key={file.id}
-                              className={`flex items-start gap-3 px-3 py-2.5 hover:bg-blue-50 cursor-pointer rounded-md ${selectedFiles.includes(file.id) ? 'bg-blue-50 border border-blue-100' : ''
+                              className={`flex items-start gap-3 px-3 py-2.5 hover:bg-blue-50 cursor-pointer rounded-md ${selectedFile === file.id ? 'bg-blue-50 border border-blue-100' : ''
                                 }`}
-                              onClick={() => handleFileToggle(file.id)}
+                              onClick={() => handleFileSelect(file.id)}
                             >
-                              <div className={`w-5 h-5 border rounded flex items-center justify-center mt-0.5 ${selectedFiles.includes(file.id)
-                                ? 'bg-blue-600 border-blue-600 text-white'
+                              <div className={`w-5 h-5 border rounded-full flex items-center justify-center mt-0.5 ${selectedFile === file.id
+                                ? 'bg-blue-600 border-blue-600'
                                 : 'border-gray-300'
                                 }`}>
-                                {selectedFiles.includes(file.id) && '✓'}
+                                {selectedFile === file.id && <div className="w-2 h-2 bg-white rounded-full" />}
                               </div>
                               <div className="flex-1">
                                 <p className="font-medium text-gray-900 truncate">{file.name}</p>
@@ -729,38 +715,6 @@ const ShareFiles: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Selected Files Display */}
-                  {selectedFiles.length > 0 && (
-                    <div className="mt-4">
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2">Selected Files:</h4>
-                      <div className="space-y-2">
-                        {selectedFiles.map((fileId) => {
-                          const file = availableFiles.find(f => f.id === fileId);
-                          return file ? (
-                            <div
-                              key={fileId}
-                              className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-center justify-between"
-                            >
-                              <div className="flex-1">
-                                <p className="font-semibold text-gray-900">{file.name}</p>
-                                <p className="text-sm text-gray-600">
-                                  {getFileType(file)} • {formatFileSize(file.size || file.file_size || 0)}
-                                </p>
-                              </div>
-                              <button
-                                onClick={() => handleFileToggle(fileId)}
-                                className="text-gray-500 hover:text-red-600 ml-4"
-                                aria-label={`Remove ${file.name} from selection`}
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          ) : null;
-                        })}
-                      </div>
-                    </div>
-                  )}
-
                   {/* No files message */}
                   {!loading.files && filterableFiles.length === 0 && filesSharedWithRecipient.length === 0 && (
                     <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -804,7 +758,7 @@ const ShareFiles: React.FC = () => {
           <div className="flex justify-center">
             <button
               onClick={handleShare}
-              disabled={!selectedRecipient || selectedFiles.length === 0 || loading.sharing}
+              disabled={!selectedRecipient || !selectedFile || loading.sharing}
               className="px-8 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
             >
               {loading.sharing ? (
@@ -815,7 +769,7 @@ const ShareFiles: React.FC = () => {
               ) : (
                 <>
                   <UserPlus className="w-4 h-4" />
-                  Share {selectedFiles.length > 0 ? `${selectedFiles.length} File${selectedFiles.length > 1 ? 's' : ''}` : 'Files'}
+                  Share File
                 </>
               )}
             </button>
