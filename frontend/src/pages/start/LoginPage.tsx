@@ -2,7 +2,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Lock, User, ChevronDown } from 'lucide-react';
-import simncryptLogo from '../../images/simncrypt.jpg';
 import BiometricModal from '../../components/BiometricModal';
 import BiometricService from '../../services/Biometric';
 import { storage } from '../../utils/storage';
@@ -175,7 +174,7 @@ const LoginPage: React.FC = () => {
           <div className="hidden md:flex flex-col items-center justify-center text-center px-4">
             <div>
               <img
-                src={simncryptLogo}
+                src="/simncrypt.jpg"
                 alt="SIM NCRYPT"
                 className="h-96 w-96 mx-auto rounded-3xl object-contain shadow-2xl"
               />
@@ -336,7 +335,7 @@ const LoginPage: React.FC = () => {
             {/* Mobile Logo */}
             <div className="md:hidden text-center mt-8">
               <img
-                src={simncryptLogo}
+                src="/simncrypt.jpg"
                 alt="SIM NCRYPT"
                 className="h-12 w-12 mx-auto rounded-lg object-cover mb-3"
               />
