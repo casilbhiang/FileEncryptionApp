@@ -16,6 +16,7 @@ export interface Notification {
   metadata: Record<string, any> | null;
   created_at: string;
   read_at: string | null;
+  persistToSidebar?: boolean; // NEW: Controls if notification appears in sidebar
 }
 
 // NEW: Interface for creating notifications
@@ -26,6 +27,7 @@ export interface NotificationInput {
   type: string;
   metadata?: Record<string, any>;
   showAsToast?: boolean;
+  persistToSidebar?: boolean; // NEW: Controls if notification appears in sidebar (defaults to true)
   related_file_id?: string | null;
   related_user_id?: string | null;
 }
@@ -135,9 +137,17 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     return '';
   }, [API_URL, getAuthHeaders, getCurrentUserStringId]);
 
-  // Toast management - make it stable
+  // Toast management - remove from both activeToasts and notifications if toast-only
   const dismissToast = useCallback((id: string) => {
     setActiveToasts(prev => prev.filter(toast => toast.id !== id));
+    // Also remove from notifications if it's a toast-only notification (persistToSidebar: false)
+    setNotifications(prev => {
+      const notification = prev.find(n => n.id === id);
+      if (notification && notification.persistToSidebar === false) {
+        return prev.filter(n => n.id !== id);
+      }
+      return prev;
+    });
   }, []);
 
   // NEW: Add notification method
@@ -166,17 +176,21 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
         metadata: notificationInput.metadata || null,
         created_at: new Date().toISOString(),
         read_at: null,
+        persistToSidebar: notificationInput.persistToSidebar !== false, // Defaults to true
       };
 
       console.log('📝 Adding notification:', {
         title: notificationInput.title,
         forUser: notificationInput.user_id,
         showAsToast: notificationInput.showAsToast,
+        persistToSidebar: notificationInput.persistToSidebar,
         type: notificationInput.type
       });
 
-      // OPTIMISTIC UPDATE: Add to notifications list immediately
-      setNotifications(prev => [newNotification, ...prev]);
+      // OPTIMISTIC UPDATE: Add to notifications list ONLY if it should persist to sidebar
+      if (notificationInput.persistToSidebar !== false) {
+        setNotifications(prev => [newNotification, ...prev]);
+      }
 
       // Show as toast if requested
       if (notificationInput.showAsToast) {
@@ -187,6 +201,10 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
           // Auto-dismiss after 5 seconds
           setTimeout(() => {
             setActiveToasts(current => current.filter(toast => toast.id !== tempId));
+            // Remove from notifications if it was a toast-only notification
+            if (notificationInput.persistToSidebar === false) {
+              setNotifications(current => current.filter(n => n.id !== tempId));
+            }
           }, 5000);
 
           return updated;
@@ -233,6 +251,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
                       metadata: result.notification.metadata || notificationInput.metadata || null,
                       created_at: result.notification.created_at || new Date().toISOString(),
                       read_at: result.notification.read_at || null,
+                      persistToSidebar: notificationInput.persistToSidebar !== false, // Preserve the flag
                     }
                     : notif
                 )
@@ -534,7 +553,8 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
       message,
       type: 'success',
       metadata,
-      showAsToast: true
+      showAsToast: true,
+      persistToSidebar: false // Toast-only notification
     });
   }, [addNotification, getCurrentUserUuid]);
 
@@ -552,7 +572,8 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
       message,
       type: 'error',
       metadata,
-      showAsToast: true
+      showAsToast: true,
+      persistToSidebar: false // Toast-only notification
     });
   }, [addNotification, getCurrentUserUuid]);
 
@@ -570,7 +591,8 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
       message,
       type: 'warning',
       metadata,
-      showAsToast: true
+      showAsToast: true,
+      persistToSidebar: false // Toast-only notification
     });
   }, [addNotification, getCurrentUserUuid]);
 
@@ -588,14 +610,15 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
       message,
       type: 'info',
       metadata,
-      showAsToast: true
+      showAsToast: true,
+      persistToSidebar: false // Toast-only notification
     });
   }, [addNotification, getCurrentUserUuid]);
 
-  // Calculate unread count for current user - FIXED: Compare UUIDs
+  // Calculate unread count for current user - ONLY file_received notifications
   const unreadCount = notifications.filter(n => {
     const currentUserUuid = getCurrentUserUuid();
-    return (n.user_id === currentUserUuid || n.user_id === 'all') && !n.is_read;
+    return (n.user_id === currentUserUuid || n.user_id === 'all') && !n.is_read && n.notification_type === 'file_received';
   }).length;
 
   // Debug effect to log current state

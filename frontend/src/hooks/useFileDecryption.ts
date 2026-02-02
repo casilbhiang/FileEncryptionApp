@@ -36,32 +36,38 @@ export const useFileDecryption = () => {
             
             const decryptedBlob = await decryptFile(decryptParams);
             
-            // Success notification
+            // Success notification (toast-only, not in sidebar)
             addNotification({
                 user_id: params.userId,
                 title: 'File Decrypted Successfully',
                 message: filename ? `${filename} has been decrypted and is ready to download.` : 'File decrypted successfully.',
-                type: 'system'
+                type: 'system',
+                showAsToast: true,
+                persistToSidebar: false // Toast-only notification
             });
             
             return decryptedBlob;
         } catch (error: any) {
             // Check if it's a decryption error (422 from backend)
             if (error.isDecryptionError) {
-                // User Story DR#17 & PT#14: Notify user of decryption failure
+                // User Story DR#17 & PT#14: Notify user of decryption failure (toast-only)
                 addNotification({
                     user_id: params.userId,
                     title: 'Decryption Failed',
                     message: error.message || 'The file could not be decrypted. The encryption key may be incorrect or the file may be corrupted.',
-                    type: 'decryption_failed'
+                    type: 'decryption_failed',
+                    showAsToast: true,
+                    persistToSidebar: false // Toast-only notification
                 });
             } else {
-                // Other errors
+                // Other errors (toast-only)
                 addNotification({
                     user_id: params.userId,
                     title: 'Error',
                     message: error.message || 'An error occurred while processing the file.',
-                    type: 'error'
+                    type: 'error',
+                    showAsToast: true,
+                    persistToSidebar: false // Toast-only notification
                 });
             }
             
