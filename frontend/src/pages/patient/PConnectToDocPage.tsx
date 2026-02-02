@@ -6,15 +6,17 @@ import QRScanner from '../../components/QRScanner';
 import { verifyScannedQR, getUserConnections, getKeyPair } from '../../services/keyService';
 import { hasEncryptionKey, storeEncryptionKey, importKeyFromBase64 } from '../../services/Encryption';
 import { storage } from '../../utils/storage';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 const PConnectToDocPage: React.FC = () => {
+  const { showSuccessToast, showErrorToast, showWarningToast } = useNotifications();
+  
   const [isConnected, setIsConnected] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
-  const [connections, setConnections] = useState<any[]>([]); // Changed from single object to array
+  const [connections, setConnections] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [keyMissing, setKeyMissing] = useState(false);
 
-  // Get patient ID from localStorage
   const patientId = storage.getItem('user_id');
 
   // Load existing connections on mount
@@ -39,13 +41,10 @@ const PConnectToDocPage: React.FC = () => {
 
         if (activeConnections.length > 0) {
           setIsConnected(true);
-
           const hasKey = hasEncryptionKey(patientId);
+
           if (!hasKey) {
             // Ghost Connection detected: Try to restore key from backend
-            console.log('Ghost connection detected. Attempting to restore key from backend...');
-
-            // Attempt auto-restore for all connections
             let restoredCount = 0;
             for (const conn of activeConnections) {
               try {
@@ -61,10 +60,8 @@ const PConnectToDocPage: React.FC = () => {
             }
 
             if (restoredCount > 0) {
-              console.log('Keys successfully restored from backend!');
               setKeyMissing(false);
             } else {
-              console.warn('Failed to restore keys');
               setKeyMissing(true);
             }
           } else {
@@ -85,7 +82,7 @@ const PConnectToDocPage: React.FC = () => {
   const handleDisconnect = async (keyId: string) => {
     if (!patientId || !keyId) return;
 
-    if (!confirm('Are you sure you want to disconnect from this doctor?')) {
+    if (!confirm('Are you sure you want to disconnect from this doctor? This will remove the secure connection.')) {
       return;
     }
 
@@ -102,10 +99,11 @@ const PConnectToDocPage: React.FC = () => {
         setIsConnected(false);
       }
 
+      await showSuccessToast('Disconnected', 'Doctor connection has been removed successfully');
       console.log('Connection disconnected');
     } catch (err: any) {
       console.error('Failed to disconnect:', err);
-      alert(`Failed to disconnect: ${err.message}`);
+      await showErrorToast('Disconnect Failed', err.message || 'Failed to disconnect doctor');
     }
   };
 
@@ -115,28 +113,19 @@ const PConnectToDocPage: React.FC = () => {
   };
 
   const handleScanSuccess = async (decodedText: string) => {
-    console.log('Scanned QR Raw:', decodedText);
     try {
       setShowScanner(false);
 
       // Parse QR data to extract key
-      let qrData;
-      try {
-        qrData = JSON.parse(decodedText);
-        console.log('Parsed QR Data:', qrData);
-      } catch (e) {
-        throw new Error('Invalid QR Code Format (Not JSON)');
-      }
+      const qrData = JSON.parse(decodedText);
 
       // Validate QR ownership (Case-insensitive)
       if (qrData.patient_id && patientId) {
         const qrPatient = String(qrData.patient_id).trim().toLowerCase();
         const currentPatient = String(patientId).trim().toLowerCase();
 
-        console.log(`Checking match: QR('${qrPatient}') vs User('${currentPatient}')`);
-
         if (qrPatient !== currentPatient) {
-          throw new Error(`Error Does not match.`);
+          throw new Error('QR code does not match your patient ID');
         }
       }
 
@@ -147,16 +136,19 @@ const PConnectToDocPage: React.FC = () => {
           const key = await importKeyFromBase64(qrData.key);
           await storeEncryptionKey(key, patientId);
           console.log('Encryption key cached from QR scan');
-          setKeyMissing(false);
+          setKeyMissing(false); // Key is restored!
+          await showSuccessToast('Key Restored', 'Encryption key has been successfully cached');
         } catch (keyError) {
-          console.error('Failed to import/cache key:', keyError);
-          throw new Error('Failed to process encryption key from QR code');
+          console.error('Failed to cache key:', keyError);
+          await showWarningToast('Key Cache Failed', 'Connection established but key caching failed');
         }
       }
 
       // Verify the scanned QR code
       const result = await verifyScannedQR(decodedText);
-      console.log('Backend verification result:', result);
+
+      // Check if this is a new connection
+      const isNewConnection = !connections.some(c => c.key_id === result.connection.key_id);
 
       // Add to list if not exists
       setConnections(prev => {
@@ -167,11 +159,17 @@ const PConnectToDocPage: React.FC = () => {
 
       setIsConnected(true);
       setError(null);
+
+      if (isNewConnection) {
+        await showSuccessToast('Connected', 'Successfully connected to doctor');
+      } else {
+        await showSuccessToast('QR Verified', 'Connection verified successfully');
+      }
     } catch (err: any) {
       console.error('Scan verification failed:', err);
       setError(err.message || 'Failed to verify QR code');
-      // Keep scanner open if it was just a bad scan? No, close to show error.
       setShowScanner(false);
+      await showErrorToast('Scan Failed', err.message || 'Failed to verify QR code');
     }
   };
 
@@ -197,7 +195,7 @@ const PConnectToDocPage: React.FC = () => {
         </div>
 
         {/* Connection Status Alert */}
-        <div className={`border-2 rounded-lg p-4 mb-6 max-w-3xl 
+        <div className={`border-2 rounded-lg p-4 mb-6 max-w-2xl
             ${isFullyConnected ? 'bg-green-50 border-green-300' :
             isGhostConnection ? 'bg-orange-50 border-orange-300' :
               'bg-yellow-50 border-yellow-300'}`}>
@@ -211,7 +209,7 @@ const PConnectToDocPage: React.FC = () => {
             )}
             <div>
               <p className={`${isFullyConnected ? 'text-green-800' :
-                isGhostConnection ? 'text-orange-900' :
+                isGhostConnection ? 'text-orange-800' :
                   'text-yellow-800'} font-medium`}>
                 {isFullyConnected ? 'Connected Successfully!' :
                   isGhostConnection ? 'Session Key Required' :
@@ -219,8 +217,8 @@ const PConnectToDocPage: React.FC = () => {
               </p>
               {isGhostConnection && (
                 <p className="text-sm text-orange-700 mt-1">
-                  You are paired with a doctor, but this browser session is missing the encryption key.
-                  <strong> Please scan the QR code to restore access.</strong>
+                  You are connected, but your browser session has lost the security key.
+                  <strong> Please scan the QR code again to restore access.</strong>
                 </p>
               )}
             </div>
@@ -229,13 +227,13 @@ const PConnectToDocPage: React.FC = () => {
 
         {/* Error Message */}
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6 max-w-3xl">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6 max-w-2xl">
             <strong>Error:</strong> {error}
           </div>
         )}
 
         {/* How to Connect Section */}
-        <div className="bg-white rounded-lg p-6 lg:p-8 max-w-3xl mb-6">
+        <div className="bg-white rounded-lg p-6 lg:p-8 max-w-3xl">
           <h2 className="text-xl font-bold mb-6">How to Connect</h2>
 
           {/* Step 1 */}
@@ -277,7 +275,7 @@ const PConnectToDocPage: React.FC = () => {
                   </p>
                   <button
                     onClick={handleScanQRCode}
-                    className={`px-8 py-3 text-white rounded-lg font-semibold transition flex items-center gap-2 bg-purple-600 hover:bg-purple-700`}
+                    className="px-8 py-3 text-white rounded-lg font-semibold transition flex items-center gap-2 bg-purple-600 hover:bg-purple-700"
                   >
                     <QrCode className="w-5 h-5" />
                     {isFullyConnected ? 'Re-Scan QR Code' : isGhostConnection ? 'Re-Scan to Restore Key' : 'Scan QR Code'}
@@ -304,7 +302,7 @@ const PConnectToDocPage: React.FC = () => {
 
         {/* Connected Doctor Info & Disconnect */}
         {isConnected && connections.length > 0 && (
-          <div className="max-w-3xl">
+          <div className="max-w-3xl mt-6">
             <h2 className="text-xl font-bold mb-4">Connected Doctors ({connections.length})</h2>
             <div className="space-y-4">
               {connections.map((connection, index) => (

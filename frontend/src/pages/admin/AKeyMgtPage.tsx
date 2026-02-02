@@ -1,5 +1,4 @@
 'use client';
-
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import { Trash2, QrCode } from 'lucide-react';
@@ -7,6 +6,7 @@ import GenerateKeyPairDialog from '../../components/dialogs/GenerateKeyPairDialo
 import DeleteKeysDialog from '../../components/dialogs/DeletesKeysDialog';
 import ViewQRDialog from '../../components/dialogs/ViewQRDialog';
 import { generateKeyPair, listKeyPairs, deleteKeyPair, type KeyPair as APIKeyPair } from '../../services/keyService';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 interface KeyPair {
   id: string;
@@ -24,6 +24,8 @@ interface KeyPair {
 const ITEMS_PER_PAGE = 6;
 
 const AKeyMgtPage: React.FC = () => {
+  const { showSuccessToast, showErrorToast } = useNotifications();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('created');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -91,6 +93,7 @@ const AKeyMgtPage: React.FC = () => {
     if (diffHours < 24) return `Today, ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 30) return `${diffDays} days ago`;
+
     return date.toLocaleDateString();
   };
 
@@ -157,7 +160,6 @@ const AKeyMgtPage: React.FC = () => {
     const days = Math.ceil((new Date(k.rawExpires).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
     return days >= 0 && days < 7;
   }).length;
-
   const generateToday = keyPairs.filter(k => {
     const date = new Date(k.rawCreated);
     const today = new Date();
@@ -173,18 +175,21 @@ const AKeyMgtPage: React.FC = () => {
 
       // Call API to generate key pair
       const response = await generateKeyPair(doctorUserId, patientUserId);
-
       console.log('Key generated successfully:', response);
 
       // Reload key pairs to show the new one
       await loadKeyPairs();
+
+      await showSuccessToast('Key Generated', 'Encryption key pair created successfully');
 
       return response.qr_code;
     } catch (err) {
       console.error('Failed to generate key:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to generate key pair';
       setError(errorMessage);
-      alert(`Error: ${errorMessage}`);
+
+      await showErrorToast('Generation Failed', errorMessage);
+
       return null;
     }
   };
@@ -201,6 +206,9 @@ const AKeyMgtPage: React.FC = () => {
 
       setShowDeleteDialog(false);
       setSelectedKey(null);
+
+      await showSuccessToast('Key Deleted', 'Encryption key pair has been removed');
+
     } catch (err) {
       console.error('Failed to delete key:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete key pair';
@@ -210,7 +218,7 @@ const AKeyMgtPage: React.FC = () => {
       setShowDeleteDialog(false);
       setSelectedKey(null);
 
-      alert(`Error: ${errorMessage}`);
+      await showErrorToast('Delete Failed', errorMessage);
     }
   };
 
@@ -280,7 +288,6 @@ const AKeyMgtPage: React.FC = () => {
           <div className="bg-white rounded-lg shadow-sm">
             <div className="p-4 border-b">
               <h2 className="text-xl font-bold mb-4">Encryption Key Pairs ({totalKeys})</h2>
-
               <div className="flex flex-col sm:flex-row gap-3">
                 <input
                   type="text"
@@ -358,7 +365,6 @@ const AKeyMgtPage: React.FC = () => {
                               if (!keyPair.rawExpires) return 'Never';
                               const diff = new Date(keyPair.rawExpires).getTime() - new Date().getTime();
                               const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-
                               if (diff < 0) {
                                 return <span className="text-red-500 font-medium">Expired</span>;
                               } else if (days <= 7) {
@@ -369,11 +375,13 @@ const AKeyMgtPage: React.FC = () => {
                             })()}
                           </td>
                           <td className="px-4 py-4">
-                            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${keyPair.status === 'Active' ? 'bg-green-100 text-green-700' :
+                            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
+                              keyPair.status === 'Active' ? 'bg-green-100 text-green-700' :
                               keyPair.status === 'Inactive' ? 'bg-red-100 text-red-700' :
                                 'bg-gray-100 text-gray-700'
                               }`}>
-                              <div className={`w-2 h-2 rounded-full ${keyPair.status === 'Active' ? 'bg-green-500' :
+                              <div className={`w-2 h-2 rounded-full ${
+                                keyPair.status === 'Active' ? 'bg-green-500' :
                                 keyPair.status === 'Inactive' ? 'bg-red-500' :
                                   'bg-gray-500'
                                 }`}></div>
@@ -402,7 +410,7 @@ const AKeyMgtPage: React.FC = () => {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                        <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                           No key pairs found matching your search criteria.
                         </td>
                       </tr>
@@ -432,9 +440,10 @@ const AKeyMgtPage: React.FC = () => {
                     <button
                       key={page}
                       onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1 text-sm border rounded-lg transition ${currentPage === page
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'hover:bg-gray-100'
+                      className={`px-3 py-1 text-sm border rounded-lg transition ${
+                        currentPage === page
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'hover:bg-gray-100'
                         }`}
                     >
                       {page}

@@ -29,7 +29,6 @@ const PHomePage: React.FC = () => {
       setLoading(true);
       setError('');
 
-      // Get user ID from localStorage
       const userUuid = storage.getItem('user_uuid');
 
       if (!userUuid) {
@@ -38,7 +37,6 @@ const PHomePage: React.FC = () => {
         return;
       }
 
-      // Try to get user name from localStorage
       const storedName = storage.getItem('user_name') || storage.getItem('email') || 'Patient';
       setUserName(storedName);
 

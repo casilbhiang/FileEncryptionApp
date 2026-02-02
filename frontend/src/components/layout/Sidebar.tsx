@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home, FileText, Upload, Share2, Users, UserPlus, Key, LogOut, Menu, X, Bell, FolderOpen } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import simncryptLogo from '../../images/simncrypt.jpg';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { storage } from '../../utils/storage';
 
@@ -222,7 +221,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
         <div className="p-6 border-b flex-shrink-0">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <img src={simncryptLogo} alt="SIM NCRYPT" className="w-10 h-10 rounded-lg" />
+              <img src="/simncrypt.jpg" alt="SIM NCRYPT" className="w-10 h-10 rounded-lg" />
               <div>
                 <h2 className="font-bold text-lg">SIM</h2>
                 <p className="text-sm text-gray-600">NCRYPT</p>

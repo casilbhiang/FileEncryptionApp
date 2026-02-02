@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Menu, X } from 'lucide-react';
-import simncryptLogo from '../../images/simncrypt.jpg';
 
 interface TopBarProps {
   onNavClick?: (sectionId: string) => void;
@@ -31,7 +30,7 @@ const TopBar: React.FC<TopBarProps> = ({ onNavClick }) => {
             className="flex items-center space-x-2 md:space-x-3 cursor-pointer hover:opacity-80 transition flex-shrink-0"
           >
             <img 
-              src={simncryptLogo}
+              src="/simncrypt.jpg"
               alt="SIM NCRYPT Logo"
               className="w-10 h-10 md:w-26 md:h-16"
             />
