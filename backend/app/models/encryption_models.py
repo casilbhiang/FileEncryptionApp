@@ -49,12 +49,12 @@ class KeyPair:
         self.doctor_id = doctor_id
         self.patient_id = patient_id
         self.encryption_key = encryption_key  # Base64 encoded
-        self.status = status  # Active, Inactive, Revoked
+        self.status = status  # Active, Inactive
         self.created_at = created_at or datetime.utcnow()
         self.expires_at = expires_at
 
     def to_dict(self):
-        """Convert to dictionary for API response (excluding key)"""
+        """Convert to dictionary for API response"""
         return {
             'key_id': self.key_id,
             'doctor_id': self.doctor_id,
@@ -65,7 +65,7 @@ class KeyPair:
         }
 
     def to_dict_with_key(self):
-        """Convert to dictionary including the key (use carefully)"""
+        """Convert to dictionary including the key"""
         data = self.to_dict()
         data['encryption_key'] = self.encryption_key
         return data
