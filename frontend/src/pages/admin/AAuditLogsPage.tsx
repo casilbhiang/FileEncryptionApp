@@ -63,7 +63,7 @@ const AAuditLogsPage: React.FC = () => {
         searchQuery || undefined,
         currentPage,
         LOGS_PER_PAGE,
-        true // exclude KEY/PAIRING events (they have their own tab)
+        true
       );
       setLogs(response.logs);
       setTotalPages(response.total_pages || 1);
