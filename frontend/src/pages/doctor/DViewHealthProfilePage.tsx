@@ -121,7 +121,6 @@ const DViewHealthProfilePage: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to fetch shared files:', err);
-      // Don't show error, just leave files empty
     }
   };
 
