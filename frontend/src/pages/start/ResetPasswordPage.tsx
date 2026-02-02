@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, CheckCircle } from 'lucide-react';
-import simncryptLogo from '../../images/simncrypt.jpg';
 import { storage } from '../../utils/storage';
 
 interface LocationState {
@@ -174,7 +173,7 @@ const ResetPasswordPage: React.FC = () => {
           <div className="hidden md:flex flex-col items-center justify-center text-center px-4">
             <div>
               <img
-                src={simncryptLogo}
+                src="/simncrypt.jpg"
                 alt="SIM NCRYPT"
                 className="h-96 w-96 mx-auto rounded-3xl object-contain shadow-2xl"
               />
@@ -348,7 +347,7 @@ const ResetPasswordPage: React.FC = () => {
             {/* Mobile Logo */}
             <div className="md:hidden text-center mt-8">
               <img
-                src={simncryptLogo}
+                src="/simncrypt.jpg"
                 alt="SIM NCRYPT"
                 className="h-12 w-12 mx-auto rounded-lg object-cover mb-3"
               />

@@ -1,17 +1,6 @@
 'use client';
 import React from 'react';
-import {
-  ArrowRight,
-  Lock,
-  Shield,
-  CheckCircle,
-  FileText,
-  BarChart3,
-  KeyRound,
-  Cloud,
-  MapPin,
-  Users,
-} from 'lucide-react';
+import { ArrowRight, Lock, Shield, CheckCircle, FileText, BarChart3, KeyRound, Cloud, MapPin, Users } from 'lucide-react';
 import TopBar from '../components/layout/TopBar';
 const LandingPage: React.FC = () => {
   const features = [
