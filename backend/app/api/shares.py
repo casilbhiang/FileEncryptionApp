@@ -72,9 +72,9 @@ def share_file():
             
             if sender_query.data:
                 shared_by_uuid = sender_query.data[0]['id']
-                print(f"✅ Found sender UUID: {shared_by_uuid} for user_id: {shared_by}")
+                print(f"Found sender UUID: {shared_by_uuid} for user_id: {shared_by}")
             else:
-                print(f"⚠️ Could not find sender UUID for user_id: {shared_by}")
+                print(f"Could not find sender UUID for user_id: {shared_by}")
         
         # Check if user owns the file
         if shared_by_uuid and file_data['userid'] != shared_by_uuid:
@@ -115,13 +115,13 @@ def share_file():
         
         share_id = result.data[0]['id']
         
-        print(f"✅ File shared: {file_id} from {shared_by} to {shared_with}")
-        print(f"📁 File: {file_data['original_filename']}")
-        print(f"🔑 Access level: {access_level}")
-        print(f"🆔 Share ID: {share_id}")
+        print(f"File shared: {file_id} from {shared_by} to {shared_with}")
+        print(f"File: {file_data['original_filename']}")
+        print(f"Access level: {access_level}")
+        print(f"Share ID: {share_id}")
         
         # ===== CREATE NOTIFICATION FOR RECIPIENT =====
-        print(f"🔔 Starting notification creation process...")
+        print(f"Starting notification creation process...")
         
         try:
             # Import the helper function
@@ -136,21 +136,21 @@ def share_file():
             )
             
             if notification:
-                print(f"📢 Notification successfully created: {notification['id']}")
+                print(f"Notification successfully created: {notification['id']}")
                 notification_sent = True
                 notification_id = notification['id']
             else:
-                print(f"⚠️ Notification creation failed, but share succeeded")
+                print(f"Notification creation failed, but share succeeded")
                 notification_sent = False
                 notification_id = None
                 
         except ImportError as e:
-            print(f"⚠️ Could not import create_share_notification: {e}")
-            print(f"⚠️ Make sure the function exists in notifications.py")
+            print(f"Could not import create_share_notification: {e}")
+            print(f"Make sure the function exists in notifications.py")
             notification_sent = False
             notification_id = None
         except Exception as e:
-            print(f"⚠️ Error creating notification: {e}")
+            print(f"Error creating notification: {e}")
             import traceback
             traceback.print_exc()
             notification_sent = False
@@ -177,10 +177,10 @@ def share_file():
             )
             
             if sender_notification:
-                print(f"📢 Sender notification created: {sender_notification['id']}")
+                print(f"Sender notification created: {sender_notification['id']}")
                 
         except Exception as e:
-            print(f"⚠️ Could not create sender notification: {e}")
+            print(f"Could not create sender notification: {e}")
         
         return jsonify({
             'success': True,
@@ -204,7 +204,7 @@ def share_file():
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
-        print(f"❌ Share error: {e}")
+        print(f"Share error: {e}")
         print(f"Full traceback:\n{error_details}")
         return jsonify({'error': f'{str(e)}', 'details': error_details}), 500
     
