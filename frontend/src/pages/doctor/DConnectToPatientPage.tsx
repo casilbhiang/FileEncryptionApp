@@ -310,7 +310,7 @@ const DConnectToPatientPage: React.FC = () => {
                   className="bg-white rounded-lg p-6 lg:p-8 animate-in fade-in slide-in-from-bottom-4 duration-500"
                 >
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold">Doctor Connection #{index + 1}</h3>
+                    <h3 className="text-lg font-semibold">Patient Connection #{index + 1}</h3>
                     <button
                       onClick={() => handleDisconnect(connection.key_id)}
                       className="text-red-600 hover:text-red-800 text-sm font-semibold underline px-2 py-1"
@@ -324,7 +324,7 @@ const DConnectToPatientPage: React.FC = () => {
                         <Stethoscope className="w-6 h-6 text-green-600" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h3 className="font-semibold text-gray-900 truncate">Patient ID: {connection.doctor_id}</h3>
+                        <h3 className="font-semibold text-gray-900 truncate">Patient ID: {connection.patient_id}</h3>
                         <p className="text-sm text-gray-600 truncate">Key ID: {connection.key_id}</p>
                       </div>
                     </div>

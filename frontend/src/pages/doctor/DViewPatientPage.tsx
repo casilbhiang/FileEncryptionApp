@@ -193,7 +193,7 @@ const DViewPatientPage: React.FC = () => {
                     onClick={() => navigate(`/doctor/patient-profile/${patient.user_id}`)}
                     className="px-6 py-2 bg-white border-2 border-gray-900 rounded-lg font-semibold hover:bg-gray-50 transition whitespace-nowrap"
                   >
-                    Patient profile
+                    Patient Profile
                   </button>
                 </div>
               );
