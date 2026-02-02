@@ -317,7 +317,7 @@ const ShareFiles: React.FC = () => {
         file_id: selectedFile, // Single file selection
         shared_by: currentUser.id,
         shared_by_uuid: currentUser.uuid,
-        shared_with: recipientUser.id,  // This might need to be UUID
+        shared_with: recipientUser.id,
         access_level: 'read',
         message: undefined
       };
@@ -339,11 +339,9 @@ const ShareFiles: React.FC = () => {
         // Get the selected file name
         const sharedFileName = availableFiles.find(f => f.id === selectedFile)?.name || 'file';
 
-        // ADD: Toast-only notification for successful share (FOR SHARER - no sidebar)
         addNotification({
           user_id: currentUser.id,
           title: 'Files Shared',
-          // 🔥 UPDATED: Format: "Shared [file name] with [user name] [user id]"
           message: `Shared "${sharedFileName}" with ${recipientName} (ID: ${selectedRecipient})`,
           type: 'file_shared',
           metadata: {
@@ -359,11 +357,10 @@ const ShareFiles: React.FC = () => {
           persistToSidebar: false // Toast-only, not in sidebar
         });
 
-        // 🔥 NEW: ADD NOTIFICATION FOR RECIPIENT (appears in sidebar)
+       
         addNotification({
           user_id: recipientStringId, // Recipient's user ID
           title: 'Files Received',
-          // 🔥 UPDATED: Format: "Received [file name] from [user name] [user id]"
           message: `Received "${sharedFileName}" from ${sharerName} (ID: ${currentUser.id})`,
           type: 'file_received',
           metadata: {
@@ -381,7 +378,6 @@ const ShareFiles: React.FC = () => {
 
         setShareResult({
           success: true,
-          // 🔥 UPDATED: Also update success message
           message: `"${sharedFileName}" shared successfully with ${recipientName} (ID: ${selectedRecipient})!`,
           share_id: result.data?.share_id
         });
@@ -395,7 +391,6 @@ const ShareFiles: React.FC = () => {
         setTimeout(() => fetchUserFiles(), 1000);
 
       } else {
-        // ADD: Toast notification for share error (toast-only, not in sidebar)
         addNotification({
           user_id: currentUser.id,
           title: 'Share Failed',
@@ -420,7 +415,6 @@ const ShareFiles: React.FC = () => {
     } catch (error) {
       console.error('Error sharing:', error);
 
-      // ADD: Toast notification for network error (toast-only, not in sidebar)
       addNotification({
         user_id: currentUser?.id || 'unknown',
         title: 'Network Error',
