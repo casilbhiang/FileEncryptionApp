@@ -1,8 +1,8 @@
 'use client';
-
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import { Settings, Trash2, AlertTriangle, X } from 'lucide-react';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 interface User {
   id: string;
@@ -16,6 +16,9 @@ interface User {
 const ITEMS_PER_PAGE = 6;
 
 const AUserMgtPage: React.FC = () => {
+  // ✅ ADDED: Use notification context for toasts
+  const { showSuccessToast, showErrorToast } = useNotifications();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -42,7 +45,6 @@ const AUserMgtPage: React.FC = () => {
   const fetchUsers = async () => {
     setIsLoading(true);
     setError('');
-
     try {
       const API_URL = import.meta.env.VITE_API_URL;
       const response = await fetch(`${API_URL}/api/auth/users`);
@@ -150,10 +152,13 @@ const AUserMgtPage: React.FC = () => {
       setUsers(prevUsers => prevUsers.filter(user => user.id !== selectedUser.id));
       setShowDeleteDialog(false);
       setSelectedUser(null);
-      alert('User deleted successfully');
+
+      await showSuccessToast('User Deleted', 'User account has been successfully removed');
+
     } catch (err: any) {
       console.error('Error deleting user:', err);
-      alert(`Failed to delete user: ${err.message}`);
+
+      await showErrorToast('Delete Failed', err.message || 'Failed to delete user account');
     } finally {
       setIsProcessing(false);
     }
@@ -185,17 +190,20 @@ const AUserMgtPage: React.FC = () => {
       setUsers(prevUsers =>
         prevUsers.map(user =>
           user.id === selectedUser.id
-            ? { ...user, name: editFormData.name, email: editFormData.email } // Optimistic update
+            ? { ...user, name: editFormData.name, email: editFormData.email }
             : user
         )
       );
 
       setShowEditDialog(false);
       setSelectedUser(null);
-      alert('User updated successfully');
+
+      await showSuccessToast('User Updated', 'User details have been successfully updated');
+
     } catch (err: any) {
       console.error('Error updating user:', err);
-      alert(`Failed to update user: ${err.message}`);
+
+      await showErrorToast('Update Failed', err.message || 'Failed to update user details');
     } finally {
       setIsProcessing(false);
     }
@@ -340,7 +348,8 @@ const AUserMgtPage: React.FC = () => {
                           <td className="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{user.name}</td>
                           <td className="px-4 py-4 text-sm text-gray-600 whitespace-nowrap">{user.email}</td>
                           <td className="px-4 py-4 whitespace-nowrap">
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${user.role === 'Doctor' ? 'bg-blue-100 text-blue-700' :
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              user.role === 'Doctor' ? 'bg-blue-100 text-blue-700' :
                               user.role === 'Patient' ? 'bg-pink-100 text-pink-700' :
                                 'bg-purple-100 text-purple-700'
                               }`}>
@@ -415,9 +424,10 @@ const AUserMgtPage: React.FC = () => {
                     <button
                       key={page}
                       onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1 text-sm border rounded-lg transition ${currentPage === page
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'hover:bg-gray-100'
+                      className={`px-3 py-1 text-sm border rounded-lg transition ${
+                        currentPage === page
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'hover:bg-gray-100'
                         }`}
                     >
                       {page}
@@ -460,14 +470,17 @@ const AUserMgtPage: React.FC = () => {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowDeleteDialog(false)}
-                className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition"
+                disabled={isProcessing}
+                className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteConfirm}
                 disabled={isProcessing}
-                className={`flex-1 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`flex-1 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition ${
+                  isProcessing ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
                 {isProcessing ? 'Deleting...' : 'Delete User'}
               </button>
@@ -489,17 +502,16 @@ const AUserMgtPage: React.FC = () => {
               <h2 className="text-xl font-bold">Edit User Setting</h2>
               <button
                 onClick={() => setShowEditDialog(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                disabled={isProcessing}
+                className="p-2 hover:bg-gray-100 rounded-lg transition disabled:opacity-50"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="mb-6">
               <h3 className="font-bold text-lg">{selectedUser.name}</h3>
               <p className="text-sm text-gray-600">{selectedUser.email} | {selectedUser.id}</p>
             </div>
-
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold mb-2">
@@ -512,7 +524,6 @@ const AUserMgtPage: React.FC = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-semibold mb-2">
                   Full Nric Name
@@ -521,10 +532,10 @@ const AUserMgtPage: React.FC = () => {
                   type="text"
                   value={editFormData.name}
                   onChange={(e) => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={isProcessing}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-semibold mb-2">
                   Email Address
@@ -533,15 +544,17 @@ const AUserMgtPage: React.FC = () => {
                   type="email"
                   value={editFormData.email}
                   onChange={(e) => setEditFormData(prev => ({ ...prev, email: e.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={isProcessing}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                 />
               </div>
             </div>
-
             <button
               onClick={handleEditSave}
               disabled={isProcessing}
-              className={`w-full mt-6 px-4 py-3 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`w-full mt-6 px-4 py-3 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition ${
+                isProcessing ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
             >
               {isProcessing ? 'Saving...' : 'Save Changes'}
             </button>

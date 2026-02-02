@@ -1,5 +1,4 @@
 'use client';
-
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import { QrCode, Camera, AlertTriangle, CheckCircle, Stethoscope, Key } from 'lucide-react';
@@ -7,19 +6,20 @@ import QRScanner from '../../components/QRScanner';
 import { verifyScannedQR, getUserConnections, getKeyPair } from '../../services/keyService';
 import { hasEncryptionKey, storeEncryptionKey, importKeyFromBase64 } from '../../services/Encryption';
 import { storage } from '../../utils/storage';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 const DConnectToPatientPage: React.FC = () => {
+  const { showSuccessToast, showErrorToast, showWarningToast } = useNotifications();
+
   const [isConnected, setIsConnected] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
-  const [connections, setConnections] = useState<any[]>([]); // Changed from single object to array
+  const [connections, setConnections] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
-
   const [keyMissing, setKeyMissing] = useState(false);
 
   const doctorId = storage.getItem('user_id');
 
   // Load existing connections on mount
-
   useEffect(() => {
     const loadConnections = async () => {
       try {
@@ -44,9 +44,7 @@ const DConnectToPatientPage: React.FC = () => {
           setIsConnected(true);
 
           const hasKey = hasEncryptionKey(doctorId);
-
           if (!hasKey) {
-
             let restoredCount = 0;
             for (const conn of activeConnections) {
               try {
@@ -69,12 +67,10 @@ const DConnectToPatientPage: React.FC = () => {
           } else {
             setKeyMissing(false);
           }
-
         } else {
           setIsConnected(false);
           setKeyMissing(false);
         }
-
       } catch (err) {
         console.error('Failed to load connections:', err);
       }
@@ -95,7 +91,7 @@ const DConnectToPatientPage: React.FC = () => {
       const { deleteKeyPair } = await import('../../services/keyService');
       await deleteKeyPair(keyId);
 
-      // 3. Update UI
+      // 2. Update UI
       setConnections(prev => prev.filter(c => c.key_id !== keyId));
 
       // If no more connections, update main state
@@ -103,10 +99,13 @@ const DConnectToPatientPage: React.FC = () => {
         setIsConnected(false);
       }
 
+      await showSuccessToast('Disconnected', 'Patient connection has been removed successfully');
+
       console.log('Connection disconnected');
     } catch (err: any) {
       console.error('Failed to disconnect:', err);
-      alert(`Failed to disconnect: ${err.message}`);
+
+      await showErrorToast('Disconnect Failed', err.message || 'Failed to disconnect patient');
     }
   };
 
@@ -128,7 +127,7 @@ const DConnectToPatientPage: React.FC = () => {
         const currentDoctor = String(doctorId).trim().toLowerCase();
 
         if (qrDoctor !== currentDoctor) {
-          throw new Error(`Error Does not match.`);
+          throw new Error('QR code does not match your doctor ID');
         }
       }
 
@@ -138,10 +137,15 @@ const DConnectToPatientPage: React.FC = () => {
           const { importKeyFromBase64, storeEncryptionKey } = await import('../../services/Encryption');
           const key = await importKeyFromBase64(qrData.key);
           await storeEncryptionKey(key, doctorId);
+
           console.log('Encryption key cached from QR scan');
-          setKeyMissing(false); // Key is restored
+          setKeyMissing(false); // Key is restored!
+
+          await showSuccessToast('Key Restored', 'Encryption key has been successfully cached');
+
         } catch (keyError) {
           console.error('Failed to cache key:', keyError);
+          await showWarningToast('Key Cache Failed', 'Connection established but key caching failed');
         }
       }
 
@@ -149,6 +153,8 @@ const DConnectToPatientPage: React.FC = () => {
       const result = await verifyScannedQR(decodedText);
 
       // Add to list if not exists
+      const isNewConnection = !connections.some(c => c.key_id === result.connection.key_id);
+      
       setConnections(prev => {
         const exists = prev.some(c => c.key_id === result.connection.key_id);
         if (exists) return prev;
@@ -157,10 +163,19 @@ const DConnectToPatientPage: React.FC = () => {
 
       setIsConnected(true);
       setError(null);
+
+      if (isNewConnection) {
+        await showSuccessToast('Connected', 'Successfully connected to patient');
+      } else {
+        await showSuccessToast('QR Verified', 'Connection verified successfully');
+      }
+
     } catch (err: any) {
       console.error('Scan verification failed:', err);
       setError(err.message || 'Failed to verify QR code');
       setShowScanner(false);
+
+      await showErrorToast('Scan Failed', err.message || 'Failed to verify QR code');
     }
   };
 
@@ -253,7 +268,6 @@ const DConnectToPatientPage: React.FC = () => {
             </div>
           </div>
 
-
           {/* QR Scanner Section */}
           <div className="border-2 border-dashed border-gray-300 rounded-lg p-8">
             <div className="flex flex-col items-center text-center">
@@ -294,7 +308,7 @@ const DConnectToPatientPage: React.FC = () => {
 
         {/* Connected Patient Info & Disconnect */}
         {isConnected && connections.length > 0 && (
-          <div className="max-w-3xl">
+          <div className="max-w-3xl mt-6">
             <h2 className="text-xl font-bold mb-4">Connected Patients ({connections.length})</h2>
             <div className="space-y-4">
               {connections.map((connection, index) => (

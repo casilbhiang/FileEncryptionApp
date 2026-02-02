@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, CheckCircle, RotateCcw } from 'lucide-react';
-import simncryptLogo from '../../images/simncrypt.jpg';
 import { useAuth } from '../../contexts/AuthContext';
 import { storage } from '../../utils/storage';
 
@@ -228,7 +227,7 @@ const VerificationPage: React.FC = () => {
           <div className="hidden md:flex flex-col items-center justify-center text-center px-4">
             <div>
               <img
-                src={simncryptLogo}
+                src="/simncrypt.jpg"
                 alt="SIM NCRYPT"
                 className="h-96 w-96 mx-auto rounded-3xl object-contain shadow-2xl"
               />
@@ -320,7 +319,7 @@ const VerificationPage: React.FC = () => {
             {/* Mobile Logo */}
             <div className="md:hidden text-center mt-8">
               <img
-                src={simncryptLogo}
+                src="/simncrypt.jpg"
                 alt="SIM NCRYPT"
                 className="h-12 w-12 mx-auto rounded-lg object-cover mb-3"
               />

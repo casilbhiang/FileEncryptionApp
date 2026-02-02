@@ -6,6 +6,7 @@ import { Upload, X, Folder, Check, Trash2, Lock } from 'lucide-react';
 import { uploadFile, deleteFile } from '../../services/Files';
 import { encryptFile, getStoredEncryptionKey, hasEncryptionKey } from '../../services/Encryption';
 import { storage } from '../../utils/storage';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 interface UploadedFile {
   id: number | string;
@@ -21,32 +22,19 @@ interface UploadedFile {
 const UploadFilePage: React.FC = () => {
   const location = useLocation();
   const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
-
+  const { showSuccessToast, showErrorToast, showWarningToast } = useNotifications();
+  
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [encryptionKey, setEncryptionKey] = useState<CryptoKey | null>(null);
   const [isLoadingKey, setIsLoadingKey] = useState(true);
   const [keyAvailable, setKeyAvailable] = useState(false);
-
   const [userId, setUserId] = useState<string | null>(null);
   const [userUuid, setUserUuid] = useState<string | null>(null);
-
-  // Alert modal state
-  const [alertModal, setAlertModal] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    type: 'info' | 'warning' | 'error' | 'success';
-  }>({ isOpen: false, title: '', message: '', type: 'info' });
-
-  const showAlert = (title: string, message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info') => {
-    setAlertModal({ isOpen: true, title, message, type });
-  };
 
   useEffect(() => {
     const storedUserId = storage.getItem('user_id');
     const storedUserUuid = storage.getItem('user_uuid');
-
     if (storedUserId && storedUserUuid) {
       setUserId(storedUserId);
       setUserUuid(storedUserUuid);
@@ -60,14 +48,11 @@ const UploadFilePage: React.FC = () => {
   const loadEncryptionKey = async (activeUserId: string) => {
     try {
       setIsLoadingKey(true);
-
       const hasKey = hasEncryptionKey(activeUserId);
       setKeyAvailable(hasKey);
-
       if (hasKey) {
         console.log('Encryption key found in storage, retrieving...');
         const key = await getStoredEncryptionKey(activeUserId);
-
         if (key) {
           setEncryptionKey(key);
           console.log('Encryption key loaded successfully');
@@ -111,10 +96,9 @@ const UploadFilePage: React.FC = () => {
   const handleFiles = async (files: File[]) => {
     // Check if encryption key is available
     if (!encryptionKey || !keyAvailable) {
-      showAlert(
-        'Encryption Key Not Found',
-        'No encryption key found.\n\nPlease scan the QR code provided by the System Administrator to set up encryption before uploading files.',
-        'warning'
+      showWarningToast(
+        'Encryption Key Required',
+        'Please scan the QR code from System Administrator to set up encryption before uploading files.'
       );
       return;
     }
@@ -227,6 +211,9 @@ const UploadFilePage: React.FC = () => {
               : f
           )
         );
+
+        showSuccessToast('Upload Successful', `${file.name} uploaded successfully`);
+
       } catch (error) {
         // Handle cancellation
         if (error instanceof Error && error.name === 'AbortError') {
@@ -239,6 +226,7 @@ const UploadFilePage: React.FC = () => {
             }
           }
           setUploadedFiles((prev) => prev.filter((f) => f.id !== tempId));
+          showWarningToast('Upload Cancelled', `Upload of ${file.name} was cancelled`);
           return;
         }
 
@@ -257,11 +245,9 @@ const UploadFilePage: React.FC = () => {
           )
         );
 
-        // Show error modal
-        showAlert(
+        showErrorToast(
           'Upload Failed',
-          `Failed to upload ${file.name}:\n${error instanceof Error ? error.message : 'Unknown error'}`,
-          'error'
+          `Failed to upload ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`
         );
       }
     }
@@ -270,10 +256,10 @@ const UploadFilePage: React.FC = () => {
   const handleCancelUpload = async (file: UploadedFile) => {
     if ((file.status === 'uploading' || file.status === 'encrypting') && file.abortController) {
       console.log(`Cancelling upload: ${file.name}`);
-
+      
       // Abort the fetch request
       file.abortController.abort();
-
+      
       // Update UI to show cancelled
       setUploadedFiles(prev =>
         prev.map(f =>
@@ -283,31 +269,23 @@ const UploadFilePage: React.FC = () => {
         )
       );
 
-      // Show cancellation message
-      showAlert(
-        'Upload Cancelled',
-        `Upload of "${file.name}" has been cancelled.`,
-        'info'
-      );
+      showWarningToast('Upload Cancelled', `Upload of ${file.name} has been cancelled`);
     }
   };
 
   const handleRemoveFile = async (id: number | string) => {
     const file = uploadedFiles.find(f => f.id === id);
-
+    
     if (file && file.backendFileId && userUuid) {
       try {
         console.log('Deleting file from backend:', file.backendFileId);
         await deleteFile(file.backendFileId, userUuid);
         console.log('File removed from backend:', file.backendFileId);
+        showSuccessToast('File Removed', `${file.name} removed successfully`);
       } catch (error) {
         console.error('Failed to remove file from backend:', error);
-        showAlert(
-          'Delete Failed',
-          `Failed to remove ${file.name} from server.`,
-          'error'
-        );
-        return; // Don't remove from UI if backend deletion failed
+        showErrorToast('Delete Failed', `Failed to remove ${file.name} from server`);
+        return;
       }
     }
 
@@ -334,7 +312,6 @@ const UploadFilePage: React.FC = () => {
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold mb-2">Upload Files</h1>
             <p className="text-gray-600">Your Data Is Securely Encrypted And Accessible Only To You.</p>
-
             {/* Warning banner when key is not available */}
             {!keyAvailable && (
               <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -349,8 +326,9 @@ const UploadFilePage: React.FC = () => {
         {/* Upload Area */}
         <div className="bg-white rounded-lg p-8 mb-6">
           <div
-            className={`border-2 border-dashed rounded-lg p-12 text-center transition ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
-              } ${!keyAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`border-2 border-dashed rounded-lg p-12 text-center transition ${
+              isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+            } ${!keyAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
             onDrop={keyAvailable ? handleDrop : undefined}
             onDragOver={(e) => {
               e.preventDefault();
@@ -374,8 +352,11 @@ const UploadFilePage: React.FC = () => {
                   ? 'PDF, PNG, JPEG, and JPG formats, up to 50MB'
                   : 'Please set up encryption before uploading files'}
               </p>
-              <label className={`px-6 py-2 border-2 border-gray-300 rounded-lg font-medium transition ${keyAvailable ? 'hover:bg-gray-50 cursor-pointer' : 'opacity-50 cursor-not-allowed'
-                }`}>
+              <label
+                className={`px-6 py-2 border-2 border-gray-300 rounded-lg font-medium transition ${
+                  keyAvailable ? 'hover:bg-gray-50 cursor-pointer' : 'opacity-50 cursor-not-allowed'
+                }`}
+              >
                 Browse File
                 <input
                   type="file"
@@ -462,37 +443,6 @@ const UploadFilePage: React.FC = () => {
           </div>
         )}
       </div>
-
-      {alertModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black bg-opacity-50"
-            onClick={() => setAlertModal({ ...alertModal, isOpen: false })}
-          />
-
-          <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6 z-10">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-gray-900">{alertModal.title}</h3>
-              <button
-                onClick={() => setAlertModal({ ...alertModal, isOpen: false })}
-                className="p-1 hover:bg-gray-100 rounded-lg transition"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-
-            <div className="mb-6">
-              <p className="text-gray-700 text-center whitespace-pre-line">{alertModal.message}</p>
-            </div>
-            <button
-              onClick={() => setAlertModal({ ...alertModal, isOpen: false })}
-              className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
