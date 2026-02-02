@@ -19,7 +19,6 @@ const AUserMgtPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('name');
   const [currentPage, setCurrentPage] = useState(1);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -62,7 +61,7 @@ const AUserMgtPage: React.FC = () => {
     }
   };
 
-  // Filter and sort users
+  // Filter users
   const filteredUsers = users
     .filter((user) => {
       const matchesSearch =
@@ -80,16 +79,6 @@ const AUserMgtPage: React.FC = () => {
         (statusFilter === 'inactive' && user.status === 'Inactive');
 
       return matchesSearch && matchesRole && matchesStatus;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'name') {
-        return a.name.localeCompare(b.name);
-      } else if (sortBy === 'role') {
-        return a.role.localeCompare(b.role);
-      } else if (sortBy === 'status') {
-        return a.status.localeCompare(b.status);
-      }
-      return 0;
     });
 
   // Pagination
@@ -99,7 +88,7 @@ const AUserMgtPage: React.FC = () => {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, roleFilter, statusFilter, sortBy]);
+  }, [searchQuery, roleFilter, statusFilter]);
 
   // Generate page numbers to display
   const getPageNumbers = () => {
@@ -304,15 +293,6 @@ const AUserMgtPage: React.FC = () => {
                   <option value="active">Active Only</option>
                   <option value="inactive">Inactive Only</option>
                 </select>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="name">Sort: Name</option>
-                  <option value="role">Sort: Role</option>
-                  <option value="status">Sort: Status</option>
-                </select>
               </div>
 
               {/* Results counter */}
@@ -493,85 +473,81 @@ const AUserMgtPage: React.FC = () => {
               </button>
             </div>
           </div>
-        </div >
+        </div>
       )}
 
       {/* Edit User Dialog */}
-      {
-        showEditDialog && selectedUser && (
+      {showEditDialog && selectedUser && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+        >
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            className="bg-white rounded-lg max-w-md w-full p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div
-              className="bg-white rounded-lg max-w-md w-full p-6 shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold">Edit User Setting</h2>
-                <button
-                  onClick={() => setShowEditDialog(false)}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="mb-6">
-                <h3 className="font-bold text-lg">{selectedUser.name}</h3>
-                <p className="text-sm text-gray-600">{selectedUser.email} | {selectedUser.id}</p>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold mb-2">
-                    User ID (Auto-generated)
-                  </label>
-                  <input
-                    type="text"
-                    value={selectedUser.id}
-                    disabled
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold mb-2">
-                    Full Nric Name
-                  </label>
-                  <input
-                    type="text"
-                    value={editFormData.name}
-                    onChange={(e) => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold mb-2">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    value={editFormData.email}
-                    onChange={(e) => setEditFormData(prev => ({ ...prev, email: e.target.value }))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-
-              </div>
-
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold">Edit User Setting</h2>
               <button
-                onClick={handleEditSave}
-                disabled={isProcessing}
-                className={`w-full mt-6 px-4 py-3 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                onClick={() => setShowEditDialog(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition"
               >
-                {isProcessing ? 'Saving...' : 'Save Changes'}
+                <X className="w-5 h-5" />
               </button>
             </div>
+
+            <div className="mb-6">
+              <h3 className="font-bold text-lg">{selectedUser.name}</h3>
+              <p className="text-sm text-gray-600">{selectedUser.email} | {selectedUser.id}</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold mb-2">
+                  User ID (Auto-generated)
+                </label>
+                <input
+                  type="text"
+                  value={selectedUser.id}
+                  disabled
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2">
+                  Full Nric Name
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={editFormData.email}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, email: e.target.value }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={handleEditSave}
+              disabled={isProcessing}
+              className={`w-full mt-6 px-4 py-3 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {isProcessing ? 'Saving...' : 'Save Changes'}
+            </button>
           </div>
-        )
-      }
+        </div>
+      )}
     </>
   );
 };
