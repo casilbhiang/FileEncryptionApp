@@ -45,7 +45,7 @@ def _create_notification_core(user_id, title, message, notification_type='info',
         
         if not user_result.data:
             # If not found by user_id, try by id field (UUID)
-            print(f"⚠️ [CORE] User not found with user_id: {user_id}, trying by UUID...")
+            print(f"[CORE] User not found with user_id: {user_id}, trying by UUID...")
             user_result = supabase.table('users')\
                 .select('id')\
                 .eq('id', user_id)\
@@ -57,7 +57,7 @@ def _create_notification_core(user_id, title, message, notification_type='info',
             return None
         
         user_uuid = user_result.data[0]['id']
-        print(f"✅ [CORE] Found user UUID: {user_uuid} for user_id: {user_id}")
+        print(f"[CORE] Found user UUID: {user_uuid} for user_id: {user_id}")
         
         # Prepare notification data
         notification_data = {
@@ -79,11 +79,11 @@ def _create_notification_core(user_id, title, message, notification_type='info',
             .execute()
         
         if not result.data:
-            print(f"❌ [CORE] Failed to insert notification")
+            print(f"[CORE] Failed to insert notification")
             return None
         
         created_notification = result.data[0]
-        print(f"✅ [CORE] Notification created: {created_notification['id']}")
+        print(f"[CORE] Notification created: {created_notification['id']}")
         print(f"   Stored with user_id (UUID): {created_notification['user_id']}")
         return created_notification
         
@@ -110,7 +110,7 @@ def create_share_notification(file_data, shared_by, shared_with, access_level='r
         Created notification or None
     """
     try:
-        print(f"🔔 [SHARE] Creating share notification from {shared_by} to {shared_with}")
+        print(f"[SHARE] Creating share notification from {shared_by} to {shared_with}")
         
         # Get sender details for friendly message
         sender_result = supabase.table('users')\
@@ -122,7 +122,7 @@ def create_share_notification(file_data, shared_by, shared_with, access_level='r
         sender_name = "A user"
         if sender_result.data:
             sender_name = sender_result.data[0].get('full_name', shared_by)
-            print(f"✅ [SHARE] Sender: {sender_name}")
+            print(f"[SHARE] Sender: {sender_name}")
         
         # Get recipient details
         recipient_result = supabase.table('users')\
@@ -132,13 +132,13 @@ def create_share_notification(file_data, shared_by, shared_with, access_level='r
             .execute()
         
         if not recipient_result.data:
-            print(f"❌ [SHARE] Recipient {shared_with} not found in users table!")
+            print(f"[SHARE] Recipient {shared_with} not found in users table!")
             return None
         
         recipient_uuid = recipient_result.data[0]['id']
         recipient_name = recipient_result.data[0].get('full_name', shared_with)
         
-        print(f"✅ [SHARE] Recipient details:")
+        print(f"   [SHARE] Recipient details:")
         print(f"   String user_id: {shared_with}")
         print(f"   UUID: {recipient_uuid}")
         print(f"   Name: {recipient_name}")
@@ -168,15 +168,15 @@ def create_share_notification(file_data, shared_by, shared_with, access_level='r
         )
         
         if notification:
-            print(f"✅ [SHARE] Share notification created: {notification['id']}")
+            print(f" [SHARE] Share notification created: {notification['id']}")
             print(f"   For user UUID: {notification.get('user_id', 'UNKNOWN')}")
         else:
-            print(f"⚠️ [SHARE] Failed to create share notification")
+            print(f" [SHARE] Failed to create share notification")
         
         return notification
         
     except Exception as e:
-        print(f"❌ [SHARE] Error creating share notification: {str(e)}")
+        print(f" [SHARE] Error creating share notification: {str(e)}")
         import traceback
         traceback.print_exc()
         return None
@@ -191,7 +191,7 @@ def get_notifications():
         if not user_identifier:
             return jsonify({'error': 'User ID is required'}), 400
         
-        print(f"🔍 Looking up notifications for user identifier: {user_identifier}")
+        print(f" Looking up notifications for user identifier: {user_identifier}")
         
         # First, get the user's UUID from the users table
         # Try to find user by user_id field first
@@ -203,7 +203,7 @@ def get_notifications():
         
         if not user_result.data:
             # If not found by user_id, try by id field (UUID)
-            print(f"⚠️ User not found with user_id: {user_identifier}, trying by UUID...")
+            print(f" User not found with user_id: {user_identifier}, trying by UUID...")
             user_result = supabase.table('users')\
                 .select('id')\
                 .eq('id', user_identifier)\
@@ -211,7 +211,7 @@ def get_notifications():
                 .execute()
         
         if not user_result.data:
-            print(f"❌ User not found with identifier: {user_identifier}")
+            print(f" User not found with identifier: {user_identifier}")
             return jsonify({
                 'success': True,
                 'notifications': [],
@@ -220,7 +220,7 @@ def get_notifications():
             }), 200
         
         user_uuid = user_result.data[0]['id']
-        print(f"✅ Found user UUID: {user_uuid} for identifier: {user_identifier}")
+        print(f" Found user UUID: {user_uuid} for identifier: {user_identifier}")
         
         # Query notifications for this user
         user_notifications = supabase.table('notifications')\
@@ -243,7 +243,7 @@ def get_notifications():
         }), 200
         
     except Exception as e:
-        print(f"❌ Error getting notifications: {e}")
+        print(f" Error getting notifications: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -296,7 +296,7 @@ def create_notification():
             }), 500
         
     except Exception as e:
-        print(f"❌ Error in create_notification endpoint: {str(e)}")
+        print(f" Error in create_notification endpoint: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -309,7 +309,7 @@ def mark_notification_read(notification_id):
         if not user_id:
             return jsonify({'error': 'User ID is required'}), 400
         
-        print(f"📝 Marking notification {notification_id} as read for user: {user_id}")
+        print(f" Marking notification {notification_id} as read for user: {user_id}")
         
         # Find user's UUID
         # Try to find by user_id field first
@@ -351,7 +351,7 @@ def mark_notification_read(notification_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error marking notification as read: {e}")
+        print(f" Error marking notification as read: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -366,7 +366,7 @@ def mark_all_read():
         if not user_id:
             return jsonify({'error': 'User ID is required'}), 400
         
-        print(f"📝 Marking all notifications as read for user: {user_id}")
+        print(f" Marking all notifications as read for user: {user_id}")
         
         # Find user's UUID
         # Try to find by user_id field first
@@ -408,7 +408,7 @@ def mark_all_read():
         }), 200
         
     except Exception as e:
-        print(f"❌ Error marking all as read: {e}")
+        print(f" Error marking all as read: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -421,7 +421,7 @@ def delete_notification(notification_id):
         if not user_id:
             return jsonify({'error': 'User ID is required'}), 400
         
-        print(f"🗑️ Deleting notification {notification_id} for user: {user_id}")
+        print(f" Deleting notification {notification_id} for user: {user_id}")
         
         # Find user's UUID
         # Try to find by user_id field first
@@ -460,7 +460,7 @@ def delete_notification(notification_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error deleting notification: {e}")
+        print(f" Error deleting notification: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -475,7 +475,7 @@ def clear_all_notifications():
         if not user_id:
             return jsonify({'error': 'User ID is required'}), 400
         
-        print(f"🗑️ Clearing all notifications for user: {user_id}")
+        print(f" Clearing all notifications for user: {user_id}")
         
         # Find user's UUID
         # Try to find by user_id field first
@@ -513,7 +513,7 @@ def clear_all_notifications():
         }), 200
         
     except Exception as e:
-        print(f"❌ Error clearing all notifications: {e}")
+        print(f" Error clearing all notifications: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -566,7 +566,7 @@ def get_unread_count():
         }), 200
         
     except Exception as e:
-        print(f"❌ Error getting unread count: {e}")
+        print(f" Error getting unread count: {e}")
         return jsonify({'error': str(e)}), 500
 
 
