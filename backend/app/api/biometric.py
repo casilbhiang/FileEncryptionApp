@@ -136,7 +136,7 @@ def register_biometric():
         
         supabase.table('biometric_credentials').insert(credential_data).execute()
         
-        print(f"✓ Biometric registered for {user_id} on {device_name}")
+        print(f" Biometric registered for {user_id} on {device_name}")
         
         return jsonify({
             'message': 'Biometric credential registered successfully',
