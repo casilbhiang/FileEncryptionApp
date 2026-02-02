@@ -16,7 +16,6 @@ const DConnectToPatientPage: React.FC = () => {
 
   const [keyMissing, setKeyMissing] = useState(false);
 
-  // Get doctor ID from localStorage
   const doctorId = storage.getItem('user_id');
 
   // Load existing connections on mount
@@ -96,12 +95,6 @@ const DConnectToPatientPage: React.FC = () => {
       const { deleteKeyPair } = await import('../../services/keyService');
       await deleteKeyPair(keyId);
 
-      // 2. Clear Local Key (Optional, if we want to be thorough we can try to find and remove logic, 
-      // but since keys are just overrides in localStorage, maybe we don't need to do anything complex locally
-      // if we rely on backend mainly. But "clearEncryptionKey" clears ALL keys for the user?
-      // Let's check clearEncryptionKey implementation if possible. 
-      // Assuming for now we just remove from UI list)
-
       // 3. Update UI
       setConnections(prev => prev.filter(c => c.key_id !== keyId));
 
@@ -146,7 +139,7 @@ const DConnectToPatientPage: React.FC = () => {
           const key = await importKeyFromBase64(qrData.key);
           await storeEncryptionKey(key, doctorId);
           console.log('Encryption key cached from QR scan');
-          setKeyMissing(false); // Key is restored!
+          setKeyMissing(false); // Key is restored
         } catch (keyError) {
           console.error('Failed to cache key:', keyError);
         }
