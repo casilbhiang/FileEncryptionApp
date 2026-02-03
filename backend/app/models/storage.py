@@ -9,7 +9,6 @@ class KeyPairStore:
     """Supabase store for encryption key pairs"""
     
     def __init__(self):
-        # We don't need local storage anymore
         pass
     
     @property
