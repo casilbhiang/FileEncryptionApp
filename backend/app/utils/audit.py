@@ -99,20 +99,7 @@ class AuditLogger:
             
             # Prepare data for Supabase
             log_data = {
-                'user_id': user_id if user_id and user_id != 'ADMIN' and user_id != 'SYSTEM' else None, # Link to users table if possible, else None
-                # If user_id is a real UUID, it links. If 'ADMIN' or 'SYSTEM', we might need to handle differently or allow NULL user_id and store info in details/metadata.
-                # However, looking at api/audit.py, it joins with 'users'. 
-                # For now, let's assume 'users' table has these users or we store metadata.
-                # Actually, api/audit.py selects *, users(...). 
-                # Let's try to insert. If user_id is not a UUID, it might fail foreign key constraint.
-                
-                # REVISION:
-                # If user_id is not a valid UUID (like 'ADMIN'), we might break FK.
-                # Let's check if we can store 'user_id' as NULL for system events, and put the name in a separate column or assumes system.
-                # But 'AuditLog' class has 'user_id' and 'user_name'.
-                # Let's try to map 'system' to a specific system user UUID if known, OR handle the schema.
-                # Since I don't know the schema, I will try to follow the pattern.
-                
+                'user_id': user_id if user_id and user_id != 'ADMIN' and user_id != 'SYSTEM' else None, 
                 'action': action.value if isinstance(action, AuditAction) else action,
                 'target': target,
                 'result': result.value if isinstance(result, AuditResult) else result,
@@ -123,7 +110,6 @@ class AuditLogger:
                 }
             }
             
-            # If user_id looks like a UUID, use it. Otherwise leave None (for system/admin tasks if they aren't in users table)
             import uuid
             try:
                 if user_id and user_id not in ['ADMIN', 'SYSTEM']:
@@ -156,7 +142,6 @@ class AuditLogger:
 
         except Exception as e:
             print(f"[AUDIT ERROR] Failed to save audit log: {e}")
-            # Fallback to in-memory (optional, or just log error)
             return None
 
     def get_all(self) -> List[AuditLog]:

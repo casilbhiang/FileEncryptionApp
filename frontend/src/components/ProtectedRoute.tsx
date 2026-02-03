@@ -13,7 +13,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
     const location = useLocation();
 
     if (isLoading) {
-        // You can replace this with a proper loading spinner
         return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
     }
 
@@ -23,8 +22,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
     }
 
     if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-        // User role not authorized, redirect to their home page or unauthorized page
-        // For now, redirecting to their role-specific home
         return <Navigate to={`/${user.role}/home`} replace />;
     }
 

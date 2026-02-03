@@ -1,17 +1,17 @@
-# shares.py - Separate file for share-related endpoints
-
 from flask import Blueprint, request, jsonify
 from supabase import create_client
 import os
 from datetime import datetime, timezone
+import logging
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 # Configuration
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
-
 if not SUPABASE_SERVICE_ROLE_KEY:
     SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
-
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 # Blueprint for share routes
@@ -40,7 +40,7 @@ def share_file():
         
         file_id = data['file_id']
         shared_by = data['shared_by']
-        shared_by_uuid = data.get('shared_by_uuid')  # Make this optional with get()
+        shared_by_uuid = data.get('shared_by_uuid')
         shared_with = data['shared_with']
         access_level = data.get('access_level', 'read')
         message = data.get('message', '')
@@ -72,9 +72,9 @@ def share_file():
             
             if sender_query.data:
                 shared_by_uuid = sender_query.data[0]['id']
-                print(f"Found sender UUID: {shared_by_uuid} for user_id: {shared_by}")
+                logger.debug(f"Found sender UUID for user_id: {shared_by}")
             else:
-                print(f"Could not find sender UUID for user_id: {shared_by}")
+                logger.warning(f"Could not find sender UUID for user_id: {shared_by}")
         
         # Check if user owns the file
         if shared_by_uuid and file_data['userid'] != shared_by_uuid:
@@ -115,19 +115,15 @@ def share_file():
         
         share_id = result.data[0]['id']
         
-        print(f"File shared: {file_id} from {shared_by} to {shared_with}")
-        print(f"File: {file_data['original_filename']}")
-        print(f"Access level: {access_level}")
-        print(f"Share ID: {share_id}")
+        logger.info(f"File shared: {file_id} from {shared_by} to {shared_with} (access: {access_level})")
         
         # ===== CREATE NOTIFICATION FOR RECIPIENT =====
-        print(f"Starting notification creation process...")
+        notification_sent = False
+        notification_id = None
         
         try:
-            # Import the helper function
             from app.api.notifications import create_share_notification
             
-            # Create notification for recipient
             notification = create_share_notification(
                 file_data=file_data,
                 shared_by=shared_by,
@@ -136,34 +132,24 @@ def share_file():
             )
             
             if notification:
-                print(f"Notification successfully created: {notification['id']}")
+                logger.info(f"Share notification created: {notification['id']}")
                 notification_sent = True
                 notification_id = notification['id']
             else:
-                print(f"Notification creation failed, but share succeeded")
-                notification_sent = False
-                notification_id = None
+                logger.warning("Notification creation failed, but share succeeded")
                 
         except ImportError as e:
-            print(f"Could not import create_share_notification: {e}")
-            print(f"Make sure the function exists in notifications.py")
-            notification_sent = False
-            notification_id = None
+            logger.error(f"Could not import create_share_notification: {e}")
         except Exception as e:
-            print(f"Error creating notification: {e}")
-            import traceback
-            traceback.print_exc()
-            notification_sent = False
-            notification_id = None
-        # ===== END NOTIFICATION CREATION =====
+            logger.error(f"Error creating notification: {e}", exc_info=True)
         
-        # Also create a success notification for the sender (optional)
+        # Create success notification for sender
         try:
             from app.api.notifications import _create_notification_core
             
             sender_notification = _create_notification_core(
                 user_id=shared_by,
-                title='✅ File Shared Successfully',
+                title='File Shared Successfully',
                 message=f'You shared "{file_data["original_filename"]}" with {shared_with}',
                 notification_type='info',
                 metadata={
@@ -177,10 +163,10 @@ def share_file():
             )
             
             if sender_notification:
-                print(f"Sender notification created: {sender_notification['id']}")
+                logger.debug(f"Sender notification created: {sender_notification['id']}")
                 
         except Exception as e:
-            print(f"Could not create sender notification: {e}")
+            logger.error(f"Could not create sender notification: {e}")
         
         return jsonify({
             'success': True,
@@ -192,22 +178,12 @@ def share_file():
             'notification': {
                 'sent': notification_sent,
                 'id': notification_id
-            },
-            'debug': {
-                'file_id': file_id,
-                'shared_by': shared_by,
-                'shared_with': shared_with,
-                'access_level': access_level
             }
         }), 201
         
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Share error: {e}")
-        print(f"Full traceback:\n{error_details}")
-        return jsonify({'error': f'{str(e)}', 'details': error_details}), 500
-    
+        logger.error(f"Share error: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
     
     
 # ===== Get Shares for a File =====
@@ -244,7 +220,7 @@ def get_file_shares(file_id):
         if not file_check.data:
             return jsonify({'error': 'File not found'}), 404
         
-        if file_check.data[0]['userid'] != user_uuid:  # Changed from 'user_id' to 'userid'
+        if file_check.data[0]['userid'] != user_uuid:
             return jsonify({'error': 'Not authorized. You do not own this file'}), 403
         
         # Get all active shares for this file
@@ -261,11 +237,8 @@ def get_file_shares(file_id):
         }), 200
         
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Get shares error: {e}")
-        print(f"Full traceback:\n{error_details}")
-        return jsonify({'error': f'{str(e)}', 'details': error_details}), 500
+        logger.error(f"Get shares error: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 # ===== Get My Shares (Files I've Shared) =====
 @shares_bp.route('/my-shares', methods=['GET'])
@@ -329,11 +302,8 @@ def get_my_shares():
         }), 200
         
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Get my shares error: {e}")
-        print(f"Full traceback:\n{error_details}")
-        return jsonify({'error': f'{str(e)}', 'details': error_details}), 500
+        logger.error(f"Get my shares error: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 # ===== Revoke/Delete a Share =====
 @shares_bp.route('/<share_id>/revoke', methods=['POST'])
@@ -374,7 +344,7 @@ def revoke_share(share_id):
             .execute()
         
         if result.data:
-            print(f"Share revoked: {share_id}")
+            logger.info(f"Share revoked: {share_id}")
             return jsonify({
                 'message': 'Share revoked successfully',
                 'share_id': share_id
@@ -383,11 +353,8 @@ def revoke_share(share_id):
             return jsonify({'error': 'Failed to revoke share'}), 500
         
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Revoke share error: {e}")
-        print(f"Full traceback:\n{error_details}")
-        return jsonify({'error': f'{str(e)}', 'details': error_details}), 500
+        logger.error(f"Revoke share error: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 # ===== Get Shared With Me Files Only =====
 @shares_bp.route('/shared-with-me', methods=['GET'])
@@ -489,12 +456,8 @@ def get_shared_with_me():
     except ValueError as e:
         return jsonify({'error': f'Invalid parameter: {str(e)}'}), 400
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Get shared files error: {e}")
-        print(f"Full traceback:\n{error_details}")
-        return jsonify({'error': f'{str(e)}', 'details': error_details}), 500
-
+        logger.error(f"Get shared files error: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 # ===== Get Available Users to Share With =====
 @shares_bp.route('/available-users', methods=['GET'])
@@ -506,145 +469,93 @@ def get_available_users():
     try:
         user_id = request.args.get('user_id')
         if not user_id:
-            print("ERROR: No user_id provided in query params")
             return jsonify({'error': 'User ID is required'}), 400
         
-        print(f"=== START: Getting available users for user_id: {user_id} ===")
+        logger.debug(f"Getting available users for user_id: {user_id}")
         
-        # Check if user_id exists in users table
-        print(f"1. Checking if user {user_id} exists in users table...")
-        
+        # Check if user exists
         user_query = supabase.table('users')\
             .select('user_id, role, email, full_name')\
             .eq('user_id', user_id)\
             .eq('is_active', True)\
             .execute()
         
-        print(f"User query result: {user_query.data}")
-        
         if not user_query.data:
-            print(f"ERROR: User {user_id} not found or inactive in users table")
+            logger.warning(f"User {user_id} not found or inactive")
             return jsonify({
-                'error': f'User {user_id} not found or inactive',
                 'users': [],
                 'count': 0
-            }), 200  # Return empty array instead of 404
+            }), 200
         
         current_user = user_query.data[0]
-        user_role = current_user.get('role', 'patient')  # Default to patient
-        user_name = current_user.get('full_name', user_id)    # Use full_name or user_id
+        user_role = current_user.get('role', 'patient')
         
-        print(f"2. User {user_id} found: name={user_name}, role={user_role}")
+        logger.debug(f"User found: role={user_role}")
         
         connected_users = []
         
         if user_role.lower() == 'patient':
-            print(f"3. Looking for doctors connected to patient {user_id}...")
+            # Get connected doctors
+            connections_query = supabase.table('doctor_patient_connections')\
+                .select('doctor_id, connection_status')\
+                .eq('patient_id', user_id)\
+                .eq('connection_status', 'active')\
+                .execute()
             
-            # Check doctor_patient_connections table
-            try:
-                connections_query = supabase.table('doctor_patient_connections')\
-                    .select('doctor_id, connection_status')\
-                    .eq('patient_id', user_id)\
-                    .eq('connection_status', 'active')\
+            if connections_query.data:
+                doctor_ids = [conn['doctor_id'] for conn in connections_query.data]
+                
+                doctors_query = supabase.table('users')\
+                    .select('user_id, full_name, email, role')\
+                    .in_('user_id', doctor_ids)\
+                    .eq('is_active', True)\
                     .execute()
                 
-                print(f"Connections query result: {connections_query.data}")
-                print(f"Number of connections found: {len(connections_query.data) if connections_query.data else 0}")
-                
-                if connections_query.data:
-                    doctor_ids = [conn['doctor_id'] for conn in connections_query.data]
-                    print(f"Doctor IDs found: {doctor_ids}")
+                if doctors_query.data:
+                    for doctor in doctors_query.data:
+                        connected_users.append({
+                            'id': doctor['user_id'],
+                            'name': doctor.get('full_name', doctor['user_id']),
+                            'email': doctor['email'],
+                            'role': doctor['role']
+                        })
                     
-                    # Get doctor details
-                    if doctor_ids:
-                        doctors_query = supabase.table('users')\
-                            .select('user_id, full_name, email, role')\
-                            .in_('user_id', doctor_ids)\
-                            .eq('is_active', True)\
-                            .execute()
-                        
-                        print(f"Doctors query result: {doctors_query.data}")
-                        
-                        if doctors_query.data:
-                            for doctor in doctors_query.data:
-                                connected_users.append({
-                                    'id': doctor['user_id'],
-                                    'name': doctor.get('full_name', doctor['user_id']),
-                                    'email': doctor['email'],
-                                    'role': doctor['role']
-                                })
-                            print(f"Added {len(doctors_query.data)} doctors")
-                else:
-                    print(f"No active doctor connections found for patient {user_id}")
-                    
-            except Exception as conn_error:
-                print(f"Error querying connections: {str(conn_error)}")
-                
         elif user_role.lower() == 'doctor':
-            print(f"3. Looking for patients connected to doctor {user_id}...")
-
-            try:
-                connections_query = supabase.table('doctor_patient_connections')\
-                    .select('patient_id, connection_status')\
-                    .eq('doctor_id', user_id)\
-                    .eq('connection_status', 'active')\
+            # Get connected patients
+            connections_query = supabase.table('doctor_patient_connections')\
+                .select('patient_id, connection_status')\
+                .eq('doctor_id', user_id)\
+                .eq('connection_status', 'active')\
+                .execute()
+            
+            if connections_query.data:
+                patient_ids = [conn['patient_id'] for conn in connections_query.data]
+                
+                patients_query = supabase.table('users')\
+                    .select('user_id, full_name, email, role')\
+                    .in_('user_id', patient_ids)\
+                    .eq('is_active', True)\
                     .execute()
                 
-                print(f"Connections query result: {connections_query.data}")
-                print(f"Number of connections found: {len(connections_query.data) if connections_query.data else 0}")
-                
-                if connections_query.data:
-                    patient_ids = [conn['patient_id'] for conn in connections_query.data]
-                    print(f"Patient IDs found: {patient_ids}")
-                    
-                    # Get patient details
-                    if patient_ids:
-                        patients_query = supabase.table('users')\
-                            .select('user_id, full_name, email, role')\
-                            .in_('user_id', patient_ids)\
-                            .eq('is_active', True)\
-                            .execute()
-                        
-                        print(f"Patients query result: {patients_query.data}")
-                        
-                        if patients_query.data:
-                            for patient in patients_query.data:
-                                connected_users.append({
-                                    'id': patient['user_id'],
-                                    'name': patient.get('full_name', patient['user_id']),
-                                    'email': patient['email'],
-                                    'role': patient['role']
-                                })
-                            print(f"Added {len(patients_query.data)} patients")
-                else:
-                    print(f"No active patient connections found for doctor {user_id}")
-                    
-            except Exception as conn_error:
-                print(f"Error querying connections: {str(conn_error)}")
-        else:
-            print(f"3. User role '{user_role}' not recognized, returning empty list")
+                if patients_query.data:
+                    for patient in patients_query.data:
+                        connected_users.append({
+                            'id': patient['user_id'],
+                            'name': patient.get('full_name', patient['user_id']),
+                            'email': patient['email'],
+                            'role': patient['role']
+                        })
         
-        print(f"4. Final connected users: {connected_users}")
-        print(f"=== END: Found {len(connected_users)} users ===")
+        logger.info(f"Found {len(connected_users)} available users for {user_id}")
         
-        # Always return success with users array (even if empty)
         return jsonify({
             'users': connected_users,
-            'count': len(connected_users),
-            'debug': {
-                'requested_user_id': user_id,
-                'user_role': user_role,
-                'user_name': user_name
-            }
+            'count': len(connected_users)
         }), 200
         
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Get available users error: {e}")
-        print(f"Full traceback:\n{error_details}")
-        return jsonify({'error': f'{str(e)}', 'details': error_details}), 500
+        logger.error(f"Get available users error: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
     
     
 # ===== Get Files Shared With Specific Recipient =====
@@ -659,7 +570,7 @@ def get_files_shared_with_recipient(recipient_id):
         if not shared_by:
             return jsonify({'error': 'shared_by parameter is required'}), 400
         
-        print(f"Checking files shared by {shared_by} with {recipient_id}")
+        logger.debug(f"Checking files shared by {shared_by} with {recipient_id}")
         
         # Query for active shares between these two users
         shares = supabase.table('file_shares')\
@@ -671,7 +582,7 @@ def get_files_shared_with_recipient(recipient_id):
         
         file_ids = [share['file_id'] for share in shares.data]
         
-        print(f"Found {len(file_ids)} files already shared")
+        logger.info(f"Found {len(file_ids)} files already shared")
         
         return jsonify({
             'file_ids': file_ids,
@@ -681,7 +592,5 @@ def get_files_shared_with_recipient(recipient_id):
         }), 200
         
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Error getting files shared with recipient: {e}")
-        return jsonify({'error': f'{str(e)}', 'details': error_details}), 500
+        logger.error(f"Error getting files shared with recipient: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500

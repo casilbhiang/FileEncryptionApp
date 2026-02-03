@@ -277,8 +277,6 @@ const AFileLogsPage: React.FC = () => {
             Refresh
           </button>
         </div>
-
-        {/* Outdated Files Section - Always visible */}
         <div className={`mb-6 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border ${outdatedCount > 0
           ? 'bg-amber-50 border-amber-200'
           : 'bg-gray-50 border-gray-200'
@@ -468,8 +466,7 @@ const AFileLogsPage: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Outdated Files Modal */}
+      
       {showOutdatedModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] flex flex-col">

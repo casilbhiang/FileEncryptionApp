@@ -15,17 +15,11 @@ def normalize_timestamp(timestamp_str: str) -> str:
         '2026-01-13T10:27:48.0968+00:00' -> '2026-01-13T10:27:48.096800+00:00'
         '2026-01-13T10:27:48.09682345+00:00' -> '2026-01-13T10:27:48.096823+00:00'
     """
-    # Match ISO timestamp with fractional seconds
-    # Group 1: Everything before fractional seconds
-    # Group 2: Fractional seconds (any length)
-    # Group 3: Timezone
     pattern = r'^(.*\.)(\d+)([\+\-Z].*)$'
     match = re.match(pattern, timestamp_str)
 
     if match:
         prefix, fractional, suffix = match.groups()
-        # Python datetime supports up to 6 decimal places (microseconds)
-        # Pad with zeros if less than 6, truncate if more
         fractional_normalized = fractional[:6].ljust(6, '0')
         return f"{prefix}{fractional_normalized}{suffix}"
 
@@ -49,12 +43,12 @@ class KeyPair:
         self.doctor_id = doctor_id
         self.patient_id = patient_id
         self.encryption_key = encryption_key  # Base64 encoded
-        self.status = status  # Active, Inactive, Revoked
+        self.status = status  # Active, Inactive
         self.created_at = created_at or datetime.utcnow()
         self.expires_at = expires_at
 
     def to_dict(self):
-        """Convert to dictionary for API response (excluding key)"""
+        """Convert to dictionary for API response"""
         return {
             'key_id': self.key_id,
             'doctor_id': self.doctor_id,
@@ -65,7 +59,7 @@ class KeyPair:
         }
 
     def to_dict_with_key(self):
-        """Convert to dictionary including the key (use carefully)"""
+        """Convert to dictionary including the key"""
         data = self.to_dict()
         data['encryption_key'] = self.encryption_key
         return data

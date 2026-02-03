@@ -16,7 +16,6 @@ interface User {
 const ITEMS_PER_PAGE = 6;
 
 const AUserMgtPage: React.FC = () => {
-  // ✅ ADDED: Use notification context for toasts
   const { showSuccessToast, showErrorToast } = useNotifications();
 
   const [searchQuery, setSearchQuery] = useState('');

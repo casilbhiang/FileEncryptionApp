@@ -71,8 +71,8 @@ def generate_key_pair():
         
         # Log audit event
         audit_logger.log(
-            user_id="ADMIN",  # TODO: Get from auth context
-            user_name="System Admin",  # TODO: Get from auth context
+            user_id="ADMIN", 
+            user_name="System Admin", 
             action=AuditAction.KEY_GENERATE,
             target=f"{doctor_id} → {patient_id}",
             result=AuditResult.OK,
@@ -391,7 +391,6 @@ def scan_qr_code():
             return jsonify({'error': 'Key pair is not active or pending'}), 403
             
         # Check Expiration
-        # Check Expiration
         if key_pair.expires_at:
              # Ensure we compare like with like (Convert both to naive UTC)
              expires_at_naive = key_pair.expires_at.replace(tzinfo=None)
@@ -453,7 +452,6 @@ def scan_qr_code():
                 # 'status': 'active' # If table has status
             }
             # We use upsert if we have a unique constraint, or insert with ignore
-            # For now, simple insert. If it fails due to duplicates, we catch it.
             supabase.table('doctor_patient_connections').insert(connection_data).execute()
             
             audit_logger.log(
@@ -466,7 +464,6 @@ def scan_qr_code():
             )
         except Exception as conn_err:
             print(f"Connection persistence warning: {conn_err}")
-            # We don't fail the request if this fails (it might be a duplicate)
         
         return jsonify({
             'success': True,

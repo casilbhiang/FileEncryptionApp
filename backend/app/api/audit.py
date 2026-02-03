@@ -10,7 +10,7 @@ audit_bp = Blueprint('audit', __name__)
 
 @audit_bp.route('/logs', methods=['GET'])
 def get_audit_logs():
-    """Get audit logs from both login_audit (auth events) and audit_logs (all other events)"""
+    """Get audit logs from both login_audit (auth events) and audit_logs"""
     try:
         user_id = request.args.get('user_id')
         action = request.args.get('action')
@@ -28,8 +28,7 @@ def get_audit_logs():
         login_query = login_query.order('created_at', desc=True)
         login_response = login_query.execute()
 
-        # Try to fetch from audit_logs table (all other system events)
-        # This table may not exist yet, so handle gracefully
+        # Try to fetch from audit_logs table
         audit_response = None
         try:
             # Attempt 1: Fetch with join (requires FK)
@@ -159,7 +158,7 @@ def get_audit_logs():
 
             formatted_logs.append(formatted_log)
 
-        # Filter out KEY/PAIRING events if requested (audit logs page excludes these)
+        # Filter out KEY/PAIRING events if requested
         if exclude_keys:
             formatted_logs = [
                 log for log in formatted_logs

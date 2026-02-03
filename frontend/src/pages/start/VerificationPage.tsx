@@ -166,7 +166,7 @@ const VerificationPage: React.FC = () => {
         setSuccess('Verification successful!');
         setCode('');
 
-        //  Check localStorage for first login flag
+        //  Check storage for first login flag
         const isFirstLogin = storage.getItem('is_first_login') === 'true';
 
         console.log('is_first_login flag:', isFirstLogin);
@@ -196,7 +196,7 @@ const VerificationPage: React.FC = () => {
       setSuccess('Verification successful!');
       setCode('');
 
-      // Check localStorage for first login flag
+      // Check storage for first login flag
       const isFirstLogin = storage.getItem('is_first_login') === 'true';
 
       setTimeout(() => {
