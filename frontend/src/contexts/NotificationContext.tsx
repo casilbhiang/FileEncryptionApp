@@ -6,7 +6,7 @@ export type NotificationType = 'file_shared' | 'error' | 'info' | 'system' | 'fi
 
 export interface Notification {
   id: string;
-  user_id: string; // This is UUID in the database
+  user_id: string; 
   notification_type: string;
   title: string;
   message: string;
@@ -16,7 +16,7 @@ export interface Notification {
   metadata: Record<string, any> | null;
   created_at: string;
   read_at: string | null;
-  persistToSidebar?: boolean; // NEW: Controls if notification appears in sidebar
+  persistToSidebar?: boolean; 
 }
 
 // NEW: Interface for creating notifications
@@ -27,7 +27,7 @@ export interface NotificationInput {
   type: string;
   metadata?: Record<string, any>;
   showAsToast?: boolean;
-  persistToSidebar?: boolean; // NEW: Controls if notification appears in sidebar (defaults to true)
+  persistToSidebar?: boolean; 
   related_file_id?: string | null;
   related_user_id?: string | null;
 }
@@ -47,13 +47,9 @@ interface NotificationContextType {
   clearAllNotifications: () => Promise<void>;
   dismissToast: (id: string) => void;
 
-  // NEW: Add notification method
   addNotification: (notification: NotificationInput) => Promise<void>;
-
-  // Manual refresh (no auto-polling for now)
   refreshNotifications: () => Promise<void>;
 
-  // NEW: Toast helper methods
   showSuccessToast: (title: string, message: string, metadata?: Record<string, any>) => Promise<void>;
   showErrorToast: (title: string, message: string, metadata?: Record<string, any>) => Promise<void>;
   showWarningToast: (title: string, message: string, metadata?: Record<string, any>) => Promise<void>;
@@ -150,7 +146,6 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     });
   }, []);
 
-  // NEW: Add notification method
   const addNotification = useCallback(async (notificationInput: NotificationInput) => {
     const currentUserStringId = getCurrentUserStringId();
 
@@ -276,11 +271,10 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     }
   }, [getCurrentUserStringId, getAuthHeaders, API_URL]);
 
-  // FIXED: fetchNotifications with throttling and proper dependencies
   const fetchNotifications = useCallback(async (showToasts: boolean = false) => {
     // Prevent multiple simultaneous fetches
     if (isFetchingRef.current) {
-      console.log('⏸️ Already fetching, skipping...');
+      console.log('⏸Already fetching, skipping...');
       return;
     }
 
@@ -289,7 +283,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
 
     // Throttle: don't fetch more than once every 5 seconds
     if (timeSinceLastFetch < 5000 && hasInitialFetchRef.current) {
-      console.log(`⏸️ Throttled: ${timeSinceLastFetch}ms since last fetch`);
+      console.log(`Throttled: ${timeSinceLastFetch}ms since last fetch`);
       return;
     }
 
@@ -353,7 +347,6 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
 
         setNotifications(transformed);
 
-        // FIXED: Only show toasts for new notifications if explicitly requested (not on initial load)
         if (showToasts) {
           setActiveToasts(prevToasts => {
             const newNotifications = transformed.filter((n: Notification) =>
@@ -633,7 +626,6 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     }
   }, [notifications, unreadCount, getCurrentUserUuid, getCurrentUserStringId]);
 
-  // FIXED: Initialize on mount with proper cleanup
   useEffect(() => {
     console.log(' NotificationProvider useEffect running');
 
