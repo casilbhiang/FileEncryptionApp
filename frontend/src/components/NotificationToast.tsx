@@ -47,7 +47,7 @@ const NotificationToast: React.FC = () => {
               </p>
               {toast.metadata?.file_name && (
                 <p className="text-xs text-gray-500">
-                  📁 {toast.metadata.file_name}
+                  {toast.metadata.file_name}
                 </p>
               )}
             </div>
