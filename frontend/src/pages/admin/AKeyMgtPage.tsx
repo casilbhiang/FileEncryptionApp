@@ -21,7 +21,7 @@ interface KeyPair {
   rawExpires: string | null;
 }
 
-const ITEMS_PER_PAGE = 6;
+const ITEMS_PER_PAGE = 5;
 
 const AKeyMgtPage: React.FC = () => {
   const { showSuccessToast, showErrorToast } = useNotifications();
@@ -37,6 +37,7 @@ const AKeyMgtPage: React.FC = () => {
   const [keyPairs, setKeyPairs] = useState<KeyPair[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
 
   // Load key pairs from API
   useEffect(() => {
@@ -170,7 +171,7 @@ const AKeyMgtPage: React.FC = () => {
 
   const handleGenerateKey = async (doctorUserId: string, patientUserId: string): Promise<string | null> => {
     try {
-      setError(null);
+      setDialogError(null);
       console.log('Generating key for:', { doctorUserId, patientUserId });
 
       // Call API to generate key pair
@@ -179,16 +180,16 @@ const AKeyMgtPage: React.FC = () => {
 
       // Reload key pairs to show the new one
       await loadKeyPairs();
-
       await showSuccessToast('Key Generated', 'Encryption key pair created successfully');
+      
+      setShowGenerateDialog(false);
 
       return response.qr_code;
     } catch (err) {
       console.error('Failed to generate key:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to generate key pair';
-      setError(errorMessage);
-
-      await showErrorToast('Generation Failed', errorMessage);
+      
+      setDialogError(errorMessage);
 
       return null;
     }
@@ -232,6 +233,16 @@ const AKeyMgtPage: React.FC = () => {
     setShowViewQRDialog(true);
   };
 
+  const handleOpenGenerateDialog = () => {
+    setDialogError(null);
+    setShowGenerateDialog(true);
+  };
+
+  const handleCloseGenerateDialog = () => {
+    setDialogError(null);
+    setShowGenerateDialog(false);
+  };
+
   return (
     <>
       <div className="min-h-screen bg-gray-100 flex">
@@ -247,7 +258,7 @@ const AKeyMgtPage: React.FC = () => {
               <p className="text-gray-600">Generate, Distribute, Rotate, And Revoke AES-GCM Encryption Keys Securely</p>
             </div>
             <button
-              onClick={() => setShowGenerateDialog(true)}
+              onClick={handleOpenGenerateDialog}
               className="w-full sm:w-auto px-6 py-3 bg-yellow-400 text-gray-900 rounded-lg font-semibold hover:bg-yellow-500 transition flex flex-col items-center justify-center"
             >
               Generate Key Pair
@@ -462,12 +473,13 @@ const AKeyMgtPage: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Generate Key Pair Dialog */}
+      
+      {/* Pass error to dialog */}
       <GenerateKeyPairDialog
         isOpen={showGenerateDialog}
-        onClose={() => setShowGenerateDialog(false)}
+        onClose={handleCloseGenerateDialog}
         onGenerate={handleGenerateKey}
+        error={dialogError} 
       />
 
       {/* Delete Keys Dialog */}

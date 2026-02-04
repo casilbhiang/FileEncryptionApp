@@ -13,7 +13,7 @@ interface User {
   inactiveDays?: number;
 }
 
-const ITEMS_PER_PAGE = 6;
+const ITEMS_PER_PAGE = 3;
 
 const AUserMgtPage: React.FC = () => {
   const { showSuccessToast, showErrorToast } = useNotifications();
@@ -238,7 +238,7 @@ const AUserMgtPage: React.FC = () => {
               <div>
                 <h3 className="font-bold text-red-600">Inactive Users Alert</h3>
                 <p className="text-gray-800">
-                  {inactiveUsers} users inactive for more than 365 days - please remove all of their account
+                  {inactiveUsers} inactive user detected. Please review and delete users who have been inactive for 365 days or more.
                 </p>
               </div>
             </div>
