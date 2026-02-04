@@ -96,7 +96,7 @@ const BiometricModal: React.FC<BiometricModalProps> = ({
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
             <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl relative animate-fadeIn">
-                {/* Close button (only for initial registration mode) */}
+                {/* Close button (only for initial registration) */}
                 {mode === 'register' && (
                     <button
                         onClick={onClose}
@@ -148,8 +148,8 @@ const BiometricModal: React.FC<BiometricModalProps> = ({
                     <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
                         <p className="text-green-600 text-sm font-medium">
                             {modalMode === 'register' 
-                                ? '✓ Biometric registered successfully!' 
-                                : '✓ Authentication successful!'}
+                                ? 'Biometric registered successfully!' 
+                                : 'Authentication successful!'}
                         </p>
                     </div>
                 )}
