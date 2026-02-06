@@ -56,7 +56,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         try {
             // Auto-restore key if missing
             if (!hasEncryptionKey(userData.user_id)) {
-                console.log('🔄 Auto-Restoring Encryption Key...');
+                console.log('Auto-Restoring Encryption Key...');
                 const result = await getUserConnections(userData.user_id);
                 if (result.success && result.connections) {
                     const activeConnections = result.connections.filter((c: any) => c.status === 'Active');
@@ -66,7 +66,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                             if (keyResult.success && keyResult.key_pair?.encryption_key) {
                                 const key = await importKeyFromBase64(keyResult.key_pair.encryption_key);
                                 await storeEncryptionKey(key, userData.user_id);
-                                console.log('✅ Key Auto-Restored!');
+                                console.log('Key Auto-Restored!');
                                 break;
                             }
                         } catch (e) {
@@ -76,7 +76,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 }
             }
         } catch (error) {
-            console.warn('⚠️ Auto-Restore failed:', error);
+            console.warn('Auto-Restore failed:', error);
         }
     };
 
