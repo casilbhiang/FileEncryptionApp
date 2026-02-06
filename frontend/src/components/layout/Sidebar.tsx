@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home, FileText, Upload, Share2, Users, UserPlus, Key, LogOut, Menu, X, Bell, FolderOpen } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import simncryptLogo from '../../images/simncrypt.jpg';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { storage } from '../../utils/storage';
 
@@ -24,6 +25,17 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
 
   // Use notification context
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotification } = useNotifications();
+
+  // Track previous unread count to detect new notifications
+  const prevUnreadCountRef = useRef(unreadCount);
+
+  useEffect(() => {
+    // If unread count INCREASED, it means a new notification arrived
+    if (unreadCount > prevUnreadCountRef.current) {
+      setShowNotifications(true);
+    }
+    prevUnreadCountRef.current = unreadCount;
+  }, [unreadCount]);
 
   // Helper to format time
   const formatTime = (timestamp: string) => {
