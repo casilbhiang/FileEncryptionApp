@@ -145,7 +145,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
           <div className="fixed top-20 left-4 lg:left-72 w-80 lg:w-96 bg-white rounded-lg shadow-2xl z-50 max-h-96 overflow-hidden flex flex-col border border-gray-200">
             {/* Header */}
             <div className="p-4 border-b bg-gray-50 flex items-center justify-between">
-              <h3 className="font-bold text-lg">Recent Upload</h3>
+              <h3 className="font-bold text-lg">Notifications</h3>
               <div className="flex items-center gap-2">
                 {unreadCount > 0 && (
                   <button
