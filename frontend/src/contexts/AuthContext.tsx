@@ -1,5 +1,8 @@
+
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { storage } from '../utils/storage';
+import { getUserConnections, getKeyPair } from '../services/keyService';
+import { hasEncryptionKey, storeEncryptionKey, importKeyFromBase64 } from '../services/Encryption';
 
 interface User {
     id: string;
@@ -44,11 +47,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setIsLoading(false);
     }, []);
 
-    const login = (userData: User, newToken: string) => {
+    const login = async (userData: User, newToken: string) => {
         setUser(userData);
         setToken(newToken);
         storage.setItem('user', JSON.stringify(userData));
         storage.setItem('token', newToken);
+
+        try {
+            // Auto-restore key if missing
+            if (!hasEncryptionKey(userData.user_id)) {
+                console.log('🔄 Auto-Restoring Encryption Key...');
+                const result = await getUserConnections(userData.user_id);
+                if (result.success && result.connections) {
+                    const activeConnections = result.connections.filter((c: any) => c.status === 'Active');
+                    for (const conn of activeConnections) {
+                        try {
+                            const keyResult = await getKeyPair(conn.key_id, userData.user_id);
+                            if (keyResult.success && keyResult.key_pair?.encryption_key) {
+                                const key = await importKeyFromBase64(keyResult.key_pair.encryption_key);
+                                await storeEncryptionKey(key, userData.user_id);
+                                console.log('✅ Key Auto-Restored!');
+                                break;
+                            }
+                        } catch (e) {
+                            console.warn(`Failed to restore from ${conn.key_id}`, e);
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('⚠️ Auto-Restore failed:', error);
+        }
     };
 
     const logout = () => {
