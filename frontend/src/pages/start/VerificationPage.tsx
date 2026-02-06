@@ -237,7 +237,7 @@ const VerificationPage: React.FC = () => {
           {/* Right Side - Verification Form */}
           <div className="w-full">
             <div className="bg-gradient-to-br from-blue-600 to-purple-600 rounded-3xl p-8 md:p-12 shadow-2xl">
-              <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">You're almost Login In</h1>
+              <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">You're almost logged in</h1>
               {/* Error Message */}
               {error && (
                 <div className="mb-6 p-4 bg-red-500 bg-opacity-20 border border-red-300 rounded-lg">
