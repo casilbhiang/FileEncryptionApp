@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, dev, basil ]
+  pull_request:
+    branches: [ main, dev, basil ]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          # Install pytest explicitly if not in requirements.txt
+          pip install pytest
+
+      - name: Prepare environment
+        run: |
+          cd backend
+          cp .env.example .env || echo "No .env.example found"
+
+      - name: Run tests
+        working-directory: backend
+        env:
+          SUPABASE_URL: "https://dummy.supabase.co"
+          SUPABASE_SERVICE_ROLE_KEY: "dummy-key-for-testing"
+          FLASK_ENV: "testing"
+          # 32-byte hex key (64 hex chars)
+          MASTER_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+        run: pytest -v tests/
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Run tests
+        working-directory: frontend
+        run: npx vitest run
+
+  frontend-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build
+        working-directory: frontend
+        env:
+          VITE_SUPABASE_URL: "https://dummy.supabase.co"
+          VITE_SUPABASE_KEY: "public-anon-key"
+          VITE_API_URL: "http://localhost:5000"
+        run: npm run build
