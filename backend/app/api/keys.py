@@ -285,11 +285,6 @@ def get_qr_code(key_id):
 
 @keys_bp.route('/<key_id>/refresh', methods=['POST'])
 def refresh_key_pair(key_id):
-    """
-    Refresh a key pair (Rotate key)
-    This creates a NEW key pair and revokes the old one.
-    Users must re-scan the new QR code.
-    """
     try:
         # Get old key pair
         old_key_pair = key_pair_store.get(key_id)
@@ -359,9 +354,6 @@ def refresh_key_pair(key_id):
 
 @keys_bp.route('/scan', methods=['POST'])
 def scan_qr_code():
-    """
-    Verify scanned QR code data and establish connection
-    """
     try:
         data = request.get_json()
         qr_data_str = data.get('qr_data')
@@ -439,8 +431,7 @@ def scan_qr_code():
             details=f"QR code scanned for key {key_id}"
         )
 
-        # Persist Connection in Supabase
-        # This allows the "My Patients" or "My Doctors" lists to work
+
         try:
             from app.utils.supabase_client import get_supabase_admin_client
             supabase = get_supabase_admin_client()
@@ -449,7 +440,6 @@ def scan_qr_code():
             connection_data = {
                 'doctor_id': key_pair.doctor_id,
                 'patient_id': key_pair.patient_id,
-                # 'status': 'active' # If table has status
             }
             # We use upsert if we have a unique constraint, or insert with ignore
             supabase.table('doctor_patient_connections').insert(connection_data).execute()
