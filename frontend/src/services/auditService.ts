@@ -35,7 +35,8 @@ export async function getAuditLogs(
     page?: number,
     perPage?: number,
     excludeKeys?: boolean,
-    keysOnly?: boolean
+    keysOnly?: boolean,
+    date?: string
 ): Promise<AuditLogsResponse> {
     const params = new URLSearchParams();
     if (userId) params.append('user_id', userId);
@@ -46,6 +47,7 @@ export async function getAuditLogs(
     if (perPage) params.append('per_page', perPage.toString());
     if (excludeKeys) params.append('exclude_keys', 'true');
     if (keysOnly) params.append('keys_only', 'true');
+    if (date) params.append('date', date);
 
     const url = `${API_BASE_URL}/api/audit/logs${params.toString() ? '?' + params.toString() : ''}`;
     const response = await fetch(url);

@@ -63,7 +63,9 @@ const AAuditLogsPage: React.FC = () => {
         searchQuery || undefined,
         currentPage,
         LOGS_PER_PAGE,
-        true
+        true,
+        false,
+        dateFilter || undefined
       );
       setLogs(response.logs);
       setTotalPages(response.total_pages || 1);
@@ -79,10 +81,8 @@ const AAuditLogsPage: React.FC = () => {
   // Get unique action types from current page logs (for dropdown)
   const uniqueActions = Array.from(new Set(logs.map(log => log.action))).sort();
 
-  // Date filter applied client-side on the current page
-  const filteredLogs = dateFilter
-    ? logs.filter(log => (log.timestamp || '').includes(dateFilter))
-    : logs;
+  // Date filter applied server-side
+  const displayedLogs = logs;
 
   // Generate page numbers to display
   const getPageNumbers = () => {
@@ -202,8 +202,8 @@ const AAuditLogsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {filteredLogs.length > 0 ? (
-                    filteredLogs.map((log) => (
+                  {displayedLogs.length > 0 ? (
+                    displayedLogs.map((log) => (
                       <tr key={log.id} className="hover:bg-gray-50">
                         <td className="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{formatTimestampToLocal(log.timestamp)}</td>
                         <td className="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{log.user}</td>

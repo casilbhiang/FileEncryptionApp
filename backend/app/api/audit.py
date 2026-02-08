@@ -10,12 +10,13 @@ audit_bp = Blueprint('audit', __name__)
 
 @audit_bp.route('/logs', methods=['GET'])
 def get_audit_logs():
-    """Get audit logs from both login_audit (auth events) and audit_logs"""
+    """Get audit logs from both login_audit (auth events) and audit_logs (all other events)"""
     try:
         user_id = request.args.get('user_id')
         action = request.args.get('action')
         result = request.args.get('result')
         search_query = request.args.get('search')
+        date_filter = request.args.get('date')  # Format: YYYY-MM-DD
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 10))
         exclude_keys = request.args.get('exclude_keys', 'false').lower() == 'true'
@@ -25,14 +26,24 @@ def get_audit_logs():
 
         # Fetch from login_audit table (authentication events)
         login_query = supabase.table('login_audit').select('*, users(user_id, full_name, email, role)')
+        
+        # Apply date filter to login_audit query if provided
+        if date_filter:
+            # Filter for the specific day (between start and end of day)
+            login_query = login_query.gte('created_at', f"{date_filter}T00:00:00").lte('created_at', f"{date_filter}T23:59:59")
+            
         login_query = login_query.order('created_at', desc=True)
         login_response = login_query.execute()
 
-        # Try to fetch from audit_logs table
         audit_response = None
         try:
             # Attempt 1: Fetch with join (requires FK)
             audit_query = supabase.table('audit_logs').select('*, users(user_id, full_name, email, role)')
+            
+            # Apply date filter to audit_logs query if provided
+            if date_filter:
+                audit_query = audit_query.gte('created_at', f"{date_filter}T00:00:00").lte('created_at', f"{date_filter}T23:59:59")
+                
             audit_query = audit_query.order('created_at', desc=True)
             audit_response = audit_query.execute()
         except Exception as audit_error:
@@ -40,6 +51,11 @@ def get_audit_logs():
             try:
                 # Attempt 2: Fetch raw logs without join
                 audit_query = supabase.table('audit_logs').select('*')
+                
+                # Apply date filter fallback
+                if date_filter:
+                    audit_query = audit_query.gte('created_at', f"{date_filter}T00:00:00").lte('created_at', f"{date_filter}T23:59:59")
+                    
                 audit_query = audit_query.order('created_at', desc=True)
                 audit_response = audit_query.execute()
             except Exception as e:
@@ -60,9 +76,11 @@ def get_audit_logs():
             if timestamp:
                 try:
                     dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-                    timestamp = dt.strftime('%Y-%m-%d %H:%M:%S')
+                    timestamp_str = dt.strftime('%Y-%m-%d %H:%M:%S')
                 except:
-                    pass
+                    timestamp_str = timestamp
+            else:
+                timestamp_str = ''
 
             # Determine result based on error message
             event_type = log.get('event_type', 'login')
@@ -77,7 +95,7 @@ def get_audit_logs():
 
             formatted_log = {
                 'id': str(log.get('id', '')),
-                'timestamp': timestamp,
+                'timestamp': timestamp_str,
                 'user': f"{user_name} ({user_id_display})",
                 'action': action_display,
                 'target': target,
@@ -92,9 +110,13 @@ def get_audit_logs():
                 continue
             if search_query:
                 search_lower = search_query.lower()
-                if not (search_lower in formatted_log['user'].lower() or
-                       search_lower in formatted_log['action'].lower() or
-                       search_lower in formatted_log['target'].lower()):
+                user_str = str(formatted_log.get('user', '') or '').lower()
+                action_str = str(formatted_log.get('action', '') or '').lower()
+                target_str = str(formatted_log.get('target', '') or '').lower()
+
+                if not (search_lower in user_str or
+                       search_lower in action_str or
+                       search_lower in target_str):
                     continue
 
             formatted_logs.append(formatted_log)
@@ -110,9 +132,11 @@ def get_audit_logs():
             if timestamp:
                 try:
                     dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-                    timestamp = dt.strftime('%Y-%m-%d %H:%M:%S')
+                    timestamp_str = dt.strftime('%Y-%m-%d %H:%M:%S')
                 except:
-                    pass
+                    timestamp_str = timestamp
+            else:
+                timestamp_str = ''
 
             # Get result
             result_status = 'FAILED' if log.get('result') == 'failure' else 'OK'
@@ -136,7 +160,7 @@ def get_audit_logs():
 
             formatted_log = {
                 'id': str(log.get('id', '')),
-                'timestamp': timestamp,
+                'timestamp': timestamp_str,
                 'user': f"{user_name} ({user_id_display})" if user_info else 'System',
                 'action': action_display,
                 'target': target,
@@ -151,14 +175,18 @@ def get_audit_logs():
                 continue
             if search_query:
                 search_lower = search_query.lower()
-                if not (search_lower in formatted_log['user'].lower() or
-                       search_lower in formatted_log['action'].lower() or
-                       search_lower in formatted_log['target'].lower()):
+                user_str = str(formatted_log.get('user', '') or '').lower()
+                action_str = str(formatted_log.get('action', '') or '').lower()
+                target_str = str(formatted_log.get('target', '') or '').lower()
+
+                if not (search_lower in user_str or
+                       search_lower in action_str or
+                       search_lower in target_str):
                     continue
 
             formatted_logs.append(formatted_log)
 
-        # Filter out KEY/PAIRING events if requested
+        # Filter out KEY/PAIRING events if requested (audit logs page excludes these)
         if exclude_keys:
             formatted_logs = [
                 log for log in formatted_logs
@@ -255,3 +283,4 @@ def get_audit_stats():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
