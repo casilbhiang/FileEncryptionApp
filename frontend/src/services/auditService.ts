@@ -1,7 +1,6 @@
 /**
  * API Service for Audit Logs
  */
-
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
 
 export interface AuditLog {
@@ -36,9 +35,11 @@ export async function getAuditLogs(
     perPage?: number,
     excludeKeys?: boolean,
     keysOnly?: boolean,
-    date?: string
+    date?: string,
+    timezoneOffset?: number
 ): Promise<AuditLogsResponse> {
     const params = new URLSearchParams();
+    
     if (userId) params.append('user_id', userId);
     if (action) params.append('action', action);
     if (result) params.append('result', result);
@@ -48,14 +49,16 @@ export async function getAuditLogs(
     if (excludeKeys) params.append('exclude_keys', 'true');
     if (keysOnly) params.append('keys_only', 'true');
     if (date) params.append('date', date);
+    if (timezoneOffset !== undefined) params.append('timezone_offset', timezoneOffset.toString());
 
     const url = `${API_BASE_URL}/api/audit/logs${params.toString() ? '?' + params.toString() : ''}`;
+    
     const response = await fetch(url);
-
+    
     if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to fetch audit logs');
     }
-
+    
     return response.json();
 }

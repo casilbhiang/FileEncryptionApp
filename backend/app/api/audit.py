@@ -3,10 +3,9 @@ API endpoints for audit logs
 """
 from flask import Blueprint, request, jsonify
 from app.utils.supabase_client import get_supabase_admin_client
-from datetime import datetime
+from datetime import datetime, timedelta
 
 audit_bp = Blueprint('audit', __name__)
-
 
 @audit_bp.route('/logs', methods=['GET'])
 def get_audit_logs():
@@ -25,29 +24,15 @@ def get_audit_logs():
 
         supabase = get_supabase_admin_client()
 
-        # Fetch from login_audit table (authentication events)
         login_query = supabase.table('login_audit').select('*, users(user_id, full_name, email, role)')
         
-        # Apply date filter to login_audit query if provided
         if date_filter:
-            from datetime import datetime, timedelta
-            
-            # Parse the date
             filter_date = datetime.strptime(date_filter, '%Y-%m-%d')
-            
-            # Adjust for user's timezone offset
-            # timezone_offset is in minutes (e.g., Singapore is -480 for UTC+8)
-            offset_hours = int(timezone_offset) / 60
-            
-            # Calculate UTC start and end times
-            utc_start = filter_date - timedelta(hours=offset_hours)
+            offset_minutes = int(timezone_offset)
+            utc_start = filter_date + timedelta(minutes=offset_minutes)
             utc_end = utc_start + timedelta(days=1)
-            
-            # Format for query
             start_iso = utc_start.strftime('%Y-%m-%dT%H:%M:%S')
             end_iso = utc_end.strftime('%Y-%m-%dT%H:%M:%S')
-            
-            # Filter for the specific day in UTC
             login_query = login_query.gte('created_at', start_iso).lt('created_at', end_iso)
             
         login_query = login_query.order('created_at', desc=True)
@@ -55,41 +40,46 @@ def get_audit_logs():
 
         audit_response = None
         try:
-            # Attempt 1: Fetch with join (requires FK)
             audit_query = supabase.table('audit_logs').select('*, users(user_id, full_name, email, role)')
             
-            # Apply date filter to audit_logs query if provided
             if date_filter:
-                audit_query = audit_query.gte('created_at', f"{date_filter}T00:00:00").lte('created_at', f"{date_filter}T23:59:59")
+                filter_date = datetime.strptime(date_filter, '%Y-%m-%d')
+                offset_minutes = int(timezone_offset)
+                utc_start = filter_date + timedelta(minutes=offset_minutes)
+                utc_end = utc_start + timedelta(days=1)
+                start_iso = utc_start.strftime('%Y-%m-%dT%H:%M:%S')
+                end_iso = utc_end.strftime('%Y-%m-%dT%H:%M:%S')
+                audit_query = audit_query.gte('created_at', start_iso).lt('created_at', end_iso)
                 
             audit_query = audit_query.order('created_at', desc=True)
             audit_response = audit_query.execute()
         except Exception as audit_error:
             print(f"Join query failed (likely missing FK): {audit_error}")
             try:
-                # Attempt 2: Fetch raw logs without join
                 audit_query = supabase.table('audit_logs').select('*')
                 
-                # Apply date filter fallback
                 if date_filter:
-                    audit_query = audit_query.gte('created_at', f"{date_filter}T00:00:00").lte('created_at', f"{date_filter}T23:59:59")
+                    filter_date = datetime.strptime(date_filter, '%Y-%m-%d')
+                    offset_minutes = int(timezone_offset)
+                    utc_start = filter_date + timedelta(minutes=offset_minutes)
+                    utc_end = utc_start + timedelta(days=1)
+                    start_iso = utc_start.strftime('%Y-%m-%dT%H:%M:%S')
+                    end_iso = utc_end.strftime('%Y-%m-%dT%H:%M:%S')
+                    audit_query = audit_query.gte('created_at', start_iso).lt('created_at', end_iso)
                     
                 audit_query = audit_query.order('created_at', desc=True)
                 audit_response = audit_query.execute()
             except Exception as e:
                 print(f"Fallback query failed: {e}")
-                audit_response = type('obj', (object,), {'data': []})()  # Empty response
+                audit_response = type('obj', (object,), {'data': []})()
 
-        # Format logs for frontend
         formatted_logs = []
 
-        # Process login_audit logs (authentication events)
         for log in login_response.data:
             user_info = log.get('users', {})
             user_name = user_info.get('full_name', 'Unknown User') if user_info else 'Unknown User'
             user_id_display = user_info.get('user_id', 'N/A') if user_info else 'N/A'
 
-            # Format timestamp
             timestamp = log.get('created_at', '')
             if timestamp:
                 try:
@@ -100,15 +90,10 @@ def get_audit_logs():
             else:
                 timestamp_str = ''
 
-            # Determine result based on error message
             event_type = log.get('event_type', 'login')
             error_message = log.get('error_message', '')
             result_status = 'FAILED' if error_message else 'OK'
-
-            # Format action
             action_display = event_type.replace('_', ' ').title()
-
-            # Format target
             target = log.get('email', user_id_display)
 
             formatted_log = {
@@ -121,7 +106,6 @@ def get_audit_logs():
                 'details': error_message or ''
             }
 
-            # Apply filters
             if action and action.lower() not in action_display.lower():
                 continue
             if result and result.upper() != result_status:
@@ -131,7 +115,6 @@ def get_audit_logs():
                 user_str = str(formatted_log.get('user', '') or '').lower()
                 action_str = str(formatted_log.get('action', '') or '').lower()
                 target_str = str(formatted_log.get('target', '') or '').lower()
-
                 if not (search_lower in user_str or
                        search_lower in action_str or
                        search_lower in target_str):
@@ -139,13 +122,11 @@ def get_audit_logs():
 
             formatted_logs.append(formatted_log)
 
-        # Process audit_logs (all other system events)
         for log in audit_response.data:
             user_info = log.get('users', {})
             user_name = user_info.get('full_name', 'System') if user_info else 'System'
             user_id_display = user_info.get('user_id', 'N/A') if user_info else 'N/A'
 
-            # Format timestamp
             timestamp = log.get('created_at', '')
             if timestamp:
                 try:
@@ -156,15 +137,11 @@ def get_audit_logs():
             else:
                 timestamp_str = ''
 
-            # Get result
             result_status = 'FAILED' if log.get('result') == 'failure' else 'OK'
             error_message = log.get('error_message', '')
-
-            # Format action
             action_text = log.get('action', 'Unknown')
             action_display = action_text.replace('_', ' ').title()
 
-            # Format target
             resource_type = log.get('resource_type', '')
             resource_id = log.get('resource_id', '')
             details = log.get('details', '')
@@ -186,7 +163,6 @@ def get_audit_logs():
                 'details': error_message or details or ''
             }
 
-            # Apply filters
             if action and action.lower() not in action_display.lower():
                 continue
             if result and result.upper() != result_status:
@@ -196,7 +172,6 @@ def get_audit_logs():
                 user_str = str(formatted_log.get('user', '') or '').lower()
                 action_str = str(formatted_log.get('action', '') or '').lower()
                 target_str = str(formatted_log.get('target', '') or '').lower()
-
                 if not (search_lower in user_str or
                        search_lower in action_str or
                        search_lower in target_str):
@@ -204,7 +179,6 @@ def get_audit_logs():
 
             formatted_logs.append(formatted_log)
 
-        # Filter out KEY/PAIRING events if requested (audit logs page excludes these)
         if exclude_keys:
             formatted_logs = [
                 log for log in formatted_logs
@@ -212,17 +186,14 @@ def get_audit_logs():
                 ('KEY' not in log['action'].upper() and 'PAIRING' not in log['action'].upper())
             ]
 
-        # Filter to only KEY/PAIRING events if requested (key logs page)
         if keys_only:
             formatted_logs = [
                 log for log in formatted_logs
                 if 'KEY' in log['action'].upper() or 'PAIRING' in log['action'].upper()
             ]
 
-        # Sort all logs by timestamp (newest first)
         formatted_logs.sort(key=lambda x: x['timestamp'], reverse=True)
 
-        # Pagination
         total_logs = len(formatted_logs)
         total_pages = max(1, (total_logs + per_page - 1) // per_page)
         page = min(page, total_pages)
@@ -246,41 +217,33 @@ def get_audit_logs():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-
 @audit_bp.route('/logs/stats', methods=['GET'])
 def get_audit_stats():
     """Get audit log statistics from both login_audit and audit_logs tables"""
     try:
         supabase = get_supabase_admin_client()
 
-        # Fetch from login_audit
         login_response = supabase.table('login_audit').select('event_type, error_message').execute()
-
-        # Fetch from audit_logs
         audit_response = supabase.table('audit_logs').select('action, result, error_message').execute()
 
         all_logs = []
 
-        # Process login_audit logs
         for log in login_response.data:
             all_logs.append({
                 'action': log.get('event_type', 'Unknown'),
                 'success': not log.get('error_message')
             })
 
-        # Process audit_logs
         for log in audit_response.data:
             all_logs.append({
                 'action': log.get('action', 'Unknown'),
                 'success': log.get('result') != 'failure'
             })
 
-        # Calculate stats
         total_logs = len(all_logs)
         success_count = len([log for log in all_logs if log['success']])
         failed_count = len([log for log in all_logs if not log['success']])
 
-        # Count by action type
         action_counts = {}
         for log in all_logs:
             action = log['action']
@@ -301,4 +264,3 @@ def get_audit_stats():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-

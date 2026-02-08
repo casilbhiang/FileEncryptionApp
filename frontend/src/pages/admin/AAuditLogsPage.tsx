@@ -1,5 +1,4 @@
 'use client';
-
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import { getAuditLogs, type AuditLog } from '../../services/auditService';
@@ -56,6 +55,10 @@ const AAuditLogsPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+      
+      // Get timezone offset in minutes (negative for UTC+)
+      const timezoneOffset = new Date().getTimezoneOffset();
+      
       const response = await getAuditLogs(
         undefined,
         actionFilter !== 'all' ? actionFilter : undefined,
@@ -65,8 +68,10 @@ const AAuditLogsPage: React.FC = () => {
         LOGS_PER_PAGE,
         true,
         false,
-        dateFilter || undefined
+        dateFilter || undefined,
+        timezoneOffset
       );
+      
       setLogs(response.logs);
       setTotalPages(response.total_pages || 1);
       setTotalLogs(response.total || 0);
@@ -143,6 +148,7 @@ const AAuditLogsPage: React.FC = () => {
                   title="Filter by date"
                 />
               </div>
+
               {/* Dropdown filters row */}
               <div className="flex flex-col sm:flex-row gap-3">
                 <select
@@ -157,6 +163,7 @@ const AAuditLogsPage: React.FC = () => {
                     </option>
                   ))}
                 </select>
+
                 <select
                   value={resultFilter}
                   onChange={(e) => setResultFilter(e.target.value)}
@@ -166,6 +173,7 @@ const AAuditLogsPage: React.FC = () => {
                   <option value="ok">Success (OK)</option>
                   <option value="failed">Failed</option>
                 </select>
+
                 {/* Clear filters button */}
                 {(searchQuery || actionFilter !== 'all' || resultFilter !== 'all' || dateFilter) && (
                   <button
