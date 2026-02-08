@@ -16,7 +16,8 @@ def get_audit_logs():
         action = request.args.get('action')
         result = request.args.get('result')
         search_query = request.args.get('search')
-        date_filter = request.args.get('date')  # Format: YYYY-MM-DD
+        date_filter = request.args.get('date')
+        timezone_offset = request.args.get('timezone_offset', '0')
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 10))
         exclude_keys = request.args.get('exclude_keys', 'false').lower() == 'true'
@@ -29,8 +30,25 @@ def get_audit_logs():
         
         # Apply date filter to login_audit query if provided
         if date_filter:
-            # Filter for the specific day (between start and end of day)
-            login_query = login_query.gte('created_at', f"{date_filter}T00:00:00").lte('created_at', f"{date_filter}T23:59:59")
+            from datetime import datetime, timedelta
+            
+            # Parse the date
+            filter_date = datetime.strptime(date_filter, '%Y-%m-%d')
+            
+            # Adjust for user's timezone offset
+            # timezone_offset is in minutes (e.g., Singapore is -480 for UTC+8)
+            offset_hours = int(timezone_offset) / 60
+            
+            # Calculate UTC start and end times
+            utc_start = filter_date - timedelta(hours=offset_hours)
+            utc_end = utc_start + timedelta(days=1)
+            
+            # Format for query
+            start_iso = utc_start.strftime('%Y-%m-%dT%H:%M:%S')
+            end_iso = utc_end.strftime('%Y-%m-%dT%H:%M:%S')
+            
+            # Filter for the specific day in UTC
+            login_query = login_query.gte('created_at', start_iso).lt('created_at', end_iso)
             
         login_query = login_query.order('created_at', desc=True)
         login_response = login_query.execute()
