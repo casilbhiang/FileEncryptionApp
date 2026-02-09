@@ -6,11 +6,12 @@ from app.crypto.encryption import EncryptionManager
 from app.crypto.qr_generator import QRCodeGenerator
 from app.models.encryption_models import KeyPair
 from app.models.storage import key_pair_store
-from app.utils.audit_logger import log_audit
+from app.utils.audit import audit_logger, AuditAction, AuditResult
 from datetime import datetime, timedelta
 import json
 
 keys_bp = Blueprint('keys', __name__)
+
 
 @keys_bp.route('/generate', methods=['POST'])
 def generate_key_pair():
@@ -47,6 +48,7 @@ def generate_key_pair():
         # Generate new encryption key (DEK)
         encryption_key = EncryptionManager.generate_key()
         key_b64 = EncryptionManager.key_to_base64(encryption_key)
+
         # Encrypt the DEK for storage using Master Key
         from config import Config
         encrypted_key_b64 = EncryptionManager.encrypt_dek(key_b64, Config.MASTER_KEY)
@@ -68,13 +70,13 @@ def generate_key_pair():
         key_pair_store.create(key_pair)
         
         # Log audit event
-        log_audit(
-            user_id=None,  # System action
-            action='key_generate',
-            resource_type='key',
-            resource_id=key_id,
-            details=f"Generated key pair {key_id} for {doctor_id} → {patient_id}",
-            result='success'
+        audit_logger.log(
+            user_id="ADMIN", 
+            user_name="System Admin", 
+            action=AuditAction.KEY_GENERATE,
+            target=f"{doctor_id} → {patient_id}",
+            result=AuditResult.OK,
+            details=f"Generated key pair {key_id}"
         )
         
         # Generate QR code with PLAINTEXT key data (decrypted)
@@ -94,15 +96,16 @@ def generate_key_pair():
         
     except Exception as e:
         # Log failed attempt
-        log_audit(
-            user_id=None,
-            action='key_generate',
-            resource_type='key',
-            details=f"Failed to generate key for {data.get('doctor_id', 'unknown')} → {data.get('patient_id', 'unknown')}: {str(e)}",
-            result='failure',
-            error_message=str(e)
+        audit_logger.log(
+            user_id="ADMIN",
+            user_name="System Admin",
+            action=AuditAction.KEY_GENERATE,
+            target=f"{data.get('doctor_id', 'unknown')} → {data.get('patient_id', 'unknown')}",
+            result=AuditResult.FAILED,
+            details=str(e)
         )
         return jsonify({'error': str(e)}), 500
+
 
 @keys_bp.route('/list', methods=['GET'])
 def list_key_pairs():
@@ -129,51 +132,61 @@ def list_key_pairs():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 @keys_bp.route('/<key_id>', methods=['GET'])
 def get_key_pair(key_id):
-    """Get a specific key pair by ID"""
+
     try:
-        include_key = request.args.get('include_key', 'false').lower() == 'true'
-        
         key_pair = key_pair_store.get(key_id)
         if not key_pair:
             return jsonify({'error': 'Key pair not found'}), 404
         
-        # Authorization Check (If user_id is provided)
-        user_id = request.args.get('user_id')
-        if include_key and user_id:
-            # Ensure the requesting user is part of this key pair
-            if user_id != key_pair.doctor_id and user_id != key_pair.patient_id:
-                 return jsonify({'error': 'Unauthorized access to key material'}), 403
-        
-        if include_key:
-            # If requesting the raw key, we must decrypt it first
-            try:
-                from config import Config
-                decrypted_key = EncryptionManager.decrypt_dek(key_pair.encryption_key, Config.MASTER_KEY)
-                
-                # Create a temporary copy to return decrypted data
-                kp_dict = key_pair.to_dict_with_key()
-                kp_dict['encryption_key'] = decrypted_key
-                
-                return jsonify({
-                    'success': True,
-                    'key_pair': kp_dict
-                }), 200
-            except Exception as dec_err:
-                return jsonify({'error': f'Failed to decrypt key: {str(dec_err)}'}), 500
-        else:
-            return jsonify({
-                'success': True,
-                'key_pair': key_pair.to_dict()
-            }), 200
+        return jsonify({
+            'success': True,
+            'key_pair': key_pair.to_dict()
+        }), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+@keys_bp.route('/<key_id>/retrieve', methods=['POST'])
+def retrieve_key_pair(key_id):
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+
+        if not user_id:
+             return jsonify({'error': 'User ID is required'}), 400
+
+        key_pair = key_pair_store.get(key_id)
+        if not key_pair:
+            return jsonify({'error': 'Key pair not found'}), 404
+        
+        # Authorization Check
+        if user_id != key_pair.doctor_id and user_id != key_pair.patient_id:
+             return jsonify({'error': 'Unauthorized access to key material'}), 403
+        
+        # Decrypt Key
+        from config import Config
+        decrypted_key = EncryptionManager.decrypt_dek(key_pair.encryption_key, Config.MASTER_KEY)
+        
+        # Create a temporary copy to return decrypted data
+        kp_dict = key_pair.to_dict_with_key()
+        kp_dict['encryption_key'] = decrypted_key
+        
+        return jsonify({
+            'success': True,
+            'key_pair': kp_dict
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @keys_bp.route('/<key_id>/status', methods=['PATCH'])
 def update_key_status(key_id):
-    """Update key pair status"""
+
     try:
         data = request.get_json()
         new_status = data.get('status')
@@ -192,6 +205,7 @@ def update_key_status(key_id):
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 @keys_bp.route('/<key_id>', methods=['DELETE'])
 def delete_key_pair(key_id):
@@ -212,18 +226,18 @@ def delete_key_pair(key_id):
             }).execute()
         except Exception as conn_err:
              print(f"Warning: Failed to delete connection record: {conn_err}")
-        
+
         # Delete the key pair
         success = key_pair_store.delete(key_id)
         
         # Log audit event
-        log_audit(
-            user_id=None,
-            action='key_delete',
-            resource_type='key',
-            resource_id=key_id,
-            details=f"Deleted key pair {key_id} ({key_pair.doctor_id} → {key_pair.patient_id})",
-            result='success'
+        audit_logger.log(
+            user_id="ADMIN",
+            user_name="System Admin",
+            action=AuditAction.KEY_DELETE,
+            target=f"{key_pair.doctor_id} → {key_pair.patient_id} ({key_id})",
+            result=AuditResult.OK,
+            details=f"Deleted key pair {key_id}"
         )
         
         return jsonify({
@@ -232,16 +246,16 @@ def delete_key_pair(key_id):
         }), 200
         
     except Exception as e:
-        log_audit(
-            user_id=None,
-            action='key_delete',
-            resource_type='key',
-            resource_id=key_id,
-            details=f"Failed to delete key pair {key_id}",
-            result='failure',
-            error_message=str(e)
+        audit_logger.log(
+            user_id="ADMIN",
+            user_name="System Admin",
+            action=AuditAction.KEY_DELETE,
+            target=key_id,
+            result=AuditResult.FAILED,
+            details=str(e)
         )
         return jsonify({'error': str(e)}), 500
+
 
 @keys_bp.route('/qr/<key_id>', methods=['GET'])
 def get_qr_code(key_id):
@@ -276,8 +290,14 @@ def get_qr_code(key_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 @keys_bp.route('/<key_id>/refresh', methods=['POST'])
 def refresh_key_pair(key_id):
+    """
+    Refresh a key pair (Rotate key)
+    This creates a NEW key pair and revokes the old one.
+    Users must re-scan the new QR code.
+    """
     try:
         # Get old key pair
         old_key_pair = key_pair_store.get(key_id)
@@ -293,6 +313,7 @@ def refresh_key_pair(key_id):
         # Generate NEW encryption key (DEK)
         encryption_key = EncryptionManager.generate_key()
         key_b64 = EncryptionManager.key_to_base64(encryption_key)
+
         # Encrypt the DEK for storage
         from config import Config
         encrypted_key_b64 = EncryptionManager.encrypt_dek(key_b64, Config.MASTER_KEY)
@@ -314,14 +335,13 @@ def refresh_key_pair(key_id):
         key_pair_store.create(new_key_pair)
         
         # Log rotation
-        log_audit(
-            user_id=None,
-            action='key_rotate',
-            resource_type='key',
-            resource_id=new_key_id,
-            details=f"Rotated key {key_id} to {new_key_id} for {doctor_id} → {patient_id}",
-            result='success',
-            metadata={'old_key_id': key_id, 'new_key_id': new_key_id}
+        audit_logger.log(
+            user_id="ADMIN",
+            user_name="System Admin",
+            action=AuditAction.KEY_ROTATE,
+            target=f"{doctor_id} -> {patient_id}",
+            result=AuditResult.OK,
+            details=f"Rotated key {key_id} to {new_key_id}"
         )
         
         # Generate QR code for NEW key
@@ -344,8 +364,12 @@ def refresh_key_pair(key_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 @keys_bp.route('/scan', methods=['POST'])
 def scan_qr_code():
+    """
+    Verify scanned QR code data and establish connection
+    """
     try:
         data = request.get_json()
         qr_data_str = data.get('qr_data')
@@ -380,22 +404,22 @@ def scan_qr_code():
              expires_at_naive = key_pair.expires_at.replace(tzinfo=None)
              if expires_at_naive < datetime.utcnow():
                 return jsonify({'error': 'Key pair has expired'}), 403
-        
+
         # Verify participants match
         if key_pair.doctor_id != doctor_id or key_pair.patient_id != patient_id:
             return jsonify({'error': 'Key pair mismatch'}), 403
-        
+
         # If Pending, activate it now (First scan)
         if key_pair.status == 'Pending':
             key_pair = key_pair_store.update_status(key_id, 'Active')
             
-            log_audit(
-                user_id=None,
-                action='pairing_scan',
-                resource_type='key',
-                resource_id=key_id,
-                details=f"Key pair activated via scan: {doctor_id} <-> {patient_id}",
-                result='success'
+            audit_logger.log(
+                user_id="SYSTEM",
+                user_name="System",
+                action=AuditAction.PAIRING_SCAN,
+                target=f"{key_pair.doctor_id} <-> {key_pair.patient_id}",
+                result=AuditResult.OK,
+                details="Key pair activated via scan"
             )
             
         # Decrypt key to return to user
@@ -403,27 +427,28 @@ def scan_qr_code():
             from config import Config
             decrypted_key = EncryptionManager.decrypt_dek(key_pair.encryption_key, Config.MASTER_KEY)
         except Exception as dec_err:
-            log_audit(
-                user_id=None,
-                action='pairing_scan',
-                resource_type='key',
-                resource_id=key_id,
-                details=f"Decryption failed for key {key_id}",
-                result='failure',
-                error_message=str(dec_err)
+            audit_logger.log(
+                user_id="SYSTEM",  # System verifying
+                user_name="System",
+                action=AuditAction.PAIRING_SCAN,
+                target=f"Key {key_id}",
+                result=AuditResult.FAILED,
+                details=f"Decryption failed: {str(dec_err)}"
             )
             return jsonify({'error': 'Failed to decrypt key'}), 500
         
         # Log successful scan
-        log_audit(
-            user_id=None,
-            action='pairing_scan',
-            resource_type='key',
-            resource_id=key_id,
-            details=f"QR code scanned for {doctor_id} <-> {patient_id}",
-            result='success'
+        audit_logger.log(
+            user_id="SYSTEM",
+            user_name="System",
+            action=AuditAction.PAIRING_SCAN,
+            target=f"{key_pair.doctor_id} <-> {key_pair.patient_id}",
+            result=AuditResult.OK,
+            details=f"QR code scanned for key {key_id}"
         )
-        
+
+        # Persist Connection in Supabase
+        # This allows the "My Patients" or "My Doctors" lists to work
         try:
             from app.utils.supabase_client import get_supabase_admin_client
             supabase = get_supabase_admin_client()
@@ -432,16 +457,18 @@ def scan_qr_code():
             connection_data = {
                 'doctor_id': key_pair.doctor_id,
                 'patient_id': key_pair.patient_id,
+                # 'status': 'active' # If table has status
             }
             # We use upsert if we have a unique constraint, or insert with ignore
             supabase.table('doctor_patient_connections').insert(connection_data).execute()
             
-            log_audit(
-                user_id=None,
-                action='pairing_create',
-                resource_type='connection',
-                details=f"Connection record created: {doctor_id} <-> {patient_id}",
-                result='success'
+            audit_logger.log(
+                user_id="SYSTEM",
+                user_name="System",
+                action=AuditAction.PAIRING_CREATE,
+                target=f"{key_pair.doctor_id} <-> {key_pair.patient_id}",
+                result=AuditResult.OK,
+                details="Connection record created"
             )
         except Exception as conn_err:
             print(f"Connection persistence warning: {conn_err}")
@@ -459,6 +486,7 @@ def scan_qr_code():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 @keys_bp.route('/connections/<user_id>', methods=['GET'])
 def get_user_connections(user_id):
@@ -478,7 +506,7 @@ def get_user_connections(user_id):
                 'created_at': kp.created_at.isoformat() if kp.created_at else None,
                 'expires_at': kp.expires_at.isoformat() if kp.expires_at else None
             })
-        
+
         return jsonify({
             'success': True,
             'connections': connection_list
