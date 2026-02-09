@@ -106,12 +106,7 @@ def generate_temporary_password() -> str:
 
 
 def send_otp_for_user(user: dict) -> dict:
-    """
-    Shared helper: generates an OTP, stores it, sends the email, and logs the event.
-    Called directly by login() for non-admin users, and by biometric verify for admins.
-
-    Returns a dict with 'success' and 'email_sent' flags.
-    """
+    
     otp_code = generate_otp()
 
     otp_key = f"{user['id']}_{user['email']}"
@@ -308,14 +303,7 @@ def create_user():
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    """
-    Handle user login
-    POST /api/auth/login
-    Body: { "role": "admin|doctor|patient", "userId": "ADM001", "password": "password", "nric": "S1234567A" }
-
-    Admin flow:  credentials OK → return pending_biometric=True (OTP sent later by biometric verify)
-    Other flow:  credentials OK → send OTP immediately
-    """
+    
     try:
         data = request.get_json()
         role = data.get('role')
