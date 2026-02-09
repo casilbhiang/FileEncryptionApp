@@ -11,8 +11,6 @@ from app.models.storage import key_pair_store
 from app.crypto.encryption import EncryptionManager
 from app.utils.audit_logger import log_file_delete
 from config import Config
-import magic 
-
 
 # Configuration
 SUPABASE_URL = os.getenv('SUPABASE_URL')
@@ -59,29 +57,6 @@ def upload_file():
         
         if file_ext not in ALLOWED_FILE_EXTENSIONS:
             return jsonify({'error': f'File type not allowed. Allowed types: {ALLOWED_FILE_EXTENSIONS}'}), 400
-            
-        # Validate MIME type using python-magic (inspect file header)
-        # Read first 2KB for magic number check
-        file_head = file.read(2048)
-        file.seek(0) # Reset pointer
-        
-        mime = magic.Magic(mime=True)
-        detected_mime_type = mime.from_buffer(file_head)
-        
-        # Allowed MIME types mapping
-        ALLOWED_MIME_TYPES = {
-            '.pdf': ['application/pdf'],
-            '.png': ['image/png'],
-            '.jpg': ['image/jpeg', 'image/jpg'],
-            '.jpeg': ['image/jpeg', 'image/jpg']
-        }
-        
-        allowed_mimes = ALLOWED_MIME_TYPES.get(file_ext, [])
-        if detected_mime_type not in allowed_mimes:
-             print(f"SECURITY WARNING: Mime type mismatch! Ext: {file_ext}, Detected: {detected_mime_type}")
-             return jsonify({
-                 'error': f'Invalid file content. Expected {file_ext}, but detected {detected_mime_type}'
-             }), 400
             
         file.seek(0, os.SEEK_END)
         file_size = file.tell()
@@ -428,15 +403,13 @@ def delete_file(file_id):
             .execute()
         
         if result.data:
-            audit_logger.log(
+            log_file_delete(
                 user_id=user_id,
-                user_name=user_id,
-                action=AuditAction.FILE_DELETE,
-                target=file_name,
-                result=AuditResult.OK,
-                details=f"File {file_name} deleted (ID: {file_id})"
+                filename=file_name,
+                file_id=file_id,
+                success=True
             )
-        
+                    
         return jsonify({'message': 'File deleted successfully'}), 200
     
     except Exception as e:
@@ -801,13 +774,11 @@ def delete_outdated_files():
                     
                     deleted_count += 1
                     
-                    audit_logger.log(
-                        user_id="ADMIN",
-                        user_name="Admin",
-                        action=AuditAction.FILE_DELETE,
-                        target=f"File {file_id}",
-                        result=AuditResult.OK,
-                        details=f"Outdated file deleted (ID: {file_id})"
+                    log_file_delete(
+                        user_id=None,
+                        filename=f"File {file_id}",
+                        file_id=file_id,
+                        success=True
                     )
                 else:
                     errors.append(f"File {file_id} not found")
