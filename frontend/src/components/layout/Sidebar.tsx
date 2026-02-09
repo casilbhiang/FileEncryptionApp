@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home, FileText, Upload, Share2, Users, UserPlus, Key, LogOut, Menu, X, Bell, FolderOpen } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
