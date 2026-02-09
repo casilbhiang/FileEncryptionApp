@@ -226,7 +226,6 @@ const UploadFilePage: React.FC = () => {
             }
           }
           setUploadedFiles((prev) => prev.filter((f) => f.id !== tempId));
-          showWarningToast('Upload Cancelled', `Upload of ${file.name} was cancelled`);
           return;
         }
 
