@@ -28,7 +28,7 @@ const BiometricModal: React.FC<BiometricModalProps> = ({
     useEffect(() => {
         if (isOpen) {
             checkAvailability();
-            setModalMode(mode); // Reset to initial mode when modal opens
+            setModalMode(mode); 
             setError('');
             setSuccess(false);
         }

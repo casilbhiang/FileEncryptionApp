@@ -26,6 +26,30 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 
+def validate_password_strength(password: str) -> tuple[bool, str]:
+    import re
+    if len(password) < 12:
+        return False, "Password must be at least 12 characters long"
+    
+    # Check for uppercase
+    if not re.search(r"[A-Z]", password):
+        return False, "Password must contain at least one uppercase letter"
+        
+    # Check for lowercase
+    if not re.search(r"[a-z]", password):
+        return False, "Password must contain at least one lowercase letter"
+        
+    # Check for numbers
+    if not re.search(r"\d", password):
+        return False, "Password must contain at least one number"
+        
+    # Check for symbols
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        return False, "Password must contain at least one symbol (!@#$%^&*...)"
+        
+    return True, ""
+
+
 def generate_initials_from_name(full_name: str) -> str:
     """
     Generate initials from full name
@@ -82,12 +106,7 @@ def generate_temporary_password() -> str:
 
 
 def send_otp_for_user(user: dict) -> dict:
-    """
-    Shared helper: generates an OTP, stores it, sends the email, and logs the event.
-    Called directly by login() for non-admin users, and by biometric verify for admins.
-
-    Returns a dict with 'success' and 'email_sent' flags.
-    """
+    
     otp_code = generate_otp()
 
     otp_key = f"{user['id']}_{user['email']}"
@@ -284,14 +303,7 @@ def create_user():
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    """
-    Handle user login
-    POST /api/auth/login
-    Body: { "role": "admin|doctor|patient", "userId": "ADM001", "password": "password", "nric": "S1234567A" }
-
-    Admin flow:  credentials OK → return pending_biometric=True (OTP sent later by biometric verify)
-    Other flow:  credentials OK → send OTP immediately
-    """
+    
     try:
         data = request.get_json()
         role = data.get('role')
@@ -605,11 +617,6 @@ def resend_code():
 
 @auth_bp.route('/reset-password', methods=['POST'])
 def reset_password():
-    """
-    Reset user password (for first-time login or password reset)
-    POST /api/auth/reset-password
-    Body: { "user_id": "ADM001", "old_password": "temp123", "new_password": "MyNewPass123!" }
-    """
     try:
         data = request.get_json()
         user_id = data.get('user_id')
@@ -622,10 +629,12 @@ def reset_password():
                 'message': 'User ID, old password, and new password are required'
             }), 400
 
-        if len(new_password) < 12:
+        # Validate password strength
+        is_valid, error_msg = validate_password_strength(new_password)
+        if not is_valid:
             return jsonify({
                 'success': False,
-                'message': 'New password must be at least 12 characters long'
+                'message': error_msg
             }), 400
 
         supabase = get_supabase_admin_client()

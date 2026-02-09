@@ -530,7 +530,6 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     }
   }, []);
 
-  // NEW: Helper to show success toast
   const showSuccessToast = useCallback(async (title: string, message: string, metadata?: Record<string, any>) => {
     const currentUserUuid = getCurrentUserUuid();
     if (!currentUserUuid) {
@@ -545,11 +544,10 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
       type: 'success',
       metadata,
       showAsToast: true,
-      persistToSidebar: false // Toast-only notification
+      persistToSidebar: false 
     });
   }, [addNotification, getCurrentUserUuid]);
 
-  // NEW: Helper to show error toast
   const showErrorToast = useCallback(async (title: string, message: string, metadata?: Record<string, any>) => {
     const currentUserUuid = getCurrentUserUuid();
     if (!currentUserUuid) {
@@ -564,11 +562,10 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
       type: 'error',
       metadata,
       showAsToast: true,
-      persistToSidebar: false // Toast-only notification
+      persistToSidebar: false 
     });
   }, [addNotification, getCurrentUserUuid]);
 
-  // NEW: Helper to show warning toast
   const showWarningToast = useCallback(async (title: string, message: string, metadata?: Record<string, any>) => {
     const currentUserUuid = getCurrentUserUuid();
     if (!currentUserUuid) {
@@ -583,11 +580,10 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
       type: 'warning',
       metadata,
       showAsToast: true,
-      persistToSidebar: false // Toast-only notification
+      persistToSidebar: false 
     });
   }, [addNotification, getCurrentUserUuid]);
 
-  // NEW: Helper to show info toast
   const showInfoToast = useCallback(async (title: string, message: string, metadata?: Record<string, any>) => {
     const currentUserUuid = getCurrentUserUuid();
     if (!currentUserUuid) {
@@ -602,11 +598,11 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
       type: 'info',
       metadata,
       showAsToast: true,
-      persistToSidebar: false // Toast-only notification
+      persistToSidebar: false 
     });
   }, [addNotification, getCurrentUserUuid]);
 
-  // Calculate unread count for current user - ONLY file_received notifications
+  // Calculate unread count for current user (Only file_received notifications)
   const unreadCount = notifications.filter(n => {
     const currentUserUuid = getCurrentUserUuid();
     return (n.user_id === currentUserUuid || n.user_id === 'all') && !n.is_read && n.notification_type === 'file_received';
