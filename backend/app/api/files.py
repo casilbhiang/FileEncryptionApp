@@ -9,7 +9,7 @@ import io
 import base64
 from app.models.storage import key_pair_store
 from app.crypto.encryption import EncryptionManager
-from app.utils.audit import audit_logger, AuditAction, AuditResult
+from app.utils.audit_logger import log_file_delete
 from config import Config
 import magic 
 

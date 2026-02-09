@@ -6,7 +6,7 @@ from app.crypto.encryption import EncryptionManager
 from app.crypto.qr_generator import QRCodeGenerator
 from app.models.encryption_models import KeyPair
 from app.models.storage import key_pair_store
-from app.utils.audit import audit_logger, AuditAction, AuditResult
+from app.utils.audit_logger import log_audit
 from datetime import datetime, timedelta
 import json
 
