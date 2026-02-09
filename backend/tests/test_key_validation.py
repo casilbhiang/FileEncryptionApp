@@ -80,19 +80,17 @@ def test_generate_key_success(client, mock_supabase):
     with patch('app.api.keys.key_pair_store') as mock_store:
         mock_store.get_by_users.return_value = None # No existing key
         mock_store.create.return_value = None # Create success
-        
-        with patch('app.utils.audit.audit_logger'):
             
-            with patch('config.Config') as MockConfig:
-                MockConfig.MASTER_KEY = "0" * 64 # 32 bytes hex
-                
-                response = client.post('/api/keys/generate', json={
-                    "doctor_id": "DOC001",
-                    "patient_id": "PAT001"
-                })
-                
-                if response.status_code != 201:
-                    print(response.data)
-                
-                assert response.status_code == 201
-                assert response.json['success'] is True
+        with patch('config.Config') as MockConfig:
+            MockConfig.MASTER_KEY = "0" * 64 # 32 bytes hex
+            
+            response = client.post('/api/keys/generate', json={
+                "doctor_id": "DOC001",
+                "patient_id": "PAT001"
+            })
+            
+            if response.status_code != 201:
+                print(response.data)
+            
+            assert response.status_code == 201
+            assert response.json['success'] is True

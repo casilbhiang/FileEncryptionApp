@@ -377,7 +377,7 @@ const getFileSourceInfo = (file: FileItem) => {
           
           showSuccessToast(
             'File Deleted', 
-            `${file.name} deleted successfully. Deleted files remain recoverable by administrators for 90 days.`,
+            `${file.name} deleted successfully.`,
             {
               fileName: file.name,
               fileId: file.id,

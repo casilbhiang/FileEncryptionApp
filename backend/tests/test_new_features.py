@@ -36,7 +36,7 @@ def mock_key_pair():
     # DO NOT Save to DB here
     return kp
 
-@patch('app.api.keys.audit_logger')
+@patch('app.api.keys.audit_logger', create=True)
 @patch('app.api.keys.key_pair_store')
 @patch('app.utils.supabase_client.get_supabase_admin_client')
 def test_scan_qr_code_success(mock_get_supabase, mock_store, mock_audit, client, mock_key_pair):

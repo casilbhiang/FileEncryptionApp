@@ -9,7 +9,7 @@ import io
 import base64
 from app.models.storage import key_pair_store
 from app.crypto.encryption import EncryptionManager
-from app.utils.audit import audit_logger, AuditAction, AuditResult
+from app.utils.audit_logger import log_file_delete
 from config import Config
 
 # Configuration
@@ -403,15 +403,13 @@ def delete_file(file_id):
             .execute()
         
         if result.data:
-            audit_logger.log(
+            log_file_delete(
                 user_id=user_id,
-                user_name=user_id,
-                action=AuditAction.FILE_DELETE,
-                target=file_name,
-                result=AuditResult.OK,
-                details=f"File {file_name} deleted (ID: {file_id})"
+                filename=file_name,
+                file_id=file_id,
+                success=True
             )
-        
+                    
         return jsonify({'message': 'File deleted successfully'}), 200
     
     except Exception as e:
@@ -776,13 +774,11 @@ def delete_outdated_files():
                     
                     deleted_count += 1
                     
-                    audit_logger.log(
-                        user_id="ADMIN",
-                        user_name="Admin",
-                        action=AuditAction.FILE_DELETE,
-                        target=f"File {file_id}",
-                        result=AuditResult.OK,
-                        details=f"Outdated file deleted (ID: {file_id})"
+                    log_file_delete(
+                        user_id=None,
+                        filename=f"File {file_id}",
+                        file_id=file_id,
+                        success=True
                     )
                 else:
                     errors.append(f"File {file_id} not found")

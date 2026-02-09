@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home, FileText, Upload, Share2, Users, UserPlus, Key, LogOut, Menu, X, Bell, FolderOpen } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -24,6 +24,17 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
 
   // Use notification context
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotification } = useNotifications();
+
+  // Track previous unread count to detect new notifications
+  const prevUnreadCountRef = useRef(unreadCount);
+
+  useEffect(() => {
+    // If unread count INCREASED, it means a new notification arrived
+    if (unreadCount > prevUnreadCountRef.current) {
+      setShowNotifications(true);
+    }
+    prevUnreadCountRef.current = unreadCount;
+  }, [unreadCount]);
 
   // Helper to format time
   const formatTime = (timestamp: string) => {
@@ -145,7 +156,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole, currentPage = 'home' }) => 
           <div className="fixed top-20 left-4 lg:left-72 w-80 lg:w-96 bg-white rounded-lg shadow-2xl z-50 max-h-96 overflow-hidden flex flex-col border border-gray-200">
             {/* Header */}
             <div className="p-4 border-b bg-gray-50 flex items-center justify-between">
-              <h3 className="font-bold text-lg">Recent Upload</h3>
+              <h3 className="font-bold text-lg">Notifications</h3>
               <div className="flex items-center gap-2">
                 {unreadCount > 0 && (
                   <button

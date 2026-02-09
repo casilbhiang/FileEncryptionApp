@@ -13,7 +13,7 @@ interface User {
   inactiveDays?: number;
 }
 
-const ITEMS_PER_PAGE = 3;
+const ITEMS_PER_PAGE = 4;
 
 const AUserMgtPage: React.FC = () => {
   const { showSuccessToast, showErrorToast } = useNotifications();
