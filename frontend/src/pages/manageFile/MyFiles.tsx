@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { getMyFiles, deleteFile, downloadFile, downloadAndDecryptFile, type FileItem } from '../../services/Files';
 import { getStoredEncryptionKey } from '../../services/Encryption';
-// REPLACE the custom hook with NotificationContext
 import { useNotifications } from '../../contexts/NotificationContext';
 import { storage } from '../../utils/storage';
 

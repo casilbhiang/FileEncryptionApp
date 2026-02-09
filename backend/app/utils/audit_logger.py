@@ -16,22 +16,6 @@ def log_audit(
     error_message: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None
 ) -> bool:
-    """
-    Log an audit event to the audit_logs table
-
-    Args:
-        user_id: UUID of the user performing the action (can be None for system actions)
-        action: The action being performed (e.g., 'file_upload', 'file_delete', 'user_created')
-        resource_type: Type of resource affected (e.g., 'file', 'user', 'key')
-        resource_id: ID of the specific resource
-        details: Additional human-readable details
-        result: 'success' or 'failure'
-        error_message: Error message if result is 'failure'
-        metadata: Additional structured data as a dictionary
-
-    Returns:
-        True if logging succeeded, False otherwise
-    """
     try:
         supabase = get_supabase_admin_client()
 
