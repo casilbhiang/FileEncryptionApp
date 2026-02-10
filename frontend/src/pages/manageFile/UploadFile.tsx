@@ -71,6 +71,35 @@ const UploadFilePage: React.FC = () => {
     }
   };
 
+  const validateFileSignature = (file: File): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = (e) => {
+        if (!e.target || !e.target.result) return resolve(false);
+        const arr = (new Uint8Array(e.target.result as ArrayBuffer)).subarray(0, 4);
+        let header = "";
+        for (let i = 0; i < arr.length; i++) {
+          header += arr[i].toString(16).toUpperCase();
+        }
+
+        const ext = file.name.split('.').pop()?.toLowerCase();
+
+        // Magic Byte Signatures
+        // PDF: 25 50 44 46 (%PDF)
+        // PNG: 89 50 4E 47 (.PNG)
+        // JPG: FF D8 FF ...
+
+        if (ext === 'pdf' && header.startsWith('25504446')) return resolve(true);
+        if (ext === 'png' && header.startsWith('89504E47')) return resolve(true);
+        if ((ext === 'jpg' || ext === 'jpeg') && header.startsWith('FFD8FF')) return resolve(true);
+
+        console.warn(`Signature Mismatch! Ext: ${ext}, Header: ${header}`);
+        resolve(false);
+      };
+      reader.readAsArrayBuffer(file.slice(0, 4));
+    });
+  };
+
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
