@@ -133,18 +133,10 @@ const UploadFilePage: React.FC = () => {
     }
 
     const validatedFiles: File[] = [];
+
+    // CLIENT-SIDE MIME CHECK (Magic Bytes)
+    // We must do this HERE because the server only sees encrypted (scrambled) data.
     for (const file of files) {
-      const isValid = await validateFileSignature(file);
-      if (isValid) {
-        validatedFiles.push(file);
-      } else {
-        showErrorToast('Security Alert', `File rejected: "${file.name}" content does not match its extension.`);
-      }
-    }
-
-    if (validatedFiles.length === 0) return;
-
-    for (const file of validatedFiles) {
       const isValid = await validateFileSignature(file);
       if (isValid) {
         validatedFiles.push(file);
