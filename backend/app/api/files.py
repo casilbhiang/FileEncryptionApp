@@ -16,7 +16,7 @@ try:
     MAGIC_AVAILABLE = True
 except ImportError:
     print("WARNING: python-magic not found. Using manual fallback.")
-    MAGIC_AVAILABLE = False 
+    MAGIC_AVAILABLE = False
 
 
 # Configuration
@@ -74,9 +74,17 @@ def upload_file():
         
         if MAGIC_AVAILABLE:
             try:
+                detected_mime_type = 'application/octet-stream'
+        
+        if MAGIC_AVAILABLE:
+            try:
                 mime = magic.Magic(mime=True)
                 detected_mime_type = mime.from_buffer(file_head)
                 print(f"DEBUG: Magic Detected: {detected_mime_type}")
+            except Exception as e:
+                print(f"DEBUG: Magic library failed: {e}")
+        
+        print(f"DEBUG: File Head: {file_head[:20].hex()}")
             except Exception as e:
                 print(f"DEBUG: Magic library failed: {e}")
         
