@@ -30,6 +30,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
+        // SECURITY: Cleanup legacy plaintext localStorage from older versions
+        // We now use storage (cookies/encrypted), so these raw keys are dangerous.
+        const legacyKeys = ['user', 'token', 'auth_token', 'user_role', 'user_id', 'user_email'];
+        legacyKeys.forEach(key => {
+            if (localStorage.getItem(key)) {
+                console.warn(`Security Cleanup: Removing legacy plaintext item '${key}' from localStorage`);
+                localStorage.removeItem(key);
+            }
+        });
+
+        // Also clean up any potential raw encryption keys if they exist in LS
+        // (Note: This is a broad cleanup, specific user keys might be prefixed)
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (key.startsWith('encryptionKey_') || key.includes('private_key'))) {
+                console.warn(`Security Cleanup: Removing legacy key item '${key}'`);
+                localStorage.removeItem(key);
+            }
+        }
+
         // Check for stored auth data on mount
         const storedUser = storage.getItem('user');
         const storedToken = storage.getItem('token');

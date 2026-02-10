@@ -16,6 +16,7 @@ def get_audit_logs():
         action = request.args.get('action')
         result = request.args.get('result')
         search_query = request.args.get('search')
+        date_filter = request.args.get('date')  # Format: YYYY-MM-DD
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 10))
         exclude_keys = request.args.get('exclude_keys', 'false').lower() == 'true'
@@ -25,6 +26,12 @@ def get_audit_logs():
 
         # Fetch from login_audit table (authentication events)
         login_query = supabase.table('login_audit').select('*, users(user_id, full_name, email, role)')
+        
+        # Apply date filter to login_audit query if provided
+        if date_filter:
+            # Filter for the specific day (between start and end of day)
+            login_query = login_query.gte('created_at', f"{date_filter}T00:00:00").lte('created_at', f"{date_filter}T23:59:59")
+            
         login_query = login_query.order('created_at', desc=True)
         login_response = login_query.execute()
 
@@ -32,6 +39,11 @@ def get_audit_logs():
         try:
             # Attempt 1: Fetch with join (requires FK)
             audit_query = supabase.table('audit_logs').select('*, users(user_id, full_name, email, role)')
+            
+            # Apply date filter to audit_logs query if provided
+            if date_filter:
+                audit_query = audit_query.gte('created_at', f"{date_filter}T00:00:00").lte('created_at', f"{date_filter}T23:59:59")
+                
             audit_query = audit_query.order('created_at', desc=True)
             audit_response = audit_query.execute()
         except Exception as audit_error:
@@ -39,6 +51,11 @@ def get_audit_logs():
             try:
                 # Attempt 2: Fetch raw logs without join
                 audit_query = supabase.table('audit_logs').select('*')
+                
+                # Apply date filter fallback
+                if date_filter:
+                    audit_query = audit_query.gte('created_at', f"{date_filter}T00:00:00").lte('created_at', f"{date_filter}T23:59:59")
+                    
                 audit_query = audit_query.order('created_at', desc=True)
                 audit_response = audit_query.execute()
             except Exception as e:
@@ -59,9 +76,11 @@ def get_audit_logs():
             if timestamp:
                 try:
                     dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-                    timestamp = dt.strftime('%Y-%m-%d %H:%M:%S')
+                    timestamp_str = dt.strftime('%Y-%m-%d %H:%M:%S')
                 except:
-                    pass
+                    timestamp_str = timestamp
+            else:
+                timestamp_str = ''
 
             # Determine result based on error message
             event_type = log.get('event_type', 'login')
@@ -76,7 +95,7 @@ def get_audit_logs():
 
             formatted_log = {
                 'id': str(log.get('id', '')),
-                'timestamp': timestamp,
+                'timestamp': timestamp_str,
                 'user': f"{user_name} ({user_id_display})",
                 'action': action_display,
                 'target': target,
@@ -113,9 +132,11 @@ def get_audit_logs():
             if timestamp:
                 try:
                     dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-                    timestamp = dt.strftime('%Y-%m-%d %H:%M:%S')
+                    timestamp_str = dt.strftime('%Y-%m-%d %H:%M:%S')
                 except:
-                    pass
+                    timestamp_str = timestamp
+            else:
+                timestamp_str = ''
 
             # Get result
             result_status = 'FAILED' if log.get('result') == 'failure' else 'OK'
@@ -139,7 +160,7 @@ def get_audit_logs():
 
             formatted_log = {
                 'id': str(log.get('id', '')),
-                'timestamp': timestamp,
+                'timestamp': timestamp_str,
                 'user': f"{user_name} ({user_id_display})" if user_info else 'System',
                 'action': action_display,
                 'target': target,

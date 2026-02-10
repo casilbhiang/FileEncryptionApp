@@ -11,6 +11,13 @@ from app.models.storage import key_pair_store
 from app.crypto.encryption import EncryptionManager
 from app.utils.audit import audit_logger, AuditAction, AuditResult
 from config import Config
+try:
+    import magic
+    MAGIC_AVAILABLE = True
+except ImportError:
+    print("WARNING: python-magic not found. Using manual fallback.")
+    MAGIC_AVAILABLE = False 
+
 
 # Configuration
 SUPABASE_URL = os.getenv('SUPABASE_URL')
@@ -57,6 +64,47 @@ def upload_file():
         
         if file_ext not in ALLOWED_FILE_EXTENSIONS:
             return jsonify({'error': f'File type not allowed. Allowed types: {ALLOWED_FILE_EXTENSIONS}'}), 400
+            
+        # Validate MIME type using python-magic (inspect file header)
+        # Read first 2KB for magic number check
+        file_head = file.read(2048)
+        file.seek(0) # Reset pointer
+        
+        detected_mime_type = 'application/octet-stream'
+        
+        if MAGIC_AVAILABLE:
+            try:
+                mime = magic.Magic(mime=True)
+                detected_mime_type = mime.from_buffer(file_head)
+                print(f"DEBUG: Magic Detected: {detected_mime_type}")
+            except Exception as e:
+                print(f"DEBUG: Magic library failed: {e}")
+        
+        print(f"DEBUG: File Head: {file_head[:20].hex()}")
+
+        # Fallback: Manual Magic Byte Check if python-magic fails (application/octet-stream)
+        if detected_mime_type == 'application/octet-stream':
+            if file_head.startswith(b'%PDF'):
+                detected_mime_type = 'application/pdf'
+            elif file_head.startswith(b'\x89PNG\r\n\x1a\n'):
+                detected_mime_type = 'image/png'
+            elif file_head.startswith(b'\xff\xd8\xff'):
+                detected_mime_type = 'image/jpeg'
+        
+        # Allowed MIME types mapping
+        ALLOWED_MIME_TYPES = {
+            '.pdf': ['application/pdf', 'application/x-pdf', 'application/acrobat', 'applications/vnd.pdf', 'text/pdf', 'text/x-pdf', 'application/octet-stream'],
+            '.png': ['image/png', 'image/x-png', 'application/octet-stream'],
+            '.jpg': ['image/jpeg', 'image/jpg', 'image/pjpeg', 'image/x-citrix-jpeg', 'application/octet-stream'],
+            '.jpeg': ['image/jpeg', 'image/jpg', 'image/pjpeg', 'image/x-citrix-jpeg', 'application/octet-stream']
+        }
+        
+        allowed_mimes = ALLOWED_MIME_TYPES.get(file_ext, [])
+        if detected_mime_type not in allowed_mimes:
+             print(f"SECURITY WARNING: Mime type mismatch! Ext: {file_ext}, Detected: {detected_mime_type}")
+             return jsonify({
+                 'error': f'Invalid file content. Expected {file_ext}, but detected {detected_mime_type}'
+             }), 400
             
         file.seek(0, os.SEEK_END)
         file_size = file.tell()

@@ -135,42 +135,50 @@ def list_key_pairs():
 
 @keys_bp.route('/<key_id>', methods=['GET'])
 def get_key_pair(key_id):
-    """Get a specific key pair by ID"""
+
     try:
-        include_key = request.args.get('include_key', 'false').lower() == 'true'
-        
         key_pair = key_pair_store.get(key_id)
         if not key_pair:
             return jsonify({'error': 'Key pair not found'}), 404
         
-        # Authorization Check (If user_id is provided)
-        user_id = request.args.get('user_id')
-        if include_key and user_id:
-            # Ensure the requesting user is part of this key pair
-            if user_id != key_pair.doctor_id and user_id != key_pair.patient_id:
-                 return jsonify({'error': 'Unauthorized access to key material'}), 403
+        return jsonify({
+            'success': True,
+            'key_pair': key_pair.to_dict()
+        }), 200
         
-        if include_key:
-            # If requesting the raw key, we must decrypt it first
-            try:
-                from config import Config
-                decrypted_key = EncryptionManager.decrypt_dek(key_pair.encryption_key, Config.MASTER_KEY)
-                
-                # Create a temporary copy to return decrypted data
-                kp_dict = key_pair.to_dict_with_key()
-                kp_dict['encryption_key'] = decrypted_key
-                
-                return jsonify({
-                    'success': True,
-                    'key_pair': kp_dict
-                }), 200
-            except Exception as dec_err:
-                return jsonify({'error': f'Failed to decrypt key: {str(dec_err)}'}), 500
-        else:
-            return jsonify({
-                'success': True,
-                'key_pair': key_pair.to_dict()
-            }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@keys_bp.route('/<key_id>/retrieve', methods=['POST'])
+def retrieve_key_pair(key_id):
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+
+        if not user_id:
+             return jsonify({'error': 'User ID is required'}), 400
+
+        key_pair = key_pair_store.get(key_id)
+        if not key_pair:
+            return jsonify({'error': 'Key pair not found'}), 404
+        
+        # Authorization Check
+        if user_id != key_pair.doctor_id and user_id != key_pair.patient_id:
+             return jsonify({'error': 'Unauthorized access to key material'}), 403
+        
+        # Decrypt Key
+        from config import Config
+        decrypted_key = EncryptionManager.decrypt_dek(key_pair.encryption_key, Config.MASTER_KEY)
+        
+        # Create a temporary copy to return decrypted data
+        kp_dict = key_pair.to_dict_with_key()
+        kp_dict['encryption_key'] = decrypted_key
+        
+        return jsonify({
+            'success': True,
+            'key_pair': kp_dict
+        }), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -178,7 +186,7 @@ def get_key_pair(key_id):
 
 @keys_bp.route('/<key_id>/status', methods=['PATCH'])
 def update_key_status(key_id):
-    """Update key pair status"""
+
     try:
         data = request.get_json()
         new_status = data.get('status')
