@@ -11,7 +11,12 @@ from app.models.storage import key_pair_store
 from app.crypto.encryption import EncryptionManager
 from app.utils.audit import audit_logger, AuditAction, AuditResult
 from config import Config
-import magic 
+try:
+    import magic
+    MAGIC_AVAILABLE = True
+except ImportError:
+    print("WARNING: python-magic not found. Using manual fallback.")
+    MAGIC_AVAILABLE = False 
 
 
 # Configuration
@@ -65,11 +70,17 @@ def upload_file():
         file_head = file.read(2048)
         file.seek(0) # Reset pointer
         
-        mime = magic.Magic(mime=True)
-        detected_mime_type = mime.from_buffer(file_head)
+        detected_mime_type = 'application/octet-stream'
+        
+        if MAGIC_AVAILABLE:
+            try:
+                mime = magic.Magic(mime=True)
+                detected_mime_type = mime.from_buffer(file_head)
+                print(f"DEBUG: Magic Detected: {detected_mime_type}")
+            except Exception as e:
+                print(f"DEBUG: Magic library failed: {e}")
         
         print(f"DEBUG: File Head: {file_head[:20].hex()}")
-        print(f"DEBUG: Magic Detected: {detected_mime_type}")
 
         # Fallback: Manual Magic Byte Check if python-magic fails (application/octet-stream)
         if detected_mime_type == 'application/octet-stream':
