@@ -23,7 +23,7 @@ const UploadFilePage: React.FC = () => {
   const location = useLocation();
   const userRole = location.pathname.includes('/doctor') ? 'doctor' : 'patient';
   const { showSuccessToast, showErrorToast, showWarningToast } = useNotifications();
-  
+
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [encryptionKey, setEncryptionKey] = useState<CryptoKey | null>(null);
@@ -132,7 +132,30 @@ const UploadFilePage: React.FC = () => {
       return;
     }
 
+    const validatedFiles: File[] = [];
     for (const file of files) {
+      const isValid = await validateFileSignature(file);
+      if (isValid) {
+        validatedFiles.push(file);
+      } else {
+        showErrorToast('Security Alert', `File rejected: "${file.name}" content does not match its extension.`);
+      }
+    }
+
+    if (validatedFiles.length === 0) return;
+
+    for (const file of validatedFiles) {
+      const isValid = await validateFileSignature(file);
+      if (isValid) {
+        validatedFiles.push(file);
+      } else {
+        showErrorToast('Security Alert', `File rejected: "${file.name}" content does not match its extension.`);
+      }
+    }
+
+    if (validatedFiles.length === 0) return;
+
+    for (const file of validatedFiles) {
       const tempId = Date.now() + Math.random();
       const abortController = new AbortController();
       let uploadedFileId: string | null = null;
@@ -285,10 +308,10 @@ const UploadFilePage: React.FC = () => {
   const handleCancelUpload = async (file: UploadedFile) => {
     if ((file.status === 'uploading' || file.status === 'encrypting') && file.abortController) {
       console.log(`Cancelling upload: ${file.name}`);
-      
+
       // Abort the fetch request
       file.abortController.abort();
-      
+
       // Update UI to show cancelled
       setUploadedFiles(prev =>
         prev.map(f =>
@@ -304,7 +327,7 @@ const UploadFilePage: React.FC = () => {
 
   const handleRemoveFile = async (id: number | string) => {
     const file = uploadedFiles.find(f => f.id === id);
-    
+
     if (file && file.backendFileId && userUuid) {
       try {
         console.log('Deleting file from backend:', file.backendFileId);
@@ -355,9 +378,8 @@ const UploadFilePage: React.FC = () => {
         {/* Upload Area */}
         <div className="bg-white rounded-lg p-8 mb-6">
           <div
-            className={`border-2 border-dashed rounded-lg p-12 text-center transition ${
-              isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
-            } ${!keyAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`border-2 border-dashed rounded-lg p-12 text-center transition ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+              } ${!keyAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
             onDrop={keyAvailable ? handleDrop : undefined}
             onDragOver={(e) => {
               e.preventDefault();
@@ -382,9 +404,8 @@ const UploadFilePage: React.FC = () => {
                   : 'Please set up encryption before uploading files'}
               </p>
               <label
-                className={`px-6 py-2 border-2 border-gray-300 rounded-lg font-medium transition ${
-                  keyAvailable ? 'hover:bg-gray-50 cursor-pointer' : 'opacity-50 cursor-not-allowed'
-                }`}
+                className={`px-6 py-2 border-2 border-gray-300 rounded-lg font-medium transition ${keyAvailable ? 'hover:bg-gray-50 cursor-pointer' : 'opacity-50 cursor-not-allowed'
+                  }`}
               >
                 Browse File
                 <input
