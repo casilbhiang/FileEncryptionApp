@@ -1,0 +1,381 @@
+'use client';
+import React, { useState, useEffect } from 'react';
+import Sidebar from '../../components/layout/Sidebar';
+import { QrCode, Camera, AlertTriangle, CheckCircle, Stethoscope, Key } from 'lucide-react';
+import QRScanner from '../../components/QRScanner';
+import { verifyScannedQR, getUserConnections, getKeyPair } from '../../services/keyService';
+import { hasEncryptionKey, storeEncryptionKey, importKeyFromBase64 } from '../../services/Encryption';
+import { storage } from '../../utils/storage';
+import { useNotifications } from '../../contexts/NotificationContext';
+
+const PConnectToDocPage: React.FC = () => {
+  const { showSuccessToast, showErrorToast, showWarningToast } = useNotifications();
+
+  const [isConnected, setIsConnected] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [connections, setConnections] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [keyMissing, setKeyMissing] = useState(false);
+
+  const patientId = storage.getItem('user_id');
+
+  // Load existing connections on mount
+  useEffect(() => {
+    const loadConnections = async () => {
+      try {
+        if (!patientId) {
+          console.warn('No patient ID found');
+          return;
+        }
+
+        // 1. Check Backend Connection
+        const result = await getUserConnections(patientId);
+        let activeConnections: any[] = [];
+
+        if (result.success && result.connections && result.connections.length > 0) {
+          activeConnections = result.connections.filter((c: any) => c.status === 'Active');
+        }
+
+        // 2. Check Local Key Presence for EACH connection
+        setConnections(activeConnections);
+
+        if (activeConnections.length > 0) {
+          setIsConnected(true);
+          const hasKey = hasEncryptionKey(patientId);
+
+          if (!hasKey) {
+            // Ghost Connection detected: Try to restore key from backend
+            let restoredCount = 0;
+            for (const conn of activeConnections) {
+              try {
+                const keyResult = await getKeyPair(conn.key_id, patientId);
+                if (keyResult.success && keyResult.key_pair && keyResult.key_pair.encryption_key) {
+                  const key = await importKeyFromBase64(keyResult.key_pair.encryption_key);
+                  await storeEncryptionKey(key, patientId);
+                  restoredCount++;
+                }
+              } catch (e) {
+                console.warn(`Failed to restore key for ${conn.key_id}`, e);
+              }
+            }
+
+            if (restoredCount > 0) {
+              setKeyMissing(false);
+            } else {
+              setKeyMissing(true);
+            }
+          } else {
+            setKeyMissing(false);
+          }
+        } else {
+          setIsConnected(false);
+          setKeyMissing(false);
+        }
+      } catch (err) {
+        console.error('Failed to load connections:', err);
+      }
+    };
+
+    loadConnections();
+
+    // Listen for global key restoration
+    const handleKeyUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (patientId && customEvent.detail?.userId === patientId) {
+        console.log('Key restored globally, updating UI...');
+        setKeyMissing(false);
+      }
+    };
+
+    window.addEventListener('encryption-key-updated', handleKeyUpdate);
+    return () => window.removeEventListener('encryption-key-updated', handleKeyUpdate);
+  }, [patientId]);
+
+  const handleDisconnect = async (keyId: string) => {
+    if (!patientId || !keyId) return;
+
+    if (!confirm('Are you sure you want to disconnect from this doctor? This will remove the secure connection.')) {
+      return;
+    }
+
+    try {
+      // 1. Call Backend to delete KeyPair and Connection
+      const { deleteKeyPair } = await import('../../services/keyService');
+      await deleteKeyPair(keyId);
+
+      // 2. Update UI
+      setConnections(prev => prev.filter(c => c.key_id !== keyId));
+
+      // If no more connections, update main state
+      if (connections.length <= 1) {
+        setIsConnected(false);
+      }
+
+      await showSuccessToast('Disconnected', 'Doctor connection has been removed successfully');
+      console.log('Connection disconnected');
+    } catch (err: any) {
+      console.error('Failed to disconnect:', err);
+      await showErrorToast('Disconnect Failed', err.message || 'Failed to disconnect doctor');
+    }
+  };
+
+  const handleScanQRCode = () => {
+    setShowScanner(true);
+    setError(null);
+  };
+
+  const handleScanSuccess = async (decodedText: string) => {
+    try {
+      setShowScanner(false);
+
+      // Parse QR data to extract key
+      const qrData = JSON.parse(decodedText);
+
+      // Validate QR ownership (Case-insensitive)
+      if (qrData.patient_id && patientId) {
+        const qrPatient = String(qrData.patient_id).trim().toLowerCase();
+        const currentPatient = String(patientId).trim().toLowerCase();
+
+        if (qrPatient !== currentPatient) {
+          throw new Error('QR code does not match your patient ID');
+        }
+      }
+
+      // 1. Verify the scanned QR code FIRST (Check validity with Backend)
+      const result = await verifyScannedQR(decodedText);
+
+      // 2. Only if verification succeeds, try to store the key
+      let keyRestored = false;
+      if (qrData.key && patientId) {
+        try {
+          // Import and store the key locally
+          const { importKeyFromBase64, storeEncryptionKey } = await import('../../services/Encryption');
+          const key = await importKeyFromBase64(qrData.key);
+          await storeEncryptionKey(key, patientId);
+          console.log('Encryption key cached from QR scan');
+          setKeyMissing(false); // Key is restored!
+          keyRestored = true;
+
+        } catch (keyError) {
+          console.error('Failed to cache key:', keyError);
+          await showWarningToast('Key Cache Failed', 'Connection established but key caching failed');
+        }
+      }
+
+      // Check if this is a new connection
+      const isNewConnection = !connections.some(c => c.key_id === result.connection.key_id);
+
+      // Add to list if not exists
+      setConnections(prev => {
+        const exists = prev.some(c => c.key_id === result.connection.key_id);
+        if (exists) return prev;
+        return [...prev, result.connection];
+      });
+
+      setIsConnected(true);
+      setError(null);
+
+      if (isNewConnection) {
+        await showSuccessToast('Connected', 'Successfully connected to doctor');
+      } else if (keyRestored) {
+        await showSuccessToast('Key Restored', 'Encryption key has been successfully cached');
+      } else {
+        await showSuccessToast('QR Verified', 'Connection verified successfully');
+      }
+    } catch (err: any) {
+      console.error('Scan verification failed:', err);
+      setError(err.message || 'Failed to verify QR code');
+      setShowScanner(false);
+      await showErrorToast('Scan Failed', err.message || 'Failed to verify QR code');
+    }
+  };
+
+  const handleScanFailure = (err: any) => {
+    console.warn('Scan error:', err);
+  };
+
+  // Determine UI State
+  const isFullyConnected = isConnected && !keyMissing;
+  const isGhostConnection = isConnected && keyMissing;
+
+  return (
+    <div className="min-h-screen bg-gray-100 flex">
+      {/* Sidebar */}
+      <Sidebar userRole="patient" currentPage="connect" />
+
+      {/* Main Content */}
+      <div className="flex-1 p-4 lg:p-8 pt-16 lg:pt-8">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-2xl lg:text-3xl font-bold mb-2">Connect To Doctor</h1>
+          <p className="text-gray-600">Scan QR Code To Establish Secure Connection</p>
+        </div>
+
+        {/* Connection Status Alert */}
+        <div className={`border-2 rounded-lg p-4 mb-6 max-w-2xl
+            ${isFullyConnected ? 'bg-green-50 border-green-300' :
+            isGhostConnection ? 'bg-orange-50 border-orange-300' :
+              'bg-yellow-50 border-yellow-300'}`}>
+          <div className="flex items-center gap-3">
+            {isFullyConnected ? (
+              <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0" />
+            ) : isGhostConnection ? (
+              <Key className="w-6 h-6 text-orange-600 flex-shrink-0" />
+            ) : (
+              <AlertTriangle className="w-6 h-6 text-yellow-600 flex-shrink-0" />
+            )}
+            <div>
+              <p className={`${isFullyConnected ? 'text-green-800' :
+                isGhostConnection ? 'text-orange-800' :
+                  'text-yellow-800'} font-medium`}>
+                {isFullyConnected ? 'Connected Successfully!' :
+                  isGhostConnection ? 'Scan to Verify Connection' :
+                    'Not Connected to Any Doctor'}
+              </p>
+              {isGhostConnection && (
+                <p className="text-sm text-orange-700 mt-1">
+                  Active connections detected.
+                  <strong> Please scan the QR code to verify your identity and link secure access.</strong>
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6 max-w-2xl">
+            <strong>Error:</strong> {error}
+          </div>
+        )}
+
+        {/* How to Connect Section */}
+        <div className="bg-white rounded-lg p-6 lg:p-8 max-w-3xl">
+          <h2 className="text-xl font-bold mb-6">How to Connect</h2>
+
+          {/* Step 1 */}
+          <div className="flex gap-4 mb-6">
+            <div className="w-10 h-10 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold flex-shrink-0">
+              1
+            </div>
+            <div>
+              <h3 className="font-bold text-lg mb-2">Visit Your Clinic</h3>
+              <p className="text-gray-600">
+                Ask clinic staff to generate a connection QR code for you and your doctor.
+              </p>
+            </div>
+          </div>
+
+          {/* Step 2 */}
+          <div className="flex gap-4 mb-6">
+            <div className="w-10 h-10 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold flex-shrink-0">
+              2
+            </div>
+            <div>
+              <h3 className="font-bold text-lg mb-2">Scan QR Code</h3>
+              <p className="text-gray-600">
+                Click the button below and point your camera at the QR code displayed by staff.
+              </p>
+            </div>
+          </div>
+
+          {/* QR Scanner Section */}
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8">
+            <div className="flex flex-col items-center text-center">
+              {!showScanner ? (
+                <>
+                  <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                    <Camera className="w-10 h-10 text-gray-400" />
+                  </div>
+                  <p className="text-gray-600 mb-6">
+                    Click "Scan QR Code" to activate camera
+                  </p>
+                  <button
+                    onClick={handleScanQRCode}
+                    className="px-8 py-3 text-white rounded-lg font-semibold transition flex items-center gap-2 bg-purple-600 hover:bg-purple-700"
+                  >
+                    <QrCode className="w-5 h-5" />
+                    {isFullyConnected ? 'Re-Scan QR Code' : isGhostConnection ? 'Re-Scan to Restore Key' : 'Scan QR Code'}
+                  </button>
+                </>
+              ) : (
+                <div className="w-full max-w-md">
+                  <h3 className="text-lg font-semibold mb-4">Scanning...</h3>
+                  <QRScanner
+                    onScanSuccess={handleScanSuccess}
+                    onScanFailure={handleScanFailure}
+                  />
+                  <button
+                    onClick={() => setShowScanner(false)}
+                    className="mt-4 px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Connected Doctor Info & Disconnect */}
+        {isConnected && connections.length > 0 && (
+          <div className="max-w-3xl mt-6">
+            <h2 className="text-xl font-bold mb-4">Connected Doctors ({connections.length})</h2>
+            <div className="space-y-4">
+              {connections.map((connection, index) => (
+                <div
+                  key={connection.key_id || index}
+                  className="bg-white rounded-lg p-6 lg:p-8 animate-in fade-in slide-in-from-bottom-4 duration-500"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold">Doctor Connection #{index + 1}</h3>
+                    <button
+                      onClick={() => handleDisconnect(connection.key_id)}
+                      className="text-red-600 hover:text-red-800 text-sm font-semibold underline px-2 py-1"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-green-50 border border-green-200 rounded-lg gap-4">
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <Stethoscope className="w-6 h-6 text-green-600" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-gray-900 truncate">Doctor ID: {connection.doctor_id}</h3>
+                        <p className="text-sm text-gray-600 truncate">Key ID: {connection.key_id}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                      <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                        Active
+                      </span>
+                      {connection.expires_at && (
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded
+                              ${(() => {
+                            const days = Math.ceil((new Date(connection.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                            if (days < 0) return 'bg-red-100 text-red-700';
+                            if (days < 7) return 'bg-orange-100 text-orange-700';
+                            return 'bg-gray-100 text-gray-600';
+                          })()}
+                          `}>
+                          {(() => {
+                            const days = Math.ceil((new Date(connection.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                            if (days < 0) return 'Expired';
+                            return `Key Expires in ${days} days`;
+                          })()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default PConnectToDocPage;
