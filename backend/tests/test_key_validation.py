@@ -53,8 +53,8 @@ def test_generate_key_patient_not_found(client, mock_supabase):
 
     mock_execute = MagicMock()
     mock_execute.side_effect = [
-        MagicMock(data=[{'user_id': 'DOC001'}]), # Doctor found
-        MagicMock(data=[])                       # Patient not found
+        MagicMock(data=[{'user_id': 'DOC001', 'role': 'doctor'}]), # Doctor found
+        MagicMock(data=[])                                        # Patient not found
     ]
     
     mock_client.table.return_value.select.return_value.eq.return_value.execute = mock_execute
@@ -72,9 +72,12 @@ def test_generate_key_success(client, mock_supabase):
     mock_client = MagicMock()
     mock_supabase.return_value = mock_client
 
-    # Mock users existing
+    # Mock users existing with correct roles
     mock_execute_users = MagicMock()
-    mock_execute_users.return_value.data = [{'user_id': 'EXISTING'}]
+    mock_execute_users.side_effect = [
+        MagicMock(data=[{'user_id': 'DOC001', 'role': 'doctor'}]), # Doctor check
+        MagicMock(data=[{'user_id': 'PAT001', 'role': 'patient'}])  # Patient check
+    ]
     mock_client.table.return_value.select.return_value.eq.return_value.execute = mock_execute_users
 
     with patch('app.api.keys.key_pair_store') as mock_store:
