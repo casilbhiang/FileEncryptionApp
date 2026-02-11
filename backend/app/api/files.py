@@ -2,7 +2,6 @@
 from flask import Blueprint, request, jsonify, send_file
 from werkzeug.utils import secure_filename
 import os
-import imghdr
 import uuid
 from supabase import create_client
 from datetime import datetime, timedelta
@@ -58,15 +57,7 @@ def upload_file():
         
         original_filename = secure_filename(file.filename)
         file_ext = os.path.splitext(original_filename)[1].lower()
-        
-        # Validate MIME type using python-magic (inspect file header)
-        # For encrypted files, this is not needed as the content is encrypted (random bytes).
-        # We rely on the frontend to have validated the file signature before encryption.
-        # And we REQUIRE encryption_metadata to be present (checked earlier).
-        
-        # NOTE: encryption_metadata presence is checked at the start of this function.
-        # So we can proceed directly to upload.
-        
+          
         print(f"DEBUG: Encrypted upload for {file_ext}. Bypassing server-side content inspection.")
             
         file.seek(0, os.SEEK_END)
